@@ -61,6 +61,7 @@ export default function DeliveryPlan({ batchId, totalBoxes, records, lang, onRec
   const fileRef      = useRef<HTMLInputElement>(null)
   const xlsUpdateRef = useRef<HTMLInputElement>(null)
 
+  const [collapsed, setCollapsed]     = useState(true)
   const [showForm, setShowForm]       = useState(false)
   const [editRound, setEditRound]     = useState<EditRound | null>(null)
   const [rounds, setRounds]           = useState<RoundEntry[]>(() => [emptyRound(), emptyRound(), emptyRound(), emptyRound()])
@@ -130,7 +131,7 @@ export default function DeliveryPlan({ batchId, totalBoxes, records, lang, onRec
   function clearExcel() { setXlsResult(null); setXlsFileName(''); setXlsError(''); setRounds([emptyRound(), emptyRound(), emptyRound(), emptyRound()]) }
 
   // ── Add form helpers ─────────────────────────────────
-  function startAdd() { setEditRound(null); clearExcel(); setShowForm(true) }
+  function startAdd() { setCollapsed(false); setEditRound(null); clearExcel(); setShowForm(true) }
   function addRoundRow() { setRounds(prev => [...prev, emptyRound()]) }
   function updateRoundDate(idx: number, date: string) { setRounds(prev => prev.map((r, i) => i === idx ? { ...r, date } : r)) }
   function toggleRoundStore(idx: number, name: string) {
@@ -146,6 +147,7 @@ export default function DeliveryPlan({ batchId, totalBoxes, records, lang, onRec
 
   // ── Edit helpers ─────────────────────────────────────
   function startEdit(group: RoundGroup) {
+    setCollapsed(false)
     setEditRound({ roundNo: group.roundNo, date: group.date ?? '', stores: group.stores.map(s => ({ name: s.name, boxes: String(s.boxes) })), existingIds: group.ids })
     setShowForm(true)
   }
@@ -441,13 +443,24 @@ export default function DeliveryPlan({ batchId, totalBoxes, records, lang, onRec
         onChange={handleXlsUpdateFile}
       />
 
-      {/* Header */}
+      {/* Header — always visible, click label to toggle */}
       <div className="flex items-center justify-between gap-2 flex-wrap">
-        <p className="text-xs text-gray-400 font-medium">{T.deliveryPlan}</p>
+        <button
+          onClick={() => setCollapsed(c => !c)}
+          className="flex items-center gap-1.5 group"
+        >
+          <span className={`text-gray-300 text-xs transition-transform duration-200 ${collapsed ? '' : 'rotate-90'}`}>▶</span>
+          <span className="text-xs text-gray-400 font-medium group-hover:text-gray-600 transition-colors">
+            {T.deliveryPlan}
+            {roundGroups.length > 0 && collapsed && (
+              <span className="ml-1.5 text-gray-300">({roundGroups.length}{lang === 'ja' ? '回' : '輪'})</span>
+            )}
+          </span>
+        </button>
         <div className="flex items-center gap-1.5">
           {roundGroups.length > 0 && (
             <button
-              onClick={() => requireAuth(() => xlsUpdateRef.current?.click())}
+              onClick={() => requireAuth(() => { setCollapsed(false); xlsUpdateRef.current?.click() })}
               disabled={xlsUpdateParsing}
               className="flex items-center gap-1 text-xs px-2 py-1 bg-orange-50 text-orange-600 border border-orange-200 rounded-lg hover:bg-orange-100 font-medium transition-colors disabled:opacity-50"
             >
@@ -465,6 +478,9 @@ export default function DeliveryPlan({ batchId, totalBoxes, records, lang, onRec
       {xlsUpdateError && (
         <p className="text-xs text-red-500 bg-red-50 px-2.5 py-1.5 rounded-lg">⚠ {xlsUpdateError}</p>
       )}
+
+      {/* Collapsible content */}
+      {!collapsed && (<>
 
       {/* Validation badge */}
       {totalBoxes != null && (
@@ -739,7 +755,7 @@ export default function DeliveryPlan({ batchId, totalBoxes, records, lang, onRec
 
       {/* ── Form panel ── */}
       {showForm && (
-        <div className="bg-gray-50 border border-gray-200 rounded-xl p-3 space-y-3">
+        <div className="bg-gray-50 border border-gray-200 rounded-xl p-3 space-y-3 mt-2">
 
           {/* Edit single round */}
           {editRound ? (
@@ -834,6 +850,8 @@ export default function DeliveryPlan({ batchId, totalBoxes, records, lang, onRec
           </div>
         </div>
       )}
+
+      </>)}
     </div>
   )
 }

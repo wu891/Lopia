@@ -133,19 +133,46 @@ export default function StoreList({ lang, allRecords, shipments }: Props) {
             <div>
               <p className="text-xs font-semibold text-gray-500 mb-2 uppercase tracking-wide">{T.comingSoon}</p>
               <div className="space-y-1">
-                {coming.map(store => (
-                  <div key={store.id} className="flex items-start gap-2 border border-dashed border-gray-200 rounded-lg px-3 py-2">
-                    <div className="flex-1 min-w-0">
-                      <p className="text-sm font-medium text-gray-500">
-                        {isJa ? store.name_ja : store.name_zh}
-                      </p>
-                      <p className="text-xs text-gray-400 truncate">{store.address_zh}</p>
-                    </div>
-                    <span className="text-xs bg-yellow-100 text-yellow-700 px-1.5 py-0.5 rounded-full shrink-0">
-                      {isJa ? 'まもなく' : '即將'}
-                    </span>
-                  </div>
-                ))}
+                {coming.map(store => {
+                  const sName = isJa ? store.name_ja : store.name_zh
+                  const futureCount = getFutureDeliveries(sName).length
+                  const isActive = selectedStore?.id === store.id
+                  return (
+                    <button
+                      key={store.id}
+                      type="button"
+                      onClick={() => setSelectedStore(isActive ? null : store)}
+                      className={`w-full text-left flex items-center gap-2 border border-dashed rounded-lg px-3 py-2 transition-all
+                        ${isActive
+                          ? 'bg-yellow-500 border-yellow-500'
+                          : 'border-gray-200 hover:border-yellow-300 hover:bg-yellow-50'
+                        }`}
+                    >
+                      <div className="flex-1 min-w-0">
+                        <p className={`text-sm font-medium ${isActive ? 'text-white' : 'text-gray-600'}`}>
+                          {sName}
+                        </p>
+                        <p className={`text-xs truncate ${isActive ? 'text-yellow-100' : 'text-gray-400'}`}>
+                          {store.address_zh}
+                        </p>
+                      </div>
+                      <div className="flex items-center gap-2 shrink-0">
+                        {futureCount > 0 ? (
+                          <span className={`text-xs px-1.5 py-0.5 rounded-full font-medium
+                            ${isActive ? 'bg-white text-yellow-600' : 'bg-yellow-400 text-white'}`}>
+                            {futureCount}
+                          </span>
+                        ) : (
+                          <span className={`text-xs px-1.5 py-0.5 rounded-full
+                            ${isActive ? 'bg-yellow-300 text-white' : 'bg-yellow-100 text-yellow-700'}`}>
+                            {isJa ? 'まもなく' : '即將'}
+                          </span>
+                        )}
+                        <span className={`text-xs ${isActive ? 'text-yellow-200' : 'text-gray-300'}`}>›</span>
+                      </div>
+                    </button>
+                  )
+                })}
               </div>
             </div>
           )}
