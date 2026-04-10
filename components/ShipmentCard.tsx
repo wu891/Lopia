@@ -4,7 +4,6 @@ import { Lang, t } from '@/lib/i18n'
 import TimelineProgress from './TimelineProgress'
 import DocumentStatus from './DocumentStatus'
 import InventoryBar from './InventoryBar'
-import InspectionStatus from './InspectionStatus'
 import DeliveryPlan from './DeliveryPlan'
 
 interface ShipmentCardProps {
@@ -80,17 +79,6 @@ export default function ShipmentCard({ shipment, lang, allRecords, onRecordChang
             <div><span className="text-gray-400">{T.warehouse}：</span><span className="text-gray-700">{shipment.warehouse}</span></div>
           )}
         </div>
-
-        {/* Quarantine badge */}
-        {shipment.quarantine && shipment.quarantine !== '合格' && (
-          <div className="flex items-center gap-1.5 text-xs">
-            <span className="text-gray-400">{T.quarantine}：</span>
-            <StatusBadge value={shipment.quarantine} colorMap={QUARANTINE_COLORS} />
-          </div>
-        )}
-
-        {/* Inspection status (radiation / pesticide / fumigation) */}
-        <InspectionStatus shipment={shipment} lang={lang} />
 
         {/* Inventory bar */}
         <InventoryBar

@@ -1,7 +1,21 @@
-import { NextResponse } from 'next/server'
-import { getShipments, getShipmentRecords } from '@/lib/notion'
+import { NextRequest, NextResponse } from 'next/server'
+import { getShipments, getShipmentRecords, createShipment } from '@/lib/notion'
 
 export const dynamic = 'force-dynamic' // always fetch fresh from Notion
+
+export async function POST(req: NextRequest) {
+  try {
+    const data = await req.json()
+    if (!data.ivName?.trim()) {
+      return NextResponse.json({ error: 'Missing batch name' }, { status: 400 })
+    }
+    const shipment = await createShipment(data)
+    return NextResponse.json({ shipment })
+  } catch (err) {
+    console.error(err)
+    return NextResponse.json({ error: 'Failed to create shipment' }, { status: 500 })
+  }
+}
 
 export async function GET() {
   try {

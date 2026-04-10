@@ -41,10 +41,6 @@ export default function Header({ lang, setLang, lastUpdated, onRefresh }: Header
           <LanguageToggle lang={lang} setLang={setLang} />
         </div>
       </div>
-      {/* Auto-refresh notice */}
-      <div className="bg-lopia-red-light border-b border-red-100 px-4 py-1 text-center">
-        <span className="text-xs text-lopia-red">{T.autoRefresh}</span>
-      </div>
     </header>
   )
 }

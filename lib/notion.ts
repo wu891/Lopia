@@ -216,3 +216,41 @@ export async function updateShipmentRecord(id: string, data: Partial<{
 export async function deleteShipmentRecord(id: string) {
   await notion.pages.update({ page_id: id, archived: true })
 }
+
+// ── Create Shipment (new batch) ───────────────────────────────────────────────
+
+export async function createShipment(data: {
+  ivName: string
+  supplier?: string
+  flightNo?: string
+  awbNo?: string
+  warehouse?: string
+  departJP?: string
+  arrivalTW?: string
+  estClearance?: string
+  totalBoxes?: number
+  productSummary?: string
+  remarks?: string
+}) {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const props: any = {
+    'IV Name': { title: [{ text: { content: data.ivName } }] },
+    '配送狀態': { select: { name: '未到' } },
+  }
+  if (data.supplier)       props['供應商']     = { select: { name: data.supplier } }
+  if (data.flightNo)       props['班機號']     = { rich_text: [{ text: { content: data.flightNo } }] }
+  if (data.awbNo)          props['AWB／船次號'] = { rich_text: [{ text: { content: data.awbNo } }] }
+  if (data.warehouse)      props['倉庫']       = { select: { name: data.warehouse } }
+  if (data.departJP)       props['日本出發日'] = { date: { start: data.departJP } }
+  if (data.arrivalTW)      props['抵台日']     = { date: { start: data.arrivalTW } }
+  if (data.estClearance)   props['預計出關日'] = { date: { start: data.estClearance } }
+  if (data.totalBoxes != null) props['入倉箱數'] = { number: data.totalBoxes }
+  if (data.productSummary) props['商品摘要']   = { rich_text: [{ text: { content: data.productSummary } }] }
+  if (data.remarks)        props['備註']       = { rich_text: [{ text: { content: data.remarks } }] }
+
+  const page = await notion.pages.create({
+    parent: { database_id: IMPORT_STATUS_DB },
+    properties: props,
+  })
+  return pageToShipment(page)
+}

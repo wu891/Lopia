@@ -4,6 +4,7 @@ import { ShipmentRecord } from '@/lib/notion'
 import { Lang, t } from '@/lib/i18n'
 import { STORES } from '@/lib/stores'
 import { parseDeliveryExcel, ParsedDeliveryRound } from '@/lib/parseDeliveryExcel'
+import PasswordModal, { isAuthed, logChange } from './PasswordModal'
 
 interface Props {
   batchId: string
@@ -52,6 +53,9 @@ export default function DeliveryPlan({ batchId, totalBoxes, records, lang, onRec
   const [deletingRound, setDeletingRound] = useState<number | null>(null)
   // Which round row is expanded in the table
   const [expandedRound, setExpandedRound] = useState<number | null>(null)
+  // Password protection
+  const [showPassword, setShowPassword]   = useState(false)
+  const [pendingAction, setPendingAction] = useState<(() => void) | null>(null)
 
   // Excel
   const [xlsParsing, setXlsParsing]   = useState(false)
@@ -127,6 +131,16 @@ export default function DeliveryPlan({ batchId, totalBoxes, records, lang, onRec
     setEditRound(f => f ? { ...f, stores: f.stores.map(s => s.name === name ? { ...s, boxes } : s) } : f)
   }
 
+  // ── Auth gate ─────────────────────────────────────────
+  function requireAuth(fn: () => void) {
+    if (isAuthed()) {
+      fn()
+    } else {
+      setPendingAction(() => fn)
+      setShowPassword(true)
+    }
+  }
+
   // ── Save ─────────────────────────────────────────────
   async function handleSave() {
     setSaving(true); setSaveError('')
@@ -141,6 +155,12 @@ export default function DeliveryPlan({ batchId, totalBoxes, records, lang, onRec
         )
         const err = (await Promise.all(res.map(async r => r.ok ? null : (await r.json().catch(() => ({}))).error ?? `HTTP ${r.status}`))).find(Boolean)
         if (err) { setSaveError(`儲存失敗：${err}`); return }
+        // Log edit
+        await logChange(
+          '編輯出貨計畫',
+          batchId,
+          `第 ${editRound.roundNo} 次 / 日期: ${editRound.date} / 店數: ${editRound.stores.length}`,
+        )
       } else {
         const valid = rounds.filter(r => r.date && r.stores.some(s => s.boxes && Number(s.boxes) > 0))
         if (!valid.length) return
@@ -156,17 +176,33 @@ export default function DeliveryPlan({ batchId, totalBoxes, records, lang, onRec
           if (err) { setSaveError(`第 ${nextRoundNo + offset} 次儲存失敗：${err}`); return }
           offset++
         }
+        // Log add
+        await logChange(
+          '新增出貨計畫',
+          batchId,
+          `新增 ${valid.length} 個輪次`,
+        )
       }
       cancelForm(); onRecordChange()
     } catch (e) { setSaveError(`網路錯誤：${e instanceof Error ? e.message : String(e)}`)
     } finally { setSaving(false) }
   }
 
-  async function handleDeleteRound(group: RoundGroup) {
-    if (!confirm(T.confirmDelete)) return
+  async function doDeleteRound(group: RoundGroup) {
     setDeletingRound(group.roundNo)
-    try { await Promise.all(group.ids.map(id => fetch(`/api/records/${id}`, { method: 'DELETE' }))); onRecordChange()
+    try {
+      await Promise.all(group.ids.map(id => fetch(`/api/records/${id}`, { method: 'DELETE' })))
+      await logChange(
+        '刪除出貨計畫',
+        batchId,
+        `第 ${group.roundNo} 次 / 日期: ${group.date ?? '—'} / ${group.totalBoxes} 箱`,
+      )
+      onRecordChange()
     } finally { setDeletingRound(null) }
+  }
+
+  function handleDeleteRound(group: RoundGroup) {
+    requireAuth(() => doDeleteRound(group))
   }
 
   function cancelForm() { setShowForm(false); setEditRound(null); setSaveError(''); clearExcel() }
@@ -251,6 +287,17 @@ export default function DeliveryPlan({ batchId, totalBoxes, records, lang, onRec
 
   return (
     <div className="space-y-2">
+      {/* Password modal */}
+      {showPassword && (
+        <PasswordModal
+          lang={lang}
+          onSuccess={() => {
+            setShowPassword(false)
+            if (pendingAction) { pendingAction(); setPendingAction(null) }
+          }}
+          onCancel={() => { setShowPassword(false); setPendingAction(null) }}
+        />
+      )}
 
       {/* Header */}
       <div className="flex items-center justify-between">
@@ -436,7 +483,7 @@ export default function DeliveryPlan({ batchId, totalBoxes, records, lang, onRec
 
           {/* Save / Cancel */}
           <div className="flex gap-2 pt-1">
-            <button onClick={handleSave} disabled={editRound ? editSaveDisabled : addSaveDisabled}
+            <button onClick={() => requireAuth(handleSave)} disabled={editRound ? editSaveDisabled : addSaveDisabled}
               className="flex-1 py-1.5 bg-lopia-red text-white text-xs font-medium rounded-lg hover:bg-lopia-red-dark disabled:opacity-40 transition-colors">
               {saving ? '...' : T.saveRound}
             </button>
