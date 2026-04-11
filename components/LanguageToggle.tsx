@@ -3,19 +3,23 @@ import { Lang } from '@/lib/i18n'
 
 export default function LanguageToggle({ lang, setLang }: { lang: Lang; setLang: (l: Lang) => void }) {
   return (
-    <div className="flex items-center gap-1 bg-gray-100 rounded-full p-0.5">
+    <div className="flex border border-gray-200 rounded-md overflow-hidden">
       <button
         onClick={() => setLang('zh')}
-        className={`px-3 py-1 rounded-full text-sm font-medium transition-all ${
-          lang === 'zh' ? 'bg-white shadow text-lopia-red font-bold' : 'text-gray-500 hover:text-gray-700'
+        className={`px-3 py-1.5 text-xs font-medium transition-colors cursor-pointer ${
+          lang === 'zh'
+            ? 'bg-lopia-red text-white'
+            : 'bg-white text-gray-500 hover:bg-gray-50'
         }`}
       >
         中文
       </button>
       <button
         onClick={() => setLang('ja')}
-        className={`px-3 py-1 rounded-full text-sm font-medium transition-all ${
-          lang === 'ja' ? 'bg-white shadow text-lopia-red font-bold' : 'text-gray-500 hover:text-gray-700'
+        className={`px-3 py-1.5 text-xs font-medium transition-colors cursor-pointer border-l border-gray-200 ${
+          lang === 'ja'
+            ? 'bg-lopia-red text-white'
+            : 'bg-white text-gray-500 hover:bg-gray-50'
         }`}
       >
         日本語
