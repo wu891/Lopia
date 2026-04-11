@@ -1,5 +1,5 @@
 'use client'
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useRef } from 'react'
 import { Shipment, ShipmentRecord } from '@/lib/notion'
 
 interface RoundGroup {
@@ -200,14 +200,49 @@ function RoundRow({
 function BatchCard({
   shipment,
   records,
+  onRefresh,
 }: {
   shipment: Shipment & { shippedBoxes?: number }
   records: ShipmentRecord[]
+  onRefresh: () => void
 }) {
   const [open, setOpen] = useState(false)
+  const [uploading, setUploading] = useState(false)
+  const [uploadMsg, setUploadMsg] = useState<{ ok: boolean; text: string } | null>(null)
+  const fileInputRef = useRef<HTMLInputElement>(null)
+
   const batchRecords = records.filter(r => r.batchId === shipment.id)
   const rounds = groupRecordsByRound(batchRecords)
   const arrivalStr = shipment.arrivalTW?.slice(5).replace('-', '/') ?? '—'
+
+  async function handleFileChange(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0]
+    if (!file) return
+    setUploading(true)
+    setUploadMsg(null)
+    try {
+      const form = new FormData()
+      form.append('file', file)
+      form.append('batch', shipment.ivName)
+      form.append('docType', '供應商配送Excel')
+      const upRes = await fetch('/api/upload', { method: 'POST', body: form })
+      if (!upRes.ok) throw new Error('上傳失敗')
+      const { fileId } = await upRes.json()
+      const saveRes = await fetch('/api/shipments/supplier-excel', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ batchId: shipment.id, fileId }),
+      })
+      if (!saveRes.ok) throw new Error('儲存失敗')
+      setUploadMsg({ ok: true, text: '✓ 供應商 Excel 已更新' })
+      onRefresh()
+    } catch (err) {
+      setUploadMsg({ ok: false, text: err instanceof Error ? err.message : '上傳失敗' })
+    } finally {
+      setUploading(false)
+      if (fileInputRef.current) fileInputRef.current.value = ''
+    }
+  }
 
   const DELIVERY_COLOR: Record<string, string> = {
     '待出貨': 'bg-gray-100 text-gray-500',
@@ -293,6 +328,41 @@ function BatchCard({
                 />
               ))
             )}
+          </div>
+
+          {/* Bottom bar: upload supplier Excel */}
+          <div className="border-t border-gray-100 px-4 py-2.5 flex items-center justify-end gap-3">
+            {uploadMsg && (
+              <span className={`text-xs ${uploadMsg.ok ? 'text-emerald-600' : 'text-red-500'}`}>
+                {uploadMsg.text}
+              </span>
+            )}
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept=".xlsx,.xls"
+              className="hidden"
+              onChange={handleFileChange}
+            />
+            <button
+              onClick={() => fileInputRef.current?.click()}
+              disabled={uploading}
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-gray-200 text-xs font-medium text-gray-600 hover:border-lopia-red hover:text-lopia-red transition-colors disabled:opacity-40"
+            >
+              {uploading ? (
+                <svg className="animate-spin w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                  <circle cx="12" cy="12" r="10" strokeOpacity="0.25"/>
+                  <path d="M12 2a10 10 0 0 1 10 10" strokeOpacity="0.75"/>
+                </svg>
+              ) : (
+                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+                  <polyline points="17 8 12 3 7 8"/>
+                  <line x1="12" y1="3" x2="12" y2="15"/>
+                </svg>
+              )}
+              {uploading ? '上傳中...' : shipment.supplierExcelId ? '重新上傳供應商 Excel' : '上傳供應商 Excel'}
+            </button>
           </div>
         </div>
       </div>
@@ -427,7 +497,7 @@ export default function OrdersPage() {
         ) : (
           <div className="space-y-3">
             {filtered.map(s => (
-              <BatchCard key={s.id} shipment={s} records={records} />
+              <BatchCard key={s.id} shipment={s} records={records} onRefresh={fetchData} />
             ))}
           </div>
         )}
