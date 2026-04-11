@@ -41,6 +41,14 @@ export default function Header({ lang, setLang, lastUpdated }: HeaderProps) {
             </span>
           )}
           <a
+            href="/orders"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="flex items-center text-xs text-gray-500 hover:text-lopia-red transition-colors px-2.5 py-1.5 rounded-md hover:bg-lopia-red-light border border-gray-200 hover:border-lopia-red cursor-pointer font-medium"
+          >
+            出貨單
+          </a>
+          <a
             href="/portal"
             target="_blank"
             rel="noopener noreferrer"
