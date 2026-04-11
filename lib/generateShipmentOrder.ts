@@ -1,242 +1,385 @@
 /**
  * generateShipmentOrder
  *
- * Generates a LOPIA 出貨單 Excel workbook in the Trade Media Japan format.
- * One sheet per store + a 總量 summary sheet.
+ * Generates a LOPIA 出貨單 Excel workbook using exceljs for full styling support.
+ * Layout matches the reference file S2026041201_草莓37_店鋪貨單.xlsx
+ * One sheet per store + a 總表 summary sheet.
  */
 
-import { STORES } from './stores'
+import ExcelJS from 'exceljs'
 import { ParsedProduct } from './parseDeliveryExcel'
 
-// ── Trade Media Japan company info (static header) ─────────────────────────
-
+// ── Company info ───────────────────────────────────────────────────────────────
 const COMPANY_NAME = '日商夢多貿易股份有限公司台灣分公司'
-const COMPANY_ADDRESS = '地址：台北市信義區信義路五段五號5D17'
-const COMPANY_PHONE = '電話：02-2720-0322'
-const COMPANY_URL = ''
+const COMPANY_INFO = 'TEL: 02-2720-0322　　台北市信義區信義路五段五號5D17'
 
-// ── Store display name mapping for 出貨單 ──────────────────────���──────────
+// ── Colours ────────────────────────────────────────────────────────────────────
+const C_BLUE_LIGHT = 'FFEBF3FB'  // header bg
+const C_BLUE_DARK  = 'FF1F3864'  // table header bg
+const C_GRAY       = 'FFD9D9D9'  // total row bg
+const C_GRAY_LIGHT = 'FFF2F2F2'  // summary total columns
+const C_WHITE      = 'FFFFFFFF'
+const C_RED_STORE  = 'FFC0392B'  // store name accent
 
-const STORE_DISPLAY_MAP: Record<string, string> = {
-  'LaLaport 台中店': 'LOPIA 台中店',
-  '桃園春日店': 'LOPIA 桃園店',
-  '新北中和環球店': 'LOPIA 中和店',
-  '新莊宏匯店': 'LOPIA 新荘店',
-  '高雄漢神巨蛋店': 'LOPIA 高雄巨蛋店',
-  '南港 LaLaport 店': 'LOPIA 南港店',
-  'IKEA 台中南屯店': 'LOPIA IKEA台中店',
-  '高雄夢時代店': 'LOPIA 夢時代店',
-  '台南小北門店': 'LOPIA 北門店',
-  '台南三井 Outlet 店': 'LOPIA MOP店',
-  '台中漢神中港店': 'LOPIA 漢神中港店',
-  '台北大巨蛋店': 'LOPIA 台北巨蛋店',
-  '台南 SOGO 新天店': 'LOPIA 台南SOGO店',
-  '高雄漢神百貨店': 'LOPIA 高雄漢神店',
-}
-
-// Short store name for 總量 sheet column headers
+// ── Store mappings ─────────────────────────────────────────────────────────────
 const STORE_SHORT_MAP: Record<string, string> = {
-  'LaLaport 台中店': '台中',
-  '桃園春日店': '桃園',
-  '新北中和環球店': '中和',
-  '新莊宏匯店': '新莊',
-  '高雄漢神巨蛋店': '巨蛋',
-  '南港 LaLaport 店': '南港',
-  'IKEA 台中南屯店': 'IKEA',
-  '高雄夢時代店': '夢時',
-  '台南小北門店': '北門',
-  '台南三井 Outlet 店': 'MOP',
-  '台中漢神中港店': '漢神',
-  '台北大巨蛋店': '北蛋',
-  '台南 SOGO 新天店': 'SOGO',
-  '高雄漢神百貨店': '高漢',
+  'LaLaport 台中店':      '台中',
+  '桃園春日店':            '桃園',
+  '新北中和環球店':        '中和',
+  '新莊宏匯店':            '新荘',
+  '高雄漢神巨蛋店':        '巨蛋',
+  '南港 LaLaport 店':     '南港',
+  'IKEA 台中南屯店':       'IKEA',
+  '高雄夢時代店':          '夢時代',
+  '台南小北門店':          '北門',
+  '台南三井 Outlet 店':   'MOP',
+  '台中漢神中港店':        '漢神',
+  '台北大巨蛋店':          '北蛋',
+  '台南 SOGO 新天店':     'SOGO',
+  '高雄漢神百貨店':        '高漢',
 }
 
-// Excel sheet name (max 31 chars, no special chars)
-const STORE_SHEET_MAP: Record<string, string> = {
-  'LaLaport 台中店': '台中',
-  '桃園春日店': '桃園',
-  '新北中和環球店': '中和',
-  '新莊宏匯店': '新莊',
-  '高雄漢神巨蛋店': '巨蛋',
-  '南港 LaLaport 店': '南港',
-  'IKEA 台中南屯店': 'IKEA',
-  '高雄夢時代店': '夢時',
-  '台南小北門店': '北門',
-  '台南三井 Outlet 店': 'MOP',
-  '台中漢神中港店': '漢神',
-  '台北大巨蛋店': '北蛋',
-  '台南 SOGO 新天店': 'SOGO',
-  '高雄漢神百貨店': '高漢',
-}
+const STORE_SHEET_MAP: Record<string, string> = { ...STORE_SHORT_MAP }
 
 export interface StoreOrder {
-  storeName: string      // Full store name from STORES
+  storeName: string      // Full store name
   products: ParsedProduct[]
   deliveryDate: string   // YYYY-MM-DD
 }
 
-function getStoreAddress(storeName: string): string {
-  const store = STORES.find(s => s.name_zh === storeName)
-  return store?.address_zh ?? ''
-}
-
-function dateToExcelSerial(dateStr: string): number {
-  // Excel serial date: days since 1899-12-30
-  const d = new Date(dateStr + 'T00:00:00')
-  const epoch = new Date('1899-12-30T00:00:00')
-  return Math.round((d.getTime() - epoch.getTime()) / (1000 * 60 * 60 * 24))
-}
-
-function formatDateForDisplay(dateStr: string): string {
-  // YYYY-MM-DD → YYYY/MM/DD
+function fmtDate(dateStr: string): string {
   return dateStr.replace(/-/g, '/')
 }
 
-export function generateShipmentOrder(
-  storeOrders: StoreOrder[],
-  shipmentNo: string,
-  batchName: string,
-): ArrayBuffer {
-  // Dynamic import not needed server-side; xlsx is already available
-  // eslint-disable-next-line @typescript-eslint/no-require-imports
-  const XLSX = require('xlsx')
+// ── Style helpers ──────────────────────────────────────────────────────────────
 
-  const wb = XLSX.utils.book_new()
+function fill(argb: string): ExcelJS.Fill {
+  return { type: 'pattern', pattern: 'solid', fgColor: { argb } }
+}
 
-  // ── Per-store sheets ────────────────────��─────────────────────────────────
+function border(style: ExcelJS.BorderStyle = 'thin'): Partial<ExcelJS.Borders> {
+  const s = { style } as ExcelJS.Border
+  return { top: s, bottom: s, left: s, right: s }
+}
 
-  for (const order of storeOrders) {
-    const displayName = STORE_DISPLAY_MAP[order.storeName] ?? order.storeName
-    const sheetName = STORE_SHEET_MAP[order.storeName] ?? order.storeName.slice(0, 31)
-    const address = getStoreAddress(order.storeName)
-    const dateSerial = dateToExcelSerial(order.deliveryDate)
-
-    // Build rows
-    const rows: (string | number | null)[][] = []
-    // Row 0: Company name
-    rows.push([COMPANY_NAME, null, null, null, null, null, null, null])
-    // Row 1-2: empty
-    rows.push([null, null, null, null, null, null, null, null])
-    rows.push([null, null, null, null, null, null, null, null])
-    // Row 3: 出貨明細 + address
-    rows.push(['出貨明細', null, null, COMPANY_ADDRESS, null, null, null, null])
-    // Row 4: phone
-    rows.push([null, null, null, COMPANY_PHONE, null, null, null, null])
-    // Row 5: website
-    rows.push([null, null, null, COMPANY_URL, null, null, null, null])
-    // Row 6: customer + date
-    rows.push(['客戶名稱：', displayName, null, '出貨日期：', dateSerial, null, null, null])
-    // Row 7: tax ID + shipment no
-    rows.push(['客戶統編：', null, null, '出貨單號：', shipmentNo, null, null, null])
-    // Row 8: delivery address + method
-    rows.push(['客戶送貨地址：', address, null, '送貨方式：', '貨運', null, null, null])
-    // Row 9-11: contact info (blank for now)
-    rows.push(['客戶連絡人：', '', null, '銷售員：', '', null, null, null])
-    rows.push(['客戶電話：', '', null, null, '', null, null, null])
-    rows.push(['客戶EMAIK：', '', null, null, null, null, null, null])
-    // Row 12: empty
-    rows.push([null, null, null, null, null, null, null, null])
-    // Row 13: header
-    rows.push(['日期', '商品類別', '商品名稱', '箱入數', '箱數', '單價', '總金額', '備註'])
-    // Row 14+: products
-    let totalAmount = 0
-    for (const p of order.products) {
-      const amount = p.quantity * p.unitPrice
-      totalAmount += amount
-      rows.push([
-        dateSerial,
-        p.category,
-        p.name,
-        p.boxSpec,
-        p.quantity,
-        p.unitPrice,
-        amount,
-        null,
-      ])
+function applyRow(
+  row: ExcelJS.Row,
+  opts: {
+    bg?: string
+    bold?: boolean
+    color?: string
+    size?: number
+    align?: ExcelJS.Alignment['horizontal']
+    valign?: ExcelJS.Alignment['vertical']
+    wrapText?: boolean
+    borders?: boolean
+    height?: number
+  }
+) {
+  if (opts.height) row.height = opts.height
+  row.eachCell({ includeEmpty: true }, (cell) => {
+    if (opts.bg)    cell.fill = fill(opts.bg)
+    if (opts.bold !== undefined || opts.color || opts.size) {
+      cell.font = {
+        ...(cell.font ?? {}),
+        bold: opts.bold ?? false,
+        color: opts.color ? { argb: opts.color } : undefined,
+        size: opts.size,
+        name: 'Arial',
+      }
     }
-    // Empty rows to match template
-    for (let i = 0; i < Math.max(0, 10 - order.products.length); i++) {
-      rows.push([null, null, null, null, null, null, null, null])
+    if (opts.align || opts.valign || opts.wrapText) {
+      cell.alignment = {
+        horizontal: opts.align ?? 'left',
+        vertical: opts.valign ?? 'middle',
+        wrapText: opts.wrapText ?? false,
+      }
     }
-    // Total row
-    rows.push(['總　計：', null, null, null, '含稅', null, totalAmount, null])
-    // Remarks
-    rows.push(['備註', null, null, null, null, null, null, null])
+    if (opts.borders) cell.border = border()
+  })
+}
 
-    const ws = XLSX.utils.aoa_to_sheet(rows)
+function styleCell(
+  ws: ExcelJS.Worksheet,
+  ref: string,
+  opts: {
+    bg?: string; bold?: boolean; color?: string; size?: number
+    align?: ExcelJS.Alignment['horizontal']
+    valign?: ExcelJS.Alignment['vertical']
+    numFmt?: string; border?: boolean
+  }
+) {
+  const cell = ws.getCell(ref)
+  if (opts.bg)    cell.fill = fill(opts.bg)
+  if (opts.bold !== undefined || opts.color || opts.size) {
+    cell.font = { bold: opts.bold, color: opts.color ? { argb: opts.color } : undefined, size: opts.size, name: 'Arial' }
+  }
+  if (opts.align || opts.valign) cell.alignment = { horizontal: opts.align, vertical: opts.valign ?? 'middle' }
+  if (opts.numFmt) cell.numFmt = opts.numFmt
+  if (opts.border) cell.border = border()
+}
 
-    // Set column widths
-    ws['!cols'] = [
-      { wch: 14 }, // 日期
-      { wch: 14 }, // 商品類別
-      { wch: 36 }, // 商品名稱
-      { wch: 10 }, // 箱入數
-      { wch: 8 },  // 箱數
-      { wch: 10 }, // 單價
-      { wch: 12 }, // 總金額
-      { wch: 10 }, // 備註
-    ]
+// ── Per-store sheet ────────────────────────────────────────────────────────────
 
-    XLSX.utils.book_append_sheet(wb, ws, sheetName)
+function addStoreSheet(wb: ExcelJS.Workbook, order: StoreOrder, shipmentNo: string) {
+  const sheetName = STORE_SHEET_MAP[order.storeName] ?? order.storeName.slice(0, 31)
+  const shortName = STORE_SHORT_MAP[order.storeName] ?? order.storeName
+  const dateStr   = fmtDate(order.deliveryDate)
+
+  const ws = wb.addWorksheet(sheetName, { views: [{ showGridLines: false }] })
+
+  ws.columns = [
+    { key: 'name',    width: 36 },
+    { key: 'spec',    width: 10 },
+    { key: 'qty',     width: 8  },
+    { key: 'price',   width: 14 },
+    { key: 'amount',  width: 14 },
+  ]
+
+  // R1 — company name
+  ws.addRow([COMPANY_NAME, '', '', '', ''])
+  ws.mergeCells('A1:E1')
+  applyRow(ws.getRow(1), { bg: C_BLUE_LIGHT, bold: true, size: 13, align: 'center', valign: 'middle', height: 22 })
+
+  // R2 — tel + address
+  ws.addRow([COMPANY_INFO, '', '', '', ''])
+  ws.mergeCells('A2:E2')
+  applyRow(ws.getRow(2), { bg: C_BLUE_LIGHT, size: 10, align: 'center', valign: 'middle', height: 16 })
+
+  // R3 — spacer
+  ws.addRow([''])
+  ws.getRow(3).height = 8
+
+  // R4 — title
+  ws.addRow(['出貨單 / 納品書', '', '', '', ''])
+  ws.mergeCells('A4:E4')
+  applyRow(ws.getRow(4), { bold: true, size: 16, color: C_BLUE_DARK, align: 'center', valign: 'middle', height: 28 })
+  ws.getCell('A4').border = { bottom: { style: 'medium', color: { argb: C_BLUE_DARK } } }
+
+  // R5 — shipment no
+  ws.addRow(['出貨單號：', shipmentNo, '', '', ''])
+  applyRow(ws.getRow(5), { valign: 'middle', height: 18 })
+  styleCell(ws, 'A5', { color: 'FF888888', size: 11 })
+  styleCell(ws, 'B5', { bold: true, size: 11 })
+
+  // R6 — date
+  ws.addRow(['配送日期：', dateStr, '', '', ''])
+  applyRow(ws.getRow(6), { valign: 'middle', height: 18 })
+  styleCell(ws, 'A6', { color: 'FF888888', size: 11 })
+  styleCell(ws, 'B6', { bold: true, size: 11 })
+
+  // R7 — store name
+  ws.addRow(['收貨店鋪：', shortName, '', '', ''])
+  applyRow(ws.getRow(7), { valign: 'middle', height: 20 })
+  styleCell(ws, 'A7', { color: 'FF888888', size: 11 })
+  styleCell(ws, 'B7', { bold: true, size: 13, color: C_RED_STORE })
+
+  // R8 — spacer
+  ws.addRow([''])
+  ws.getRow(8).height = 6
+
+  // R9 — table header
+  ws.addRow(['商品名稱', '入數(玉)', '箱數', '單價(TWD/箱)', '小計(TWD)'])
+  applyRow(ws.getRow(9), {
+    bg: C_BLUE_DARK, bold: true, color: C_WHITE, size: 11,
+    align: 'center', valign: 'middle', borders: true, height: 20
+  })
+  ws.getCell('A9').alignment = { horizontal: 'left', vertical: 'middle' }
+
+  // R10+ products
+  let totalQty = 0
+  let totalAmt = 0
+  let prodRowStart = 10
+
+  for (let i = 0; i < order.products.length; i++) {
+    const p = order.products[i]
+    const amt = p.quantity > 0 ? p.quantity * p.unitPrice : null
+    totalQty += p.quantity
+    if (amt) totalAmt += amt
+
+    const row = ws.addRow([p.name, p.boxSpec || '—', p.quantity || 0, p.unitPrice || 0, amt ?? 0])
+    row.height = 18
+
+    const isAlt = i % 2 === 1
+    row.eachCell({ includeEmpty: true }, (cell, col) => {
+      if (isAlt) cell.fill = fill('FFFAFAFA')
+      cell.border = border()
+      cell.alignment = { vertical: 'middle', horizontal: col === 1 ? 'left' : 'center' }
+      cell.font = { name: 'Arial', size: 11 }
+    })
+
+    // Dim zero-box rows
+    if (p.quantity === 0) {
+      ;['A','B','C','D','E'].forEach(c => {
+        const cell = ws.getCell(`${c}${9 + i + 1}`)
+        cell.font = { ...cell.font, color: { argb: 'FFBBBBBB' } }
+      })
+    }
+
+    // Number formats
+    const rowNum = prodRowStart + i
+    ws.getCell(`D${rowNum}`).numFmt = '#,##0'
+    ws.getCell(`E${rowNum}`).numFmt = '#,##0'
   }
 
-  // ── 總量 summary sheet ────────────────────────────────────────────────────
+  // Total row
+  const totalRow = ws.addRow(['合　計', '', totalQty, '箱', totalAmt])
+  totalRow.height = 20
+  applyRow(totalRow, { bg: C_GRAY, bold: true, borders: true, valign: 'middle' })
+  totalRow.getCell(1).alignment = { horizontal: 'left', vertical: 'middle' }
+  totalRow.getCell(3).alignment = { horizontal: 'center', vertical: 'middle' }
+  totalRow.getCell(4).alignment = { horizontal: 'center', vertical: 'middle' }
+  totalRow.getCell(5).numFmt = '#,##0'
+  totalRow.getCell(5).alignment = { horizontal: 'right', vertical: 'middle' }
 
-  // Collect all unique product names across all stores
-  const allProducts = new Map<string, { unitPrice: number; category: string }>()
+  // Merge 合計 A+B
+  const totalRowNum = 9 + order.products.length + 1
+  ws.mergeCells(`A${totalRowNum}:B${totalRowNum}`)
+
+  // Spacer
+  ws.addRow([''])
+
+  // Sign row
+  const signRow = ws.addRow(['收貨簽名：___________________________　　日期：___________'])
+  ws.mergeCells(`A${totalRowNum + 2}:E${totalRowNum + 2}`)
+  signRow.height = 22
+  signRow.getCell(1).font = { name: 'Arial', size: 11 }
+  signRow.getCell(1).alignment = { vertical: 'middle' }
+  signRow.getCell(1).border = { top: { style: 'thin', color: { argb: 'FFEEEEEE' } } }
+}
+
+// ── Summary sheet (總表) ───────────────────────────────────────────────────────
+
+function addSummarySheet(wb: ExcelJS.Workbook, storeOrders: StoreOrder[], shipmentNo: string) {
+  const ws = wb.addWorksheet('總表', { views: [{ showGridLines: false }] })
+  const dateStr = storeOrders.length > 0 ? fmtDate(storeOrders[0].deliveryDate) : ''
+  const shortNames = storeOrders.map(o => STORE_SHORT_MAP[o.storeName] ?? o.storeName)
+  const totalCols = 3 + shortNames.length + 2  // 商品名+入數+單價 + stores + 總箱+總金額
+
+  // Collect products (preserve order from first store)
+  const productKeys: string[] = []
+  const productMap = new Map<string, { boxSpec: string; unitPrice: number }>()
   for (const order of storeOrders) {
     for (const p of order.products) {
-      if (!allProducts.has(p.name)) {
-        allProducts.set(p.name, { unitPrice: p.unitPrice, category: p.category })
+      if (!productMap.has(p.name)) {
+        productMap.set(p.name, { boxSpec: p.boxSpec, unitPrice: p.unitPrice })
+        productKeys.push(p.name)
       }
     }
   }
-  const productNames = Array.from(allProducts.keys())
 
-  // Build header: [日期, 商品名, store1, store2, ..., 總數量, 商品單價, 總金額]
-  const storeNames = storeOrders.map(o => STORE_SHORT_MAP[o.storeName] ?? o.storeName.slice(0, 4))
-  const summaryHeader = ['', ...storeNames, '總數量', '商品單價', '總金額']
-
-  // First row: header with store names
-  const summaryRows: (string | number | null)[][] = [
-    ['店舗', ...storeNames, '總數量', '商品單價', '總金額'],
+  // Set column widths
+  ws.columns = [
+    { key: 'name',  width: 36 },
+    { key: 'spec',  width: 10 },
+    { key: 'price', width: 12 },
+    ...shortNames.map(() => ({ width: 8 })),
+    { key: 'total', width: 10 },
+    { key: 'amt',   width: 14 },
   ]
 
-  // One row per product
-  const dateSerial = storeOrders.length > 0 ? dateToExcelSerial(storeOrders[0].deliveryDate) : 0
-  for (const pName of productNames) {
-    const info = allProducts.get(pName)!
-    const row: (string | number | null)[] = [dateSerial, pName]
+  // R1 — title
+  ws.addRow([`出貨總表　${dateStr}　${shipmentNo}`, ...Array(totalCols - 1).fill('')])
+  ws.mergeCells(1, 1, 1, totalCols)
+  applyRow(ws.getRow(1), { bg: C_BLUE_LIGHT, bold: true, size: 13, align: 'center', valign: 'middle', height: 22 })
+
+  // R2 — header
+  ws.addRow(['商品名稱', '入數(玉)', '單價(TWD)', ...shortNames, '總箱數', '總金額(TWD)'])
+  const hRow = ws.getRow(2)
+  hRow.height = 20
+  hRow.eachCell({ includeEmpty: true }, (cell, col) => {
+    cell.fill   = fill(col >= 4 + shortNames.length ? C_BLUE_DARK : C_BLUE_DARK)
+    cell.font   = { bold: true, color: { argb: C_WHITE }, size: 11, name: 'Arial' }
+    cell.border = border()
+    cell.alignment = { horizontal: col === 1 ? 'left' : 'center', vertical: 'middle' }
+  })
+
+  // R3+ product rows
+  for (let i = 0; i < productKeys.length; i++) {
+    const pName = productKeys[i]
+    const info = productMap.get(pName)!
     let totalQty = 0
-    for (const order of storeOrders) {
+    const storeCounts = storeOrders.map(order => {
       const found = order.products.find(p => p.name === pName)
-      const qty = found?.quantity ?? 0
-      row.push(qty || '')
-      totalQty += qty
-    }
-    row.push(totalQty, info.unitPrice, totalQty * info.unitPrice)
-    summaryRows.push(row)
+      const q = found?.quantity ?? 0
+      totalQty += q
+      return q
+    })
+    const totalAmt = totalQty * info.unitPrice
+
+    const row = ws.addRow([pName, info.boxSpec || '—', info.unitPrice, ...storeCounts, totalQty, totalAmt])
+    row.height = 18
+    row.eachCell({ includeEmpty: true }, (cell, col) => {
+      if (i % 2 === 1) cell.fill = fill('FFFAFAFA')
+      cell.border = border()
+      cell.font = { name: 'Arial', size: 11 }
+      cell.alignment = { horizontal: col === 1 ? 'left' : 'center', vertical: 'middle' }
+    })
+    // Highlight total + amount columns
+    const totalCol  = 3 + shortNames.length + 1
+    const amountCol = totalCol + 1
+    const rowNum = 2 + i + 1
+    ws.getCell(rowNum, totalCol).fill  = fill(C_GRAY_LIGHT)
+    ws.getCell(rowNum, totalCol).font  = { bold: true, name: 'Arial', size: 11 }
+    ws.getCell(rowNum, amountCol).fill = fill(C_GRAY_LIGHT)
+    ws.getCell(rowNum, amountCol).font = { bold: true, name: 'Arial', size: 11 }
+    ws.getCell(rowNum, 3).numFmt = '#,##0'
+    ws.getCell(rowNum, amountCol).numFmt = '#,##0'
   }
 
-  const summaryWs = XLSX.utils.aoa_to_sheet(summaryRows)
-  summaryWs['!cols'] = [
-    { wch: 12 },
-    ...storeNames.map(() => ({ wch: 8 })),
-    { wch: 10 },
-    { wch: 10 },
-    { wch: 12 },
-  ]
-  XLSX.utils.book_append_sheet(wb, summaryWs, '總量')
+  // Total row
+  const storeSums = storeOrders.map(order =>
+    order.products.reduce((s, p) => s + p.quantity, 0)
+  )
+  const grandTotal = storeSums.reduce((a, b) => a + b, 0)
+  const grandAmt   = productKeys.reduce((sum, pName) => {
+    const info = productMap.get(pName)!
+    const qty = storeOrders.reduce((s, o) => {
+      const f = o.products.find(p => p.name === pName)
+      return s + (f?.quantity ?? 0)
+    }, 0)
+    return sum + qty * info.unitPrice
+  }, 0)
 
-  // Write to buffer
-  const buf = XLSX.write(wb, { type: 'buffer', bookType: 'xlsx' })
-  return buf
+  const totalRow = ws.addRow(['合　計', '', '', ...storeSums, grandTotal, grandAmt])
+  totalRow.height = 20
+  totalRow.eachCell({ includeEmpty: true }, (cell, col) => {
+    cell.fill   = fill(C_GRAY)
+    cell.font   = { bold: true, name: 'Arial', size: 11 }
+    cell.border = border()
+    cell.alignment = { horizontal: col <= 3 ? 'left' : 'center', vertical: 'middle' }
+  })
+  const totalRowNum = 2 + productKeys.length + 1
+  const totalCol  = 3 + shortNames.length + 1
+  const amountCol = totalCol + 1
+  ws.getCell(totalRowNum, amountCol).numFmt = '#,##0'
+
+  // Merge 合計 A-C
+  ws.mergeCells(totalRowNum, 1, totalRowNum, 3)
+}
+
+// ── Main export ────────────────────────────────────────────────────────────────
+
+export async function generateShipmentOrder(
+  storeOrders: StoreOrder[],
+  shipmentNo: string,
+  _batchName: string,
+): Promise<ArrayBuffer> {
+  const wb = new ExcelJS.Workbook()
+  wb.creator = 'LOPIA'
+
+  for (const order of storeOrders) {
+    addStoreSheet(wb, order, shipmentNo)
+  }
+  addSummarySheet(wb, storeOrders, shipmentNo)
+
+  const buf = await wb.xlsx.writeBuffer()
+  return buf as ArrayBuffer
 }
 
 /**
  * Generate the S+date shipment number.
- * Format: S{YYYYMMDD}{NN} where NN is a sequence number (default 01).
+ * Format: S{YYYYMMDD}{NN}
  */
 export function generateShipmentNo(dateStr: string, seq: number = 1): string {
   const d = dateStr.replace(/-/g, '')

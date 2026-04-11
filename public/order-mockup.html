@@ -1,0 +1,306 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+<meta charset="UTF-8">
+<title>出貨單 Mockup</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { background: #e8e8e8; font-family: 'Arial', 'Microsoft JhengHei', sans-serif; padding: 32px; display: flex; gap: 40px; flex-wrap: wrap; }
+
+  h2 { font-size: 13px; color: #666; margin-bottom: 8px; font-weight: 500; letter-spacing: 0.5px; }
+
+  .sheet {
+    background: white;
+    box-shadow: 0 2px 12px rgba(0,0,0,0.18);
+    width: 560px;
+    font-size: 11px;
+  }
+
+  table { width: 100%; border-collapse: collapse; }
+  td { padding: 0; }
+
+  /* ── Row styles ── */
+  .co-header td {
+    background: #EBF3FB;
+    padding: 7px 10px;
+  }
+  .co-name {
+    font-size: 13px;
+    font-weight: bold;
+    color: #1a1a2e;
+    letter-spacing: 0.3px;
+  }
+  .co-info {
+    font-size: 10px;
+    color: #444;
+  }
+  .row-empty td { height: 10px; }
+  .row-title td {
+    font-size: 17px;
+    font-weight: bold;
+    color: #1F3864;
+    text-align: center;
+    padding: 10px;
+    letter-spacing: 2px;
+    border-bottom: 2px solid #1F3864;
+  }
+  .row-meta td {
+    padding: 4px 10px;
+    font-size: 11px;
+    color: #333;
+  }
+  .meta-label { color: #888; width: 80px; }
+  .meta-value { font-weight: bold; color: #1a1a2e; }
+  .row-store-label { font-size: 11px; color: #888; }
+  .row-store-value { font-size: 13px; font-weight: bold; color: #C0392B; letter-spacing: 1px; }
+
+  .row-spacer td { height: 8px; }
+
+  .row-thead td {
+    background: #1F3864;
+    color: white;
+    font-weight: bold;
+    font-size: 11px;
+    padding: 6px 8px;
+    text-align: center;
+    border-right: 1px solid #2c4a7c;
+  }
+  .row-thead td:first-child { text-align: left; padding-left: 10px; }
+
+  .row-product td {
+    padding: 5px 8px;
+    border-bottom: 1px solid #f0f0f0;
+    font-size: 11px;
+    color: #333;
+  }
+  .row-product td:first-child { color: #222; }
+  .row-product.alt td { background: #fafafa; }
+  .num { text-align: right; }
+  .center { text-align: center; }
+
+  .row-product td.zero { color: #bbb; }
+
+  .row-total td {
+    background: #D9D9D9;
+    font-weight: bold;
+    padding: 6px 8px;
+    font-size: 11px;
+    border-top: 2px solid #aaa;
+    border-bottom: 2px solid #aaa;
+  }
+
+  .row-sign td {
+    padding: 14px 10px 10px;
+    font-size: 11px;
+    color: #555;
+    border-top: 1px solid #eee;
+  }
+  .sign-line {
+    display: inline-block;
+    border-bottom: 1px solid #333;
+    width: 140px;
+    margin: 0 4px;
+  }
+
+  /* ── 總表 styles ── */
+  .summary-title td {
+    background: #EBF3FB;
+    font-size: 13px;
+    font-weight: bold;
+    color: #1F3864;
+    padding: 8px 10px;
+    letter-spacing: 1px;
+  }
+  .summary-thead td {
+    background: #1F3864;
+    color: white;
+    font-weight: bold;
+    font-size: 10px;
+    padding: 5px 6px;
+    text-align: center;
+    border-right: 1px solid #2c4a7c;
+    white-space: nowrap;
+  }
+  .summary-thead td:first-child { text-align: left; padding-left: 8px; }
+  .summary-row td {
+    padding: 4px 6px;
+    font-size: 10px;
+    color: #333;
+    border-bottom: 1px solid #f0f0f0;
+    text-align: center;
+  }
+  .summary-row td:first-child { text-align: left; max-width: 120px; }
+  .summary-row td.total-col { background: #F2F2F2; font-weight: bold; }
+  .summary-total td {
+    background: #D9D9D9;
+    font-weight: bold;
+    padding: 5px 6px;
+    font-size: 10px;
+    text-align: center;
+    border-top: 2px solid #aaa;
+  }
+
+  .col-wide { width: 200px; }
+  .col-sm { width: 60px; }
+  .col-md { width: 75px; }
+
+  .label { color: #888; font-size: 10px; margin-bottom: 4px; }
+  .tag { display: inline-block; background: #1F3864; color: white; font-size: 9px; padding: 2px 6px; border-radius: 3px; margin-bottom: 8px; }
+</style>
+</head>
+<body>
+
+<!-- ── Store Sheet ── -->
+<div>
+  <p class="label">各店鋪工作表（例：MOP）</p>
+  <div class="tag">建議樣式</div>
+  <div class="sheet">
+    <table>
+      <!-- Company header -->
+      <tr class="co-header">
+        <td colspan="5">
+          <div class="co-name">日商夢多貿易股份有限公司台灣分公司</div>
+          <div class="co-info" style="margin-top:2px;">TEL: 02-2720-0322　　台北市信義區信義路五段五號5D17</div>
+        </td>
+      </tr>
+      <!-- Empty -->
+      <tr class="row-empty"><td colspan="5"></td></tr>
+      <!-- Title -->
+      <tr class="row-title">
+        <td colspan="5">出貨單 ／ 納品書</td>
+      </tr>
+      <!-- Meta -->
+      <tr class="row-meta">
+        <td class="meta-label">出貨單號：</td>
+        <td class="meta-value" colspan="4">S2026041201</td>
+      </tr>
+      <tr class="row-meta">
+        <td class="meta-label">配送日期：</td>
+        <td class="meta-value" colspan="4">2026/04/12</td>
+      </tr>
+      <tr class="row-meta">
+        <td class="meta-label">收貨店鋪：</td>
+        <td colspan="4" style="font-size:13px;font-weight:bold;color:#C0392B;padding:5px 10px;">MOP</td>
+      </tr>
+      <!-- Spacer -->
+      <tr class="row-spacer"><td colspan="5"></td></tr>
+      <!-- Table header -->
+      <tr class="row-thead">
+        <td class="col-wide">商品名稱</td>
+        <td class="col-sm center">入數(玉)</td>
+        <td class="col-sm center">箱數</td>
+        <td class="col-md center">單價(TWD/箱)</td>
+        <td class="col-md center">小計(TWD)</td>
+      </tr>
+      <!-- Products -->
+      <tr class="row-product">
+        <td>サンふじ</td>
+        <td class="center">28玉</td>
+        <td class="center num">0</td>
+        <td class="num">580</td>
+        <td class="num zero">—</td>
+      </tr>
+      <tr class="row-product alt">
+        <td>サンふじ</td>
+        <td class="center">36玉</td>
+        <td class="center num" style="font-weight:600;color:#1a1a2e;">3</td>
+        <td class="num">480</td>
+        <td class="num" style="font-weight:600;">1,440</td>
+      </tr>
+      <tr class="row-product">
+        <td>ハックナイン</td>
+        <td class="center">36玉</td>
+        <td class="center num" style="font-weight:600;color:#1a1a2e;">21</td>
+        <td class="num">460</td>
+        <td class="num" style="font-weight:600;">9,660</td>
+      </tr>
+      <tr class="row-product alt">
+        <td>王林</td>
+        <td class="center">28玉</td>
+        <td class="center num" style="font-weight:600;color:#1a1a2e;">18</td>
+        <td class="num">520</td>
+        <td class="num" style="font-weight:600;">9,360</td>
+      </tr>
+      <tr class="row-product">
+        <td>Strawberry（栃木）</td>
+        <td class="center">—</td>
+        <td class="center num" style="font-weight:600;color:#1a1a2e;">100</td>
+        <td class="num">400</td>
+        <td class="num" style="font-weight:600;">40,000</td>
+      </tr>
+      <!-- Total -->
+      <tr class="row-total">
+        <td colspan="2">合　計</td>
+        <td class="center">142</td>
+        <td class="center" style="font-size:10px;color:#555;">箱</td>
+        <td class="num">60,460</td>
+      </tr>
+      <!-- Sign -->
+      <tr class="row-sign">
+        <td colspan="5">
+          收貨簽名：<span class="sign-line"></span>　　日期：<span class="sign-line" style="width:80px;"></span>
+        </td>
+      </tr>
+    </table>
+  </div>
+</div>
+
+<!-- ── 總表 ── -->
+<div>
+  <p class="label">總表（最後一個工作表）</p>
+  <div class="tag">建議樣式</div>
+  <div class="sheet" style="width:720px;">
+    <table>
+      <tr class="summary-title">
+        <td colspan="14">出貨總表　2026/04/12　S2026041201</td>
+      </tr>
+      <tr class="summary-thead">
+        <td style="width:140px;">商品名稱</td>
+        <td style="width:55px;">入數(玉)</td>
+        <td style="width:60px;">單價(TWD)</td>
+        <td>MOP</td><td>北門</td><td>夢時代</td><td>IKEA</td>
+        <td>南港</td><td>巨蛋</td><td>新荘</td><td>中和</td>
+        <td>桃園</td><td style="background:#2d4a7a;font-weight:bold;">總箱數</td>
+        <td style="background:#2d4a7a;font-weight:bold;">總金額</td>
+      </tr>
+      <tr class="summary-row">
+        <td>サンふじ 28玉</td>
+        <td>28玉</td><td class="num">580</td>
+        <td>0</td><td>5</td><td>8</td><td>6</td>
+        <td>7</td><td>12</td><td>4</td><td>3</td>
+        <td>5</td>
+        <td class="total-col">50</td>
+        <td class="total-col num">29,000</td>
+      </tr>
+      <tr class="summary-row" style="background:#fafafa;">
+        <td>ハックナイン 36玉</td>
+        <td>36玉</td><td class="num">460</td>
+        <td>21</td><td>10</td><td>15</td><td>12</td>
+        <td>14</td><td>22</td><td>8</td><td>6</td>
+        <td>10</td>
+        <td class="total-col">118</td>
+        <td class="total-col num">54,280</td>
+      </tr>
+      <tr class="summary-row">
+        <td>Strawberry（栃木）</td>
+        <td>—</td><td class="num">400</td>
+        <td>100</td><td>40</td><td>40</td><td>80</td>
+        <td>80</td><td>150</td><td>50</td><td>25</td>
+        <td>35</td>
+        <td class="total-col">600</td>
+        <td class="total-col num">240,000</td>
+      </tr>
+      <tr class="summary-total">
+        <td colspan="3">合　計</td>
+        <td>121</td><td>55</td><td>63</td><td>98</td>
+        <td>101</td><td>184</td><td>62</td><td>34</td>
+        <td>50</td>
+        <td class="total-col">768</td>
+        <td class="total-col num">323,280</td>
+      </tr>
+    </table>
+  </div>
+</div>
+
+</body>
+</html>

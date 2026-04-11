@@ -75,7 +75,7 @@ export async function POST(req: NextRequest) {
     const shipmentNo = generateShipmentNo(date)
 
     // Generate Excel buffer
-    const excelBuffer = generateShipmentOrder(storeOrders, shipmentNo, label || `第${roundNo}回`)
+    const excelBuffer = await generateShipmentOrder(storeOrders, shipmentNo, label || `第${roundNo}回`)
 
     // Build summary for response header
     const allProducts = new Map<string, { boxSpec: string; total: number }>()

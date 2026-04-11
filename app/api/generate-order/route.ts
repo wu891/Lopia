@@ -88,7 +88,7 @@ export async function POST(req: NextRequest) {
     const shipmentNo = generateShipmentNo(deliveryDate)
 
     // 7. Generate Excel
-    const excelBuffer = generateShipmentOrder(storeOrders, shipmentNo, batch.ivName)
+    const excelBuffer = await generateShipmentOrder(storeOrders, shipmentNo, batch.ivName)
 
     // 8. Upload to Google Drive
     const fileName = `${shipmentNo} LOPIA_${batch.ivName}_店鋪貨單.xlsx`
