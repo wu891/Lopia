@@ -38,7 +38,7 @@ export default function Header({ lang, setLang, lastUpdated, onRefresh }: Header
             rel="noopener noreferrer"
             className="hidden sm:flex items-center gap-1 text-xs text-gray-500 hover:text-lopia-red transition-colors px-2 py-1 rounded hover:bg-lopia-red-light border border-gray-200 hover:border-lopia-red"
           >
-            🚚 {lang === 'ja' ? '物流通報' : '物流通報'}
+            🚚 {T.logisticsPortal}
           </a>
           <button
             onClick={onRefresh}

@@ -1,7 +1,7 @@
 'use client'
 import { useState, useRef, useEffect } from 'react'
 import { Shipment, LogisticsEvent } from '@/lib/notion'
-import { Lang } from '@/lib/i18n'
+import { Lang, t } from '@/lib/i18n'
 
 interface Props {
   shipments: Shipment[]
@@ -42,6 +42,7 @@ export default function CalendarView({ shipments, lang, logisticsEvents = [] }: 
   const [selected, setSelected] = useState<Shipment | null>(null)
   const detailRef = useRef<HTMLDivElement>(null)
   const isJa = lang === 'ja'
+  const T = t[lang]
 
   useEffect(() => {
     if (selected && detailRef.current) {
@@ -297,7 +298,7 @@ export default function CalendarView({ shipments, lang, logisticsEvents = [] }: 
           {selectedLogistics.length > 0 && (
             <div className="mt-3 pt-3 border-t border-red-100 space-y-2">
               <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide">
-                {isJa ? '物流情報' : '物流進度'}
+                {T.logisticsSection}
               </p>
 
               {/* Customs release */}
@@ -306,10 +307,10 @@ export default function CalendarView({ shipments, lang, logisticsEvents = [] }: 
                   <span>🟡</span>
                   <div>
                     <span className="font-medium text-yellow-700">
-                      {isJa ? '放貨日：' : '放貨日：'}{customsEvent.releaseDate}
+                      {T.releaseDate}：{customsEvent.releaseDate}
                     </span>
                     {customsEvent.pickupLocation && (
-                      <p className="text-gray-500 mt-0.5">取貨地點：{customsEvent.pickupLocation}</p>
+                      <p className="text-gray-500 mt-0.5">{T.pickupLocation}：{customsEvent.pickupLocation}</p>
                     )}
                   </div>
                 </div>
@@ -326,8 +327,8 @@ export default function CalendarView({ shipments, lang, logisticsEvents = [] }: 
                       <div className="flex items-center gap-1.5 mb-1">
                         <span>{allDelivered ? '✅' : someDelivered ? '🚚' : '🚚'}</span>
                         <span className="font-medium text-gray-700">
-                          第{round}次配送
-                          {allDelivered && <span className="text-green-600 ml-1">全數送達</span>}
+                          {T.roundNo}{round}{T.deliveryRound}
+                          {allDelivered && <span className="text-green-600 ml-1">{T.allDelivered}</span>}
                         </span>
                       </div>
                       <div className="ml-5 space-y-0.5">
@@ -366,9 +367,9 @@ export default function CalendarView({ shipments, lang, logisticsEvents = [] }: 
           </div>
         ))}
         <div className="flex items-center gap-2 ml-auto">
-          <span className="text-xs text-gray-400">🟡放貨</span>
-          <span className="text-xs text-gray-400">🚚配送</span>
-          <span className="text-xs text-gray-400">✅送達</span>
+          <span className="text-xs text-gray-400">🟡{T.releaseDate}</span>
+          <span className="text-xs text-gray-400">🚚{T.delivering}</span>
+          <span className="text-xs text-gray-400">✅{T.allDelivered}</span>
         </div>
       </div>
     </div>

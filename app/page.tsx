@@ -10,6 +10,58 @@ import CalendarView from '@/components/CalendarView'
 
 type Tab = 'shipments' | 'stores'
 
+// ── Month-grouped list ──────────────────────────────────────
+function MonthGroupedList({
+  shipments, lang, allRecords, onRecordChange,
+}: {
+  shipments: Shipment[]
+  lang: Lang
+  allRecords: ShipmentRecord[]
+  onRecordChange: () => void
+}) {
+  // Group by YYYY-MM based on arrivalTW
+  const groups: { monthKey: string; label: string; items: Shipment[] }[] = []
+  for (const s of shipments) {
+    let monthKey = 'no-date'
+    let label = lang === 'ja' ? '日付なし' : '未定日期'
+    if (s.arrivalTW) {
+      const [y, m] = s.arrivalTW.split('-').map(Number)
+      monthKey = `${y}-${String(m).padStart(2, '0')}`
+      label = lang === 'ja' ? `${y}年${m}月` : `${y} 年 ${m} 月`
+    }
+    const existing = groups.find(g => g.monthKey === monthKey)
+    if (existing) existing.items.push(s)
+    else groups.push({ monthKey, label, items: [s] })
+  }
+
+  return (
+    <div>
+      {groups.map(group => (
+        <div key={group.monthKey} className="mb-6">
+          {/* Sticky month header */}
+          <div className="sticky top-14 z-20 -mx-4 px-4 py-2 mb-3
+            bg-gray-50/95 backdrop-blur-sm border-b border-gray-200">
+            <span className="text-sm font-bold text-gray-700">{group.label}</span>
+            <span className="ml-2 text-xs text-gray-400 font-normal">{group.items.length}</span>
+          </div>
+          {/* Full-width cards */}
+          <div className="space-y-4">
+            {group.items.map(s => (
+              <ShipmentCard
+                key={s.id}
+                shipment={s}
+                lang={lang}
+                allRecords={allRecords}
+                onRecordChange={onRecordChange}
+              />
+            ))}
+          </div>
+        </div>
+      ))}
+    </div>
+  )
+}
+
 interface ApiData {
   shipments: Shipment[]
   lastUpdated: string
@@ -144,7 +196,7 @@ export default function Home() {
                     viewMode === 'list' ? 'bg-lopia-red text-white' : 'text-gray-500 hover:text-gray-700'
                   }`}
                 >
-                  ☰ {lang === 'ja' ? 'リスト' : '列表'}
+                  ☰ {T.listView}
                 </button>
                 <button
                   onClick={() => setViewMode('calendar')}
@@ -152,7 +204,7 @@ export default function Home() {
                     viewMode === 'calendar' ? 'bg-lopia-red text-white' : 'text-gray-500 hover:text-gray-700'
                   }`}
                 >
-                  📅 {lang === 'ja' ? 'カレンダー' : '月曆'}
+                  📅 {T.calendarView}
                 </button>
               </div>
 
@@ -196,12 +248,12 @@ export default function Home() {
                 <p className="text-gray-400 text-sm">{T.noData}</p>
               </div>
             ) : (
-              <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-                {filtered.map(s => (
-                  <ShipmentCard key={s.id} shipment={s} lang={lang}
-                    allRecords={allRecords} onRecordChange={refreshRecords} />
-                ))}
-              </div>
+              <MonthGroupedList
+                shipments={filtered}
+                lang={lang}
+                allRecords={allRecords}
+                onRecordChange={refreshRecords}
+              />
             )}
           </div>
         )}

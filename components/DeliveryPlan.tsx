@@ -121,10 +121,10 @@ export default function DeliveryPlan({ batchId, totalBoxes, records, lang, onRec
     setXlsError(''); setXlsResult(null); setXlsParsing(true); setXlsFileName(file.name)
     try {
       const parsed = await parseDeliveryExcel(await file.arrayBuffer())
-      if (!parsed.length) { setXlsError(lang === 'ja' ? '回次データが見つかりません' : '找不到回次資料，請確認格式'); return }
+      if (!parsed.length) { setXlsError(T.xlsParseFail); return }
       setXlsResult(parsed)
       setRounds(parsed.map(p => ({ date: '', stores: p.stores.map(s => ({ name: s.name, boxes: String(s.boxes) })) })))
-    } catch { setXlsError(lang === 'ja' ? '解析に失敗しました' : '解析失敗，請確認檔案格式')
+    } catch { setXlsError(T.xlsParseError)
     } finally { setXlsParsing(false); if (fileRef.current) fileRef.current.value = '' }
   }
 
@@ -213,11 +213,11 @@ export default function DeliveryPlan({ batchId, totalBoxes, records, lang, onRec
     setXlsUpdateError(''); setXlsUpdateParsing(true); setXlsUpdateFileName(file.name)
     try {
       const parsed = await parseDeliveryExcel(await file.arrayBuffer())
-      if (!parsed.length) { setXlsUpdateError('找不到回次資料，請確認格式'); return }
+      if (!parsed.length) { setXlsUpdateError(T.xlsParseFail); return }
       setDiffRounds(computeDiff(parsed))
       setShowXlsUpdate(true)
     } catch {
-      setXlsUpdateError('解析失敗，請確認檔案格式')
+      setXlsUpdateError(T.xlsParseError)
     } finally {
       setXlsUpdateParsing(false)
       if (xlsUpdateRef.current) xlsUpdateRef.current.value = ''
@@ -362,7 +362,7 @@ export default function DeliveryPlan({ batchId, totalBoxes, records, lang, onRec
                 <label className="flex items-center gap-1.5 cursor-pointer flex-1 min-w-0">
                   <input type="checkbox" checked={checked} onChange={() => onToggle(name)} className="w-3.5 h-3.5 rounded accent-lopia-red flex-shrink-0" />
                   <span className={`text-xs leading-tight truncate transition-colors ${checked ? 'text-gray-800 font-medium' : 'text-gray-500'}`}>{name}</span>
-                  {isSoon && <span className="text-[10px] text-yellow-600 bg-yellow-50 px-1 rounded flex-shrink-0">即將</span>}
+                  {isSoon && <span className="text-[10px] text-yellow-600 bg-yellow-50 px-1 rounded flex-shrink-0">{T.comingSoonBadge}</span>}
                 </label>
                 {checked && (
                   <div className="flex items-center gap-1 flex-shrink-0">
@@ -390,14 +390,14 @@ export default function DeliveryPlan({ batchId, totalBoxes, records, lang, onRec
                         'bg-gray-50 border-gray-200'
       }`}>
         <p className="text-xs font-semibold text-gray-600">
-          📦 {lang === 'ja' ? '入力済み合計' : '本次輸入總計'}
+          📦 {T.inputTotal}
         </p>
         <div className="space-y-1">
           {entries.map(([name, { boxes, rounds: rCount }]) => (
             <div key={name} className="flex items-center justify-between text-xs">
               <span className="text-gray-600 truncate flex-1">{name}</span>
               <span className="text-gray-400 mx-2 flex-shrink-0">
-                {rCount}{lang === 'ja' ? '回' : '輪'}
+                {rCount}{T.roundSuffix}
               </span>
               <span className="font-semibold text-gray-700 flex-shrink-0">{boxes}{T.boxes}</span>
             </div>
@@ -408,7 +408,7 @@ export default function DeliveryPlan({ batchId, totalBoxes, records, lang, onRec
           formMatchWarn ? 'border-yellow-200 text-yellow-700' :
                           'border-gray-200 text-gray-700'
         }`}>
-          <span>{lang === 'ja' ? '合計' : '合計'}</span>
+          <span>{T.grandTotal}</span>
           <span className="flex items-center gap-1.5">
             {formMatchOk   && <span>✅</span>}
             {formMatchWarn && <span>⚠️</span>}
@@ -455,7 +455,7 @@ export default function DeliveryPlan({ batchId, totalBoxes, records, lang, onRec
           <span className="text-xs text-gray-400 font-medium group-hover:text-gray-600 transition-colors">
             {T.deliveryPlan}
             {roundGroups.length > 0 && collapsed && (
-              <span className="ml-1.5 text-gray-300">({roundGroups.length}{lang === 'ja' ? '回' : '輪'})</span>
+              <span className="ml-1.5 text-gray-300">({roundGroups.length}{T.roundSuffix})</span>
             )}
           </span>
         </button>
@@ -467,8 +467,8 @@ export default function DeliveryPlan({ batchId, totalBoxes, records, lang, onRec
               className="flex items-center gap-1 text-xs px-2 py-1 bg-orange-50 text-orange-600 border border-orange-200 rounded-lg hover:bg-orange-100 font-medium transition-colors disabled:opacity-50"
             >
               {xlsUpdateParsing
-                ? <><span className="animate-spin inline-block text-xs">⟳</span> 解析中</>
-                : <>📤 上傳修改出貨時程表</>}
+                ? <><span className="animate-spin inline-block text-xs">⟳</span> {T.parsing}</>
+                : <>📤 {T.updateXls}</>}
             </button>
           )}
           <button onClick={startAdd} className="text-xs px-2 py-1 bg-lopia-red-light text-lopia-red rounded-lg hover:bg-red-100 font-medium transition-colors">
@@ -554,7 +554,7 @@ export default function DeliveryPlan({ batchId, totalBoxes, records, lang, onRec
                       </div>
                     ))}
                     <div className="flex items-center justify-between text-xs pt-1.5 border-t border-gray-100 font-semibold text-gray-700">
-                      <span>{lang === 'ja' ? '小計' : '小計'}</span>
+                      <span>{T.subtotal}</span>
                       <span>{g.totalBoxes}{T.boxes}</span>
                     </div>
                   </div>
@@ -566,7 +566,7 @@ export default function DeliveryPlan({ batchId, totalBoxes, records, lang, onRec
           {/* Footer total */}
           {roundGroups.length > 1 && (
             <div className="flex items-center justify-between px-2 py-1.5 bg-gray-50 border-t border-gray-200 text-xs">
-              <span className="text-gray-400">{lang === 'ja' ? '全体合計' : '全部合計'} {roundGroups.length}{lang === 'ja' ? '回' : '輪'}</span>
+              <span className="text-gray-400">{T.grandTotal} {roundGroups.length}{T.roundSuffix}</span>
               <span className="font-semibold text-gray-700">{plannedTotal}{T.boxes}</span>
             </div>
           )}
@@ -579,7 +579,7 @@ export default function DeliveryPlan({ batchId, totalBoxes, records, lang, onRec
           {/* Header */}
           <div className="flex items-start justify-between gap-2">
             <div>
-              <p className="text-xs font-bold text-orange-800">📤 上傳修改出貨時程表</p>
+              <p className="text-xs font-bold text-orange-800">📤 {T.updateXls}</p>
               <p className="text-xs text-orange-600 mt-0.5 truncate">📊 {xlsUpdateFileName}</p>
             </div>
             <button onClick={cancelXlsUpdate} className="text-gray-400 hover:text-gray-600 text-sm flex-shrink-0">✕</button>
@@ -593,17 +593,17 @@ export default function DeliveryPlan({ batchId, totalBoxes, records, lang, onRec
               return <>
                 {changed > 0 && (
                   <span className="px-2 py-0.5 bg-orange-100 text-orange-700 text-xs rounded-full font-medium border border-orange-200">
-                    ⚡ {changed} 個輪次有差異
+                    ⚡ {changed} {T.diffChanged}
                   </span>
                 )}
                 {unchanged > 0 && (
                   <span className="px-2 py-0.5 bg-gray-100 text-gray-500 text-xs rounded-full border border-gray-200">
-                    ✓ {unchanged} 個無變更
+                    ✓ {unchanged} {T.diffUnchanged}
                   </span>
                 )}
                 {changed === 0 && (
                   <span className="px-2 py-0.5 bg-green-100 text-green-700 text-xs rounded-full font-medium border border-green-200">
-                    ✓ 所有輪次與現有計畫相同，無需更新
+                    ✓ {T.diffNone}
                   </span>
                 )}
               </>
@@ -621,7 +621,7 @@ export default function DeliveryPlan({ batchId, totalBoxes, records, lang, onRec
                   d.hasChanges ? 'bg-orange-50' : 'bg-gray-50'
                 }`}>
                   <span className={`text-xs font-semibold ${d.hasChanges ? 'text-orange-700' : 'text-gray-500'}`}>
-                    第 {d.roundNo} 次
+                    {T.roundNo}{d.roundNo}{T.roundSuffix}
                   </span>
                   {d.existingGroup?.date && (
                     <span className="text-xs text-gray-400">
@@ -630,8 +630,8 @@ export default function DeliveryPlan({ batchId, totalBoxes, records, lang, onRec
                   )}
                   <span className={`ml-auto text-xs font-medium ${d.hasChanges ? 'text-orange-600' : 'text-gray-400'}`}>
                     {d.hasChanges
-                      ? (d.existingGroup ? '⚡ 有更動' : '🆕 新增輪次')
-                      : '✓ 無變更'}
+                      ? (d.existingGroup ? `⚡ ${T.changedRound}` : `🆕 ${T.newRound}`)
+                      : `✓ ${T.unchangedRound}`}
                   </span>
                 </div>
 
@@ -657,9 +657,9 @@ export default function DeliveryPlan({ batchId, totalBoxes, records, lang, onRec
                               : <span className="font-semibold">{sd.newBoxes}{T.boxes}</span>
                             }
                             <span className="text-xs ml-0.5">
-                              {sd.status === 'added' ? '＋新增' :
-                               sd.status === 'removed' ? '－移除' :
-                               sd.status === 'changed' ? '數量變更' : ''}
+                              {sd.status === 'added' ? T.storeAdded :
+                               sd.status === 'removed' ? T.storeRemoved :
+                               sd.status === 'changed' ? T.qtyChanged : ''}
                             </span>
                           </span>
                         </div>
@@ -668,7 +668,7 @@ export default function DeliveryPlan({ batchId, totalBoxes, records, lang, onRec
 
                     {/* Date selection */}
                     <div className="pt-1.5 border-t border-orange-100 space-y-1.5">
-                      <p className="text-xs text-gray-500 font-medium">📅 出貨日期</p>
+                      <p className="text-xs text-gray-500 font-medium">📅 {T.deliveryDate}</p>
                       {d.existingGroup?.date ? (
                         <div className="space-y-1">
                           <label className="flex items-center gap-2 cursor-pointer">
@@ -680,7 +680,7 @@ export default function DeliveryPlan({ batchId, totalBoxes, records, lang, onRec
                               className="accent-lopia-red"
                             />
                             <span className="text-xs text-gray-700">
-                              保留原設定：
+                              {T.keepDate}
                               <span className="font-semibold ml-1">
                                 {new Date(d.existingGroup.date).toLocaleDateString('zh-TW', { year: 'numeric', month: '2-digit', day: '2-digit' })}
                               </span>
@@ -694,7 +694,7 @@ export default function DeliveryPlan({ batchId, totalBoxes, records, lang, onRec
                               onChange={() => updateDiffDate(d.roundNo, 'new')}
                               className="accent-lopia-red"
                             />
-                            <span className="text-xs text-gray-700">重新設定日期</span>
+                            <span className="text-xs text-gray-700">{T.resetDate}</span>
                           </label>
                           {d.dateChoice === 'new' && (
                             <input
@@ -710,7 +710,7 @@ export default function DeliveryPlan({ batchId, totalBoxes, records, lang, onRec
                           type="date"
                           value={d.date}
                           onChange={e => updateDiffDate(d.roundNo, 'new', e.target.value)}
-                          placeholder="請輸入出貨日期"
+                          placeholder={T.datePlaceholder}
                           className="w-full border border-gray-200 rounded-lg px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-lopia-red"
                         />
                       )}
@@ -737,19 +737,19 @@ export default function DeliveryPlan({ batchId, totalBoxes, records, lang, onRec
                 }
                 className="flex-1 py-1.5 bg-orange-500 text-white text-xs font-semibold rounded-lg hover:bg-orange-600 disabled:opacity-40 transition-colors"
               >
-                {applyingUpdate ? '更新中...' : `確認更新 ${diffRounds.filter(d => d.hasChanges).length} 個輪次`}
+                {applyingUpdate ? T.updating : `${T.confirmUpdate} ${diffRounds.filter(d => d.hasChanges).length} ${T.rounds}`}
               </button>
               <button
                 onClick={cancelXlsUpdate}
                 className="px-3 py-1.5 bg-gray-200 text-gray-600 text-xs font-medium rounded-lg hover:bg-gray-300 transition-colors"
               >
-                取消
+                {T.cancelEdit}
               </button>
             </div>
           )}
           {!diffRounds.some(d => d.hasChanges) && (
             <button onClick={cancelXlsUpdate} className="w-full py-1.5 bg-gray-200 text-gray-600 text-xs font-medium rounded-lg hover:bg-gray-300 transition-colors">
-              關閉
+              {T.close}
             </button>
           )}
         </div>
@@ -783,16 +783,16 @@ export default function DeliveryPlan({ batchId, totalBoxes, records, lang, onRec
                 {xlsResult ? (
                   <div className="flex items-center gap-1.5">
                     <span className="flex items-center gap-1 px-2 py-1 bg-green-50 text-green-700 rounded-lg text-xs font-medium">
-                      ✓ {xlsResult.length}{lang === 'ja' ? '回次' : '個輪次'}
+                      ✓ {xlsResult.length}{T.rounds}
                     </span>
                     <button onClick={clearExcel} className="text-xs px-2 py-1 bg-gray-100 text-gray-500 rounded-lg hover:bg-gray-200 transition-colors">
-                      {lang === 'ja' ? '消去' : '清除'}
+                      {T.clear}
                     </button>
                   </div>
                 ) : (
                   <button onClick={() => fileRef.current?.click()} disabled={xlsParsing}
                     className="flex items-center gap-1 text-xs px-2 py-1 bg-blue-50 text-blue-600 rounded-lg hover:bg-blue-100 font-medium transition-colors disabled:opacity-50">
-                    {xlsParsing ? <><span className="animate-spin inline-block">⟳</span> {lang === 'ja' ? '解析中' : '解析中'}</> : <>📊 {lang === 'ja' ? 'Excel 読込' : 'Excel 帶入'}</>}
+                    {xlsParsing ? <><span className="animate-spin inline-block">⟳</span> {T.parsing}</> : <>📊 {T.excelImport}</>}
                   </button>
                 )}
               </div>
@@ -803,8 +803,8 @@ export default function DeliveryPlan({ batchId, totalBoxes, records, lang, onRec
                 <div className="px-2.5 py-1.5 bg-blue-50 border border-blue-100 rounded-lg">
                   <p className="text-xs text-blue-700 font-medium truncate">📊 {xlsFileName}</p>
                   <p className="text-xs text-blue-500 mt-0.5">
-                    {xlsResult.length}{lang === 'ja' ? '回次' : '個輪次'} ／ {xlsResult.reduce((n, r) => n + r.stores.length, 0)}{lang === 'ja' ? '店舗分' : '間門市'}
-                    {lang === 'ja' ? '読み込み完了 — 日付を入力してください' : '已帶入 — 請填寫各輪次出貨日期'}
+                    {xlsResult.length}{T.rounds} ／ {xlsResult.reduce((n, r) => n + r.stores.length, 0)}{T.stores2}
+                    {T.excelLoaded}
                   </p>
                 </div>
               )}
@@ -826,7 +826,7 @@ export default function DeliveryPlan({ batchId, totalBoxes, records, lang, onRec
                 ))}
                 <button onClick={addRoundRow}
                   className="w-full py-1.5 border border-dashed border-gray-300 rounded-lg text-xs text-gray-400 hover:border-lopia-red hover:text-lopia-red transition-colors">
-                  + {lang === 'ja' ? '配送回を追加' : '增加輪次'}
+                  + {T.addRoundBtn}
                 </button>
               </div>
 
