@@ -95,7 +95,7 @@ export default function DeliveryPlan({ batchId, totalBoxes, records, lang, onRec
   const validationOk = totalBoxes != null && plannedTotal === totalBoxes
 
   const nextRoundNo  = roundGroups.length > 0 ? Math.max(...roundGroups.map(g => g.roundNo)) + 1 : 1
-  const openStores   = STORES.filter(s => s.status === 'open')
+  const openStores   = STORES
   const sName        = (s: typeof STORES[0]) => lang === 'ja' ? s.name_ja : s.name_zh
 
   // ── Pre-save form summary (computed live from rounds state) ──
@@ -356,11 +356,13 @@ export default function DeliveryPlan({ batchId, totalBoxes, records, lang, onRec
         <div className="space-y-1.5">
           {openStores.map(s => {
             const name = sName(s); const checked = sel.has(name); const boxes = sel.get(name) ?? ''
+            const isSoon = s.status === 'coming_soon'
             return (
               <div key={s.id} className="flex items-center gap-2 min-h-[24px]">
                 <label className="flex items-center gap-1.5 cursor-pointer flex-1 min-w-0">
                   <input type="checkbox" checked={checked} onChange={() => onToggle(name)} className="w-3.5 h-3.5 rounded accent-lopia-red flex-shrink-0" />
                   <span className={`text-xs leading-tight truncate transition-colors ${checked ? 'text-gray-800 font-medium' : 'text-gray-500'}`}>{name}</span>
+                  {isSoon && <span className="text-[10px] text-yellow-600 bg-yellow-50 px-1 rounded flex-shrink-0">即將</span>}
                 </label>
                 {checked && (
                   <div className="flex items-center gap-1 flex-shrink-0">
