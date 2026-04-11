@@ -41,16 +41,26 @@ export const EXCEL_STORE_MAP: Record<string, string> = {
 
 // Matches "1回目" or "1か目" at the start of a sheet name
 const ROUND_RE = /^(\d+)[回か]目/
+// Matches "台中(4)" — round number in parentheses at end of sheet name
+const ROUND_PAREN_RE = /^(.+?)\((\d+)\)$/
 
 // Sheets to skip
 const EXCLUDE_SHEETS = new Set([
   '彙整_商品總數', '請款単', '総数', '総量', '総計', 'summary',
 ])
 
+export interface ParsedProduct {
+  name: string           // 商品名稱 (e.g., "Fresh Grapes(Shine muscat) 8房")
+  boxSpec: string        // 箱入數 (e.g., "8房", "5房")
+  quantity: number       // 箱數
+  unitPrice: number      // 單價 (原価)
+  category: string       // 商品類別 (default: "水果")
+}
+
 export interface ParsedDeliveryRound {
   roundNo: number
   /** Stores with their total box count for this round */
-  stores: { name: string; boxes: number }[]
+  stores: { name: string; boxes: number; products: ParsedProduct[] }[]
 }
 
 /**
@@ -74,10 +84,13 @@ export async function parseDeliveryExcel(
     )
   })
 
-  const isMultiRound = sheets.some(s => ROUND_RE.test(s.trim()))
+  // Detect round naming convention
+  const hasKaimeFormat = sheets.some(s => ROUND_RE.test(s.trim()))
+  const hasParenFormat = sheets.some(s => ROUND_PAREN_RE.test(s.trim()))
+  const isMultiRound = hasKaimeFormat || hasParenFormat
 
-  // roundNo → storeName → totalBoxes
-  const roundAccum = new Map<number, Map<string, number>>()
+  // roundNo → storeName → { totalBoxes, products }
+  const roundAccum = new Map<number, Map<string, { totalBoxes: number; products: ParsedProduct[] }>>()
 
   for (const sn of sheets) {
     const ws = wb.Sheets[sn]
@@ -91,10 +104,22 @@ export async function parseDeliveryExcel(
     let storeRaw: string
 
     if (isMultiRound) {
-      const m = sn.trim().match(ROUND_RE)
-      if (!m) continue
-      roundNo = parseInt(m[1], 10)
-      storeRaw = sn.trim().replace(ROUND_RE, '').trim()
+      if (hasKaimeFormat) {
+        const m = sn.trim().match(ROUND_RE)
+        if (!m) continue
+        roundNo = parseInt(m[1], 10)
+        storeRaw = sn.trim().replace(ROUND_RE, '').trim()
+      } else {
+        const m = sn.trim().match(ROUND_PAREN_RE)
+        if (m) {
+          storeRaw = m[1].trim()
+          roundNo = parseInt(m[2], 10)
+        } else {
+          // Plain store name in a multi-round file → round 1
+          roundNo = 1
+          storeRaw = sn.trim()
+        }
+      }
     } else {
       roundNo = 1
       storeRaw = sn.trim()
@@ -125,8 +150,9 @@ export async function parseDeliveryExcel(
     }
     if (hdrIdx === -1) continue
 
-    // Sum box counts across all products for this store+round
+    // Extract product details and sum box counts
     let totalBoxes = 0
+    const products: ParsedProduct[] = []
     for (let r = hdrIdx + 1; r < rows.length; r++) {
       const row = rows[r]
       if (!row) continue
@@ -134,13 +160,43 @@ export async function parseDeliveryExcel(
       const cases = row[2]
       if (!productName || typeof cases !== 'number' || cases <= 0) continue
       totalBoxes += cases
+
+      // Extract box spec from col[0] or col[3] (箱入數 e.g. "5房")
+      const boxSpecRaw = row[0] ?? row[3]
+      const boxSpec = boxSpecRaw != null ? String(boxSpecRaw).trim() : ''
+
+      // Unit price from col[3] or col[4] (原価)
+      // In supplier format: col[0]=入数, col[1]=名, col[2]=ケース, col[3]=数量, col[4]=原価
+      // In output format: col[0]=日期, col[1]=類, col[2]=名, col[3]=箱入, col[4]=箱, col[5]=単価
+      let unitPrice = 0
+      for (let c = 3; c < (row.length ?? 0); c++) {
+        const v = row[c]
+        if (typeof v === 'number' && v >= 100) { // likely a unit price (>= 100 NTD)
+          unitPrice = v
+          break
+        }
+      }
+
+      products.push({
+        name: productName,
+        boxSpec: boxSpec ? `${boxSpec}房`.replace(/房房$/, '房') : '',
+        quantity: cases,
+        unitPrice,
+        category: '水果',
+      })
     }
 
     if (totalBoxes === 0) continue
 
     if (!roundAccum.has(roundNo)) roundAccum.set(roundNo, new Map())
     const storeMap = roundAccum.get(roundNo)!
-    storeMap.set(storeName, (storeMap.get(storeName) ?? 0) + totalBoxes)
+    const existing = storeMap.get(storeName)
+    if (existing) {
+      existing.totalBoxes += totalBoxes
+      existing.products.push(...products)
+    } else {
+      storeMap.set(storeName, { totalBoxes, products })
+    }
   }
 
   // Sort by round number and convert to array
@@ -148,9 +204,10 @@ export async function parseDeliveryExcel(
     .sort((a, b) => a[0] - b[0])
     .map(([roundNo, storeMap]) => ({
       roundNo,
-      stores: Array.from(storeMap.entries()).map(([name, boxes]) => ({
+      stores: Array.from(storeMap.entries()).map(([name, data]) => ({
         name,
-        boxes,
+        boxes: data.totalBoxes,
+        products: data.products,
       })),
     }))
 }

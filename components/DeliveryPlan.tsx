@@ -8,9 +8,11 @@ import PasswordModal, { isAuthed, logChange } from './PasswordModal'
 
 interface Props {
   batchId: string
+  batchName: string
   totalBoxes: number | null
   records: ShipmentRecord[]
   lang: Lang
+  supplierExcelId: string | null
   onRecordChange: () => void
 }
 
@@ -56,7 +58,7 @@ function groupByRound(records: ShipmentRecord[]): RoundGroup[] {
   return Array.from(map.values()).sort((a, b) => a.roundNo - b.roundNo)
 }
 
-export default function DeliveryPlan({ batchId, totalBoxes, records, lang, onRecordChange }: Props) {
+export default function DeliveryPlan({ batchId, batchName, totalBoxes, records, lang, supplierExcelId, onRecordChange }: Props) {
   const T = t[lang]
   const fileRef      = useRef<HTMLInputElement>(null)
   const xlsUpdateRef = useRef<HTMLInputElement>(null)
@@ -88,6 +90,11 @@ export default function DeliveryPlan({ batchId, totalBoxes, records, lang, onRec
   const [xlsResult, setXlsResult]     = useState<ParsedDeliveryRound[] | null>(null)
   const [xlsFileName, setXlsFileName] = useState('')
   const [xlsError, setXlsError]       = useState('')
+  const [xlsFile, setXlsFile]         = useState<File | null>(null) // keep original file for Drive upload
+
+  // Generate shipment order
+  const [generatingRound, setGeneratingRound] = useState<number | null>(null)
+  const [generateMsg, setGenerateMsg] = useState<{ roundNo: number; type: 'ok' | 'err'; text: string } | null>(null)
 
   const batchRecords = records.filter(r => r.batchId === batchId).sort((a, b) => (a.round ?? 99) - (b.round ?? 99))
   const roundGroups  = groupByRound(batchRecords)
@@ -118,7 +125,7 @@ export default function DeliveryPlan({ batchId, totalBoxes, records, lang, onRec
   // ── Excel ────────────────────────────────────────────
   async function handleExcelFile(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0]; if (!file) return
-    setXlsError(''); setXlsResult(null); setXlsParsing(true); setXlsFileName(file.name)
+    setXlsError(''); setXlsResult(null); setXlsParsing(true); setXlsFileName(file.name); setXlsFile(file)
     try {
       const parsed = await parseDeliveryExcel(await file.arrayBuffer())
       if (!parsed.length) { setXlsError(T.xlsParseFail); return }
@@ -128,7 +135,7 @@ export default function DeliveryPlan({ batchId, totalBoxes, records, lang, onRec
     } finally { setXlsParsing(false); if (fileRef.current) fileRef.current.value = '' }
   }
 
-  function clearExcel() { setXlsResult(null); setXlsFileName(''); setXlsError(''); setRounds([emptyRound(), emptyRound(), emptyRound(), emptyRound()]) }
+  function clearExcel() { setXlsResult(null); setXlsFileName(''); setXlsError(''); setXlsFile(null); setRounds([emptyRound(), emptyRound(), emptyRound(), emptyRound()]) }
 
   // ── Add form helpers ─────────────────────────────────
   function startAdd() { setCollapsed(false); setEditRound(null); clearExcel(); setShowForm(true) }
@@ -208,9 +215,11 @@ export default function DeliveryPlan({ batchId, totalBoxes, records, lang, onRec
     })
   }
 
+  const [xlsUpdateFile, setXlsUpdateFile] = useState<File | null>(null)
+
   async function handleXlsUpdateFile(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0]; if (!file) return
-    setXlsUpdateError(''); setXlsUpdateParsing(true); setXlsUpdateFileName(file.name)
+    setXlsUpdateError(''); setXlsUpdateParsing(true); setXlsUpdateFileName(file.name); setXlsUpdateFile(file)
     try {
       const parsed = await parseDeliveryExcel(await file.arrayBuffer())
       if (!parsed.length) { setXlsUpdateError(T.xlsParseFail); return }
@@ -261,9 +270,30 @@ export default function DeliveryPlan({ batchId, totalBoxes, records, lang, onRec
         batchId,
         `Excel 更新 ${changedRounds.length} 個輪次 / 檔案: ${xlsUpdateFileName}`,
       )
+
+      // Upload updated supplier Excel to Drive (overwrite reference)
+      if (xlsUpdateFile) {
+        try {
+          const form = new FormData()
+          form.append('file', xlsUpdateFile)
+          form.append('batch', batchName)
+          form.append('docType', '供應商配送')
+          const upRes = await fetch('/api/upload', { method: 'POST', body: form })
+          if (upRes.ok) {
+            const { fileId } = await upRes.json()
+            await fetch('/api/shipments/supplier-excel', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ batchId, fileId }),
+            })
+          }
+        } catch { /* non-critical */ }
+      }
+
       setShowXlsUpdate(false)
       setDiffRounds([])
       setXlsUpdateFileName('')
+      setXlsUpdateFile(null)
       onRecordChange()
     } catch (e) {
       setApplyError(`網路錯誤：${e instanceof Error ? e.message : String(e)}`)
@@ -317,6 +347,26 @@ export default function DeliveryPlan({ batchId, totalBoxes, records, lang, onRec
           batchId,
           `新增 ${valid.length} 個輪次`,
         )
+
+        // Upload supplier Excel to Drive if available and not already uploaded
+        if (xlsFile && !supplierExcelId) {
+          try {
+            const form = new FormData()
+            form.append('file', xlsFile)
+            form.append('batch', batchName)
+            form.append('docType', '供應商配送')
+            const upRes = await fetch('/api/upload', { method: 'POST', body: form })
+            if (upRes.ok) {
+              const { fileId } = await upRes.json()
+              // Save Drive file ID to Notion batch record
+              await fetch('/api/shipments/supplier-excel', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ batchId, fileId }),
+              })
+            }
+          } catch { /* non-critical — user can re-upload later */ }
+        }
       }
       cancelForm(); onRecordChange()
     } catch (e) { setSaveError(`網路錯誤：${e instanceof Error ? e.message : String(e)}`)
@@ -341,6 +391,43 @@ export default function DeliveryPlan({ batchId, totalBoxes, records, lang, onRec
   }
 
   function cancelForm() { setShowForm(false); setEditRound(null); setSaveError(''); clearExcel() }
+
+  async function doGenerateOrder(roundNo: number) {
+    setGeneratingRound(roundNo); setGenerateMsg(null)
+    try {
+      const res = await fetch('/api/generate-order', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ batchId, roundNo }),
+      })
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({ error: `HTTP ${res.status}` }))
+        setGenerateMsg({ roundNo, type: 'err', text: err.error ?? '產生失敗' })
+        return
+      }
+      // Download file
+      const blob = await res.blob()
+      const shipmentNo = res.headers.get('X-Shipment-No') ?? ''
+      const driveUrl = res.headers.get('X-Drive-Url') ?? ''
+      const fileName = `${shipmentNo} LOPIA_${batchName}_店鋪貨單.xlsx`
+
+      const a = document.createElement('a')
+      a.href = URL.createObjectURL(blob)
+      a.download = fileName
+      a.click()
+      URL.revokeObjectURL(a.href)
+
+      setGenerateMsg({
+        roundNo,
+        type: 'ok',
+        text: driveUrl ? `已產生 ${shipmentNo}` : `已下載 ${fileName}`,
+      })
+    } catch (e) {
+      setGenerateMsg({ roundNo, type: 'err', text: `網路錯誤：${e instanceof Error ? e.message : String(e)}` })
+    } finally {
+      setGeneratingRound(null)
+    }
+  }
 
   const addSaveDisabled  = saving || rounds.every(r => !r.date || !r.stores.some(s => s.boxes && Number(s.boxes) > 0))
   const editSaveDisabled = saving || !editRound?.date || !editRound?.stores.some(s => s.boxes && Number(s.boxes) > 0)
@@ -537,6 +624,16 @@ export default function DeliveryPlan({ batchId, totalBoxes, records, lang, onRec
                     {g.totalBoxes}{T.boxes}
                   </span>
                   <div className="flex gap-1 flex-shrink-0" onClick={e => e.stopPropagation()}>
+                    {supplierExcelId && (
+                      <button
+                        onClick={() => doGenerateOrder(g.roundNo)}
+                        disabled={generatingRound === g.roundNo}
+                        title={lang === 'ja' ? '出荷伝票を生成' : '產生出貨單'}
+                        className="text-blue-400 hover:text-blue-600 transition-colors text-xs disabled:opacity-40"
+                      >
+                        {generatingRound === g.roundNo ? '⟳' : '📄'}
+                      </button>
+                    )}
                     <button onClick={() => startEdit(g)} className="text-gray-400 hover:text-lopia-red transition-colors text-xs">✏</button>
                     <button onClick={() => handleDeleteRound(g)} disabled={deletingRound === g.roundNo} className="text-gray-400 hover:text-red-500 transition-colors text-xs">
                       {deletingRound === g.roundNo ? '…' : '✕'}
@@ -556,6 +653,29 @@ export default function DeliveryPlan({ batchId, totalBoxes, records, lang, onRec
                     <div className="flex items-center justify-between text-xs pt-1.5 border-t border-gray-100 font-semibold text-gray-700">
                       <span>{T.subtotal}</span>
                       <span>{g.totalBoxes}{T.boxes}</span>
+                    </div>
+                    {/* Generate shipment order button */}
+                    <div className="pt-1.5 border-t border-gray-100">
+                      {supplierExcelId ? (
+                        <button
+                          onClick={() => doGenerateOrder(g.roundNo)}
+                          disabled={generatingRound === g.roundNo}
+                          className="w-full py-1.5 bg-blue-50 text-blue-600 text-xs font-medium rounded-lg hover:bg-blue-100 disabled:opacity-40 transition-colors flex items-center justify-center gap-1"
+                        >
+                          {generatingRound === g.roundNo
+                            ? <><span className="animate-spin inline-block">⟳</span> {lang === 'ja' ? '生成中...' : '產生中...'}</>
+                            : <>📄 {lang === 'ja' ? '出荷伝票を生成' : '產生出貨單'}</>}
+                        </button>
+                      ) : (
+                        <p className="text-xs text-gray-400 text-center py-1">
+                          {lang === 'ja' ? '※出荷伝票の生成には、先にExcelをアップロードしてください' : '※ 需先上傳供應商配送Excel才能產生出貨單'}
+                        </p>
+                      )}
+                      {generateMsg?.roundNo === g.roundNo && (
+                        <p className={`text-xs mt-1 text-center ${generateMsg.type === 'ok' ? 'text-green-600' : 'text-red-500'}`}>
+                          {generateMsg.type === 'ok' ? '✓' : '⚠'} {generateMsg.text}
+                        </p>
+                      )}
                     </div>
                   </div>
                 )}

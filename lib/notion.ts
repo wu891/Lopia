@@ -34,6 +34,8 @@ export interface Shipment {
   // Inspection
   radiationTest: string | null
   pesticideTest: string | null
+  // Supplier Excel
+  supplierExcelId: string | null
   // Computed
   shippedBoxes?: number
   remainingBoxes?: number | null
@@ -118,6 +120,7 @@ function pageToShipment(page: any): Shipment {
     quarantineCert: getCheckbox(p['檢疫證明 ✓']),
     radiationTest: getSelect(p['輻射檢驗']),
     pesticideTest: getSelect(p['農藥檢驗']),
+    supplierExcelId: getText(p['供應商配送Excel']),
   }
 }
 
@@ -363,6 +366,20 @@ export async function createShipment(data: {
 }
 
 // ── Update Shipment Fields ────────────────────────────────────────────────────
+
+export async function updateBatchSupplierExcel(id: string, fileId: string) {
+  await notion.pages.update({
+    page_id: id,
+    properties: {
+      '供應商配送Excel': { rich_text: [{ text: { content: fileId } }] },
+    },
+  })
+}
+
+export async function getShipmentById(id: string): Promise<Shipment> {
+  const page = await notion.pages.retrieve({ page_id: id })
+  return pageToShipment(page)
+}
 
 export async function updateShipmentInspection(id: string, data: {
   fumigation?: string

@@ -149,9 +149,11 @@ export default function CompactShipmentRow({ shipment, lang, allRecords, onRecor
 
             <DeliveryPlan
               batchId={shipment.id}
+              batchName={shipment.ivName}
               totalBoxes={shipment.totalBoxes}
               records={allRecords}
               lang={lang}
+              supplierExcelId={shipment.supplierExcelId}
               onRecordChange={onRecordChange}
             />
 
