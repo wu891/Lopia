@@ -21,6 +21,13 @@ interface StoreDelivery {
   estDelivery: string
   delivered: boolean
   existingEventId: string | null
+  photoUrl: string | null
+  photoUploading: boolean
+}
+
+// 台灣時區今日日期 YYYY-MM-DD
+function getTodayTW(): string {
+  return new Date().toLocaleDateString('en-CA', { timeZone: 'Asia/Taipei' })
 }
 
 function groupRecordsByRound(records: ShipmentRecord[]): RoundGroup[] {
@@ -235,12 +242,20 @@ function FreightSection({
   existingEvents: LogisticsEvent[]
   onRefresh: () => void
 }) {
+  const todayTW = getTodayTW()
+
   const [selectedBatchId, setSelectedBatchId] = useState('')
   const [selectedRound, setSelectedRound] = useState<number | null>(null)
   const [storeDeliveries, setStoreDeliveries] = useState<StoreDelivery[]>([])
   const [saving, setSaving] = useState(false)
   const [saved, setSaved] = useState(false)
   const [error, setError] = useState('')
+
+  // 只顯示「今日（台灣時區）有排程輪次」的批次
+  const todayBatches = batches.filter(b => {
+    const recs = allRecords.filter(r => r.batchId === b.id)
+    return groupRecordsByRound(recs).some(r => r.date === todayTW)
+  })
 
   const batchRecords = allRecords.filter(r => r.batchId === selectedBatchId)
   const rounds = groupRecordsByRound(batchRecords)
@@ -267,14 +282,36 @@ function FreightSection({
         estDelivery: existing?.estDelivery ?? '',
         delivered: existing?.deliveryStatus === '已送達',
         existingEventId: existing?.id ?? null,
+        photoUrl: null,
+        photoUploading: false,
       }
     })
     setStoreDeliveries(deliveries)
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedBatchId, selectedRound, existingEvents])
 
-  function updateStore(idx: number, field: keyof StoreDelivery, value: string | boolean) {
+  function updateStore<K extends keyof StoreDelivery>(idx: number, field: K, value: StoreDelivery[K]) {
     setStoreDeliveries(prev => prev.map((s, i) => i === idx ? { ...s, [field]: value } : s))
+  }
+
+  // 上傳簽收照至 Google Drive
+  async function handlePhotoUpload(idx: number, file: File) {
+    const batch = batches.find(b => b.id === selectedBatchId)
+    updateStore(idx, 'photoUploading', true)
+    try {
+      const form = new FormData()
+      form.append('file', file)
+      form.append('batch', batch?.ivName ?? 'BATCH')
+      form.append('docType', `簽收照_R${selectedRound}_${storeDeliveries[idx].store}`)
+      const res = await fetch('/api/upload', { method: 'POST', body: form })
+      if (!res.ok) throw new Error('upload failed')
+      const json = await res.json()
+      updateStore(idx, 'photoUrl', json.url ?? null)
+    } catch {
+      alert('照片上傳失敗，請重試。')
+    } finally {
+      updateStore(idx, 'photoUploading', false)
+    }
   }
 
   async function handleSubmit(e: React.FormEvent) {
@@ -288,20 +325,18 @@ function FreightSection({
       await Promise.all(storeDeliveries.map(async (s) => {
         const payload = {
           estDelivery: s.estDelivery || undefined,
-          actualDelivery: s.delivered ? (s.estDelivery || new Date().toISOString().slice(0, 10)) : undefined,
+          actualDelivery: s.delivered ? (s.estDelivery || todayTW) : undefined,
           deliveryStatus: s.delivered ? '已送達' : s.estDelivery ? '配送中' : '待配送',
-          remarks: undefined as string | undefined,
+          remarks: s.photoUrl ? `簽收照：${s.photoUrl}` : undefined,
         }
 
         if (s.existingEventId) {
-          // Update existing event
           await fetch(`/api/logistics/${s.existingEventId}`, {
             method: 'PATCH',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify(payload),
           })
         } else {
-          // Create new event
           await fetch('/api/logistics', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
@@ -329,48 +364,80 @@ function FreightSection({
 
   return (
     <form onSubmit={handleSubmit} className="space-y-5">
-      <p className="text-sm text-gray-500">請選擇批次及出貨輪次，逐店填寫預計送達時間並確認是否已送達。</p>
+      <p className="text-sm text-gray-500">
+        依當日（台灣時區）出貨排程自動篩選，逐店填寫配送狀態並上傳簽收照。
+      </p>
 
-      {/* Batch selector */}
+      {/* ── Batch selector（今日有排程輪次的批次） */}
       <div>
-        <label className="block text-sm font-semibold text-gray-700 mb-1.5">選擇批次 *</label>
-        <select
-          value={selectedBatchId}
-          onChange={e => { setSelectedBatchId(e.target.value); setSelectedRound(null) }}
-          className="w-full border border-gray-200 rounded-xl px-4 py-3 text-base bg-white focus:outline-none focus:ring-2 focus:ring-lopia-red"
-          required
-        >
-          <option value="">— 請選擇批次 —</option>
-          {batches.filter(b => allRecords.some(r => r.batchId === b.id)).map(b => (
-            <option key={b.id} value={b.id}>{b.ivName}</option>
-          ))}
-        </select>
+        <label className="block text-sm font-semibold text-gray-700 mb-1.5">
+          選擇批次 *
+          <span className="ml-2 text-xs font-normal text-gray-400">僅顯示今日（{todayTW}）有排程輪次的批次</span>
+        </label>
+        {todayBatches.length === 0 ? (
+          <div className="w-full border border-dashed border-gray-200 rounded-xl px-4 py-4 text-sm text-gray-400 text-center bg-gray-50">
+            今日無待出貨批次
+          </div>
+        ) : (
+          <select
+            value={selectedBatchId}
+            onChange={e => { setSelectedBatchId(e.target.value); setSelectedRound(null) }}
+            className="w-full border border-gray-200 rounded-xl px-4 py-3 text-base bg-white focus:outline-none focus:ring-2 focus:ring-lopia-red"
+            required
+          >
+            <option value="">— 請選擇批次 —</option>
+            {todayBatches.map(b => (
+              <option key={b.id} value={b.id}>{b.ivName}</option>
+            ))}
+          </select>
+        )}
       </div>
 
-      {/* Round selector */}
+      {/* ── Round selector（今日輪次可點，其他 disabled） */}
       {selectedBatchId && rounds.length > 0 && (
         <div>
-          <label className="block text-sm font-semibold text-gray-700 mb-1.5">選擇輪次 *</label>
+          <label className="block text-sm font-semibold text-gray-700 mb-2">選擇輪次 *</label>
           <div className="flex flex-wrap gap-2">
-            {rounds.map(r => (
-              <button
-                key={r.roundNo}
-                type="button"
-                onClick={() => setSelectedRound(r.roundNo)}
-                className={`px-4 py-2 rounded-xl text-sm font-semibold border transition-all ${
-                  selectedRound === r.roundNo
-                    ? 'bg-lopia-red text-white border-lopia-red'
-                    : 'bg-white text-gray-600 border-gray-200'
-                }`}
-              >
-                第{r.roundNo}次{r.date ? ` ${r.date.slice(5)}` : ''}
-              </button>
-            ))}
+            {rounds.map(r => {
+              const isToday = r.date === todayTW
+              const isSelected = selectedRound === r.roundNo
+              return (
+                <button
+                  key={r.roundNo}
+                  type="button"
+                  disabled={!isToday}
+                  onClick={() => isToday && setSelectedRound(r.roundNo)}
+                  title={isToday ? '' : `出貨日 ${r.date ?? '未設定'}，非今日不可選`}
+                  className={`px-4 py-2 rounded-xl text-sm font-semibold border transition-all
+                    ${isSelected
+                      ? 'bg-lopia-red text-white border-lopia-red'
+                      : isToday
+                        ? 'bg-white text-gray-700 border-gray-300 active:bg-gray-50'
+                        : 'bg-gray-50 text-gray-300 border-gray-100 cursor-not-allowed'
+                    }`}
+                >
+                  第{r.roundNo}次
+                  {r.date ? (
+                    <span className={`ml-1 text-xs font-normal ${
+                      isSelected ? 'text-red-100' : isToday ? 'text-lopia-red' : 'text-gray-300'
+                    }`}>
+                      {r.date.slice(5)}
+                    </span>
+                  ) : (
+                    <span className="ml-1 text-xs font-normal text-gray-300">未設定</span>
+                  )}
+                  {isToday && !isSelected && (
+                    <span className="ml-1.5 inline-block w-1.5 h-1.5 rounded-full bg-lopia-red align-middle" />
+                  )}
+                </button>
+              )
+            })}
           </div>
+          <p className="text-xs text-gray-400 mt-2">🔴 紅點 = 今日可出貨輪次；其餘輪次為不同日期，不可選取</p>
         </div>
       )}
 
-      {/* Per-store delivery status */}
+      {/* ── Per-store delivery status */}
       {storeDeliveries.length > 0 && (
         <div className="space-y-3">
           <p className="text-sm font-semibold text-gray-700">各門市配送狀態</p>
@@ -381,19 +448,17 @@ function FreightSection({
                 s.delivered ? 'border-green-200 bg-green-50' : 'border-gray-200 bg-white'
               }`}
             >
+              {/* Store header */}
               <div className="flex items-center justify-between">
                 <div>
                   <p className="font-semibold text-gray-800 text-sm">{s.store}</p>
                   <p className="text-xs text-gray-400">{s.boxes} 箱</p>
                 </div>
-                {/* Delivered toggle */}
                 <button
                   type="button"
                   onClick={() => updateStore(i, 'delivered', !s.delivered)}
                   className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-semibold transition-all ${
-                    s.delivered
-                      ? 'bg-green-500 text-white'
-                      : 'bg-gray-100 text-gray-500'
+                    s.delivered ? 'bg-green-500 text-white' : 'bg-gray-100 text-gray-500'
                   }`}
                 >
                   {s.delivered ? '✓ 已送達' : '未送達'}
@@ -409,6 +474,55 @@ function FreightSection({
                   onChange={e => updateStore(i, 'estDelivery', e.target.value)}
                   className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-lopia-red"
                 />
+              </div>
+
+              {/* ── Photo upload */}
+              <div>
+                <label className="block text-xs text-gray-500 mb-1.5">簽收照</label>
+                {s.photoUrl ? (
+                  <div className="flex items-center gap-2">
+                    <span className="text-xs text-green-600 font-medium">✓ 已上傳</span>
+                    <a
+                      href={s.photoUrl}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="text-xs text-blue-500 underline underline-offset-2"
+                    >
+                      檢視照片
+                    </a>
+                    <button
+                      type="button"
+                      onClick={() => updateStore(i, 'photoUrl', null)}
+                      className="text-xs text-gray-400 hover:text-red-500 transition-colors"
+                    >
+                      重新上傳
+                    </button>
+                  </div>
+                ) : s.photoUploading ? (
+                  <div className="flex items-center gap-2 text-xs text-gray-400">
+                    <div className="w-4 h-4 border-2 border-gray-300 border-t-lopia-red rounded-full animate-spin" />
+                    上傳中...
+                  </div>
+                ) : (
+                  <label className="inline-flex items-center gap-2 cursor-pointer
+                    px-4 py-2 rounded-lg border border-dashed border-gray-300
+                    text-sm text-gray-500 hover:border-lopia-red hover:text-lopia-red
+                    transition-colors bg-white active:bg-gray-50">
+                    <span>📷</span>
+                    <span>上傳出貨單簽收照</span>
+                    <input
+                      type="file"
+                      accept="image/*"
+                      capture="environment"
+                      className="hidden"
+                      onChange={e => {
+                        const file = e.target.files?.[0]
+                        if (file) handlePhotoUpload(i, file)
+                        e.target.value = ''
+                      }}
+                    />
+                  </label>
+                )}
               </div>
             </div>
           ))}
