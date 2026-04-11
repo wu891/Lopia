@@ -11,29 +11,63 @@ interface InventoryBarProps {
 export default function InventoryBar({ total, shipped, planned, lang }: InventoryBarProps) {
   const T = t[lang]
   if (!total) return null
-  const remaining = Math.max(0, total - shipped)
+
   const pct = Math.min(100, Math.round((shipped / total) * 100))
   const plannedPct = Math.min(100, Math.round((planned / total) * 100))
 
   return (
-    <div className="space-y-1">
-      <div className="flex justify-between text-xs text-gray-500">
-        <span>{T.shipped}: <strong className="text-gray-800">{shipped}</strong> {T.boxes}</span>
-        <span>{T.remaining}: <strong className="text-gray-800">{remaining}</strong> {T.boxes}</span>
-        <span className="text-gray-400">{T.totalBoxes}: {total}</span>
+    <div className="space-y-1.5">
+      {/* Header row */}
+      <div className="flex items-center justify-between">
+        <span className="text-xs font-semibold text-gray-600">{T.shipped}</span>
+        <div className="flex gap-3 text-xs text-gray-400">
+          <span className="flex items-center gap-1">
+            <span className="inline-block w-2 h-2 rounded-sm bg-lopia-red" />
+            {T.shipped} {shipped} {T.boxes}
+          </span>
+          {planned > 0 && planned !== shipped && (
+            <span className="flex items-center gap-1">
+              <span className="inline-block w-2 h-2 rounded-sm bg-red-200" />
+              {T.plannedBoxes} {planned} {T.boxes}
+            </span>
+          )}
+        </div>
       </div>
-      {/* Stacked bar: completed (red) + planned (light red) */}
-      <div className="h-2 bg-gray-100 rounded-full overflow-hidden flex">
-        <div className="h-full bg-lopia-red rounded-l-full transition-all duration-500" style={{ width: `${pct}%` }} />
+
+      {/* Track — 14px height, label embedded */}
+      <div className="relative h-3.5 bg-gray-100 rounded-md overflow-hidden">
+        {/* Shipped fill (gradient) */}
+        {pct > 0 && (
+          <div
+            className="absolute left-0 top-0 h-full rounded-md flex items-center justify-end pr-1.5 transition-all duration-500"
+            style={{
+              width: `${pct}%`,
+              background: 'linear-gradient(90deg, #E8002D 0%, #FF4D6D 100%)',
+              minWidth: pct > 0 ? '28px' : '0',
+            }}
+          >
+            <span className="text-[9px] font-bold text-white/90 leading-none whitespace-nowrap">
+              {pct}%
+            </span>
+          </div>
+        )}
+        {/* Planned overlay */}
         {plannedPct > pct && (
-          <div className="h-full bg-red-200 transition-all duration-500" style={{ width: `${plannedPct - pct}%` }} />
+          <div
+            className="absolute top-0 h-full bg-red-200/60 transition-all duration-500"
+            style={{ left: `${pct}%`, width: `${plannedPct - pct}%` }}
+          />
         )}
-      </div>
-      <div className="flex justify-between text-xs text-gray-400">
-        <span>{pct}% {T.shipped}</span>
-        {planned > 0 && planned !== shipped && (
-          <span className="text-red-300">{T.plannedBoxes}: {planned} {T.boxes}</span>
+        {/* 0% label */}
+        {pct === 0 && (
+          <span className="absolute left-2 top-1/2 -translate-y-1/2 text-[9px] font-bold text-gray-400 leading-none">
+            0%
+          </span>
         )}
+        {/* Total label on right */}
+        <span className="absolute right-2 top-1/2 -translate-y-1/2 text-[9px] text-gray-400 font-medium leading-none">
+          {total.toLocaleString()} {T.boxes}
+        </span>
       </div>
     </div>
   )
