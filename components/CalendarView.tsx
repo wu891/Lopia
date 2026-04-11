@@ -247,12 +247,17 @@ export default function CalendarView({ shipments, lang, logisticsEvents = [] }: 
                   {customsEvent && (
                     <div className="flex items-start gap-2.5 bg-yellow-50 rounded-lg p-3">
                       <span className="text-base leading-none mt-0.5">🟡</span>
-                      <div className="text-xs">
+                      <div className="text-xs space-y-0.5 flex-1">
                         <p className="font-semibold text-yellow-700">
                           {T.releaseDate}：{customsEvent.releaseDate}
                         </p>
                         {customsEvent.pickupLocation && (
-                          <p className="text-yellow-600 mt-0.5">{T.pickupLocation}：{customsEvent.pickupLocation}</p>
+                          <p className="text-yellow-600">{T.pickupLocation}：{customsEvent.pickupLocation}</p>
+                        )}
+                        {customsEvent.remarks && (
+                          <p className="text-yellow-600 pt-0.5 border-t border-yellow-100 mt-1">
+                            💬 {customsEvent.remarks}
+                          </p>
                         )}
                       </div>
                     </div>

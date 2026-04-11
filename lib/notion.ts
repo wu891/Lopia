@@ -361,3 +361,14 @@ export async function createShipment(data: {
   })
   return pageToShipment(page)
 }
+
+// ── Update Shipment Fields ────────────────────────────────────────────────────
+
+export async function updateShipmentFumigation(id: string, value: string) {
+  await notion.pages.update({
+    page_id: id,
+    properties: {
+      '燻蒸狀態': { select: { name: value } },
+    },
+  })
+}
