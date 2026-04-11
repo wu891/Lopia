@@ -66,9 +66,11 @@ export interface ParsedDeliveryRound {
 /**
  * Call this in a client component after obtaining the file's ArrayBuffer.
  * Dynamically imports 'xlsx' so the heavy library only loads on demand.
+ * @param includeZero - if true, include products with 0 boxes (default false)
  */
 export async function parseDeliveryExcel(
-  buffer: ArrayBuffer
+  buffer: ArrayBuffer,
+  includeZero = false
 ): Promise<ParsedDeliveryRound[]> {
   // Dynamic import keeps the xlsx bundle out of the main JS chunk
   const XLSX = await import('xlsx')
@@ -157,8 +159,10 @@ export async function parseDeliveryExcel(
       const row = rows[r]
       if (!row) continue
       const productName = String(row[1] ?? '').trim()
-      const cases = row[2]
-      if (!productName || typeof cases !== 'number' || cases <= 0) continue
+      const casesRaw = row[2]
+      const cases = typeof casesRaw === 'number' ? casesRaw : 0
+      if (!productName) continue
+      if (!includeZero && cases <= 0) continue
       totalBoxes += cases
 
       // Extract box spec from col[0] or col[3] (箱入數 e.g. "5房")
@@ -186,7 +190,7 @@ export async function parseDeliveryExcel(
       })
     }
 
-    if (totalBoxes === 0) continue
+    if (totalBoxes === 0 && !includeZero) continue
 
     if (!roundAccum.has(roundNo)) roundAccum.set(roundNo, new Map())
     const storeMap = roundAccum.get(roundNo)!

@@ -10,10 +10,10 @@ import { ParsedProduct } from './parseDeliveryExcel'
 
 // ── Trade Media Japan company info (static header) ─────────────────────────
 
-const COMPANY_NAME = 'Trade Media Japan.Co., Ltd'
-const COMPANY_ADDRESS = '地址：台北市信義路五段五號５D17'
-const COMPANY_PHONE = '電話：02‐2720‐0322　傳真：:02-2720-8233'
-const COMPANY_URL = '網址：https://www.tm-japan.jp/'
+const COMPANY_NAME = '日商夢多貿易股份有限公司台灣分公司'
+const COMPANY_ADDRESS = '地址：台北市信義區信義路五段五號5D17'
+const COMPANY_PHONE = '電話：02-2720-0322'
+const COMPANY_URL = ''
 
 // ── Store display name mapping for 出貨單 ──────────────────────���──────────
 

@@ -370,10 +370,281 @@ function BatchCard({
   )
 }
 
+// ── Store codes from skill definition ─────────────────────────────────────────
+
+const SKILL_STORES: { code: string; label: string }[] = [
+  { code: '台中',     label: '台中' },
+  { code: '桃園',     label: '桃園' },
+  { code: '中和',     label: '中和' },
+  { code: '新荘',     label: '新荘' },
+  { code: '巨蛋',     label: '巨蛋' },
+  { code: '南港',     label: '南港' },
+  { code: 'IKEA',    label: 'IKEA' },
+  { code: '夢時',     label: '夢時代' },
+  { code: 'MOP',     label: 'MOP' },
+  { code: '漢神',     label: '漢神' },
+  { code: '北門',     label: '北門' },
+]
+
+// ── Manual Generation Panel ────────────────────────────────────────────────────
+
+interface SummaryItem { name: string; boxSpec: string; total: number }
+
+function ManualGeneratePanel() {
+  const [date, setDate] = useState('')
+  const [roundNo, setRoundNo] = useState('')
+  const [label, setLabel] = useState('')
+  const [selectedStores, setSelectedStores] = useState<string[]>(SKILL_STORES.map(s => s.code))
+  const [file, setFile] = useState<File | null>(null)
+  const [generating, setGenerating] = useState(false)
+  const [result, setResult] = useState<{ driveUrl: string; shipmentNo: string; summary: SummaryItem[] } | null>(null)
+  const [error, setError] = useState<string | null>(null)
+  const fileRef = useRef<HTMLInputElement>(null)
+
+  function toggleStore(code: string) {
+    setSelectedStores(prev =>
+      prev.includes(code) ? prev.filter(c => c !== code) : [...prev, code]
+    )
+  }
+
+  function toggleAll() {
+    if (selectedStores.length === SKILL_STORES.length) setSelectedStores([])
+    else setSelectedStores(SKILL_STORES.map(s => s.code))
+  }
+
+  async function handleGenerate() {
+    if (!date || !roundNo || !file || selectedStores.length === 0) return
+    setGenerating(true)
+    setError(null)
+    setResult(null)
+    try {
+      const form = new FormData()
+      form.append('date', date)
+      form.append('roundNo', roundNo)
+      form.append('stores', JSON.stringify(selectedStores))
+      form.append('label', label)
+      form.append('file', file)
+
+      const res = await fetch('/api/generate-order-free', { method: 'POST', body: form })
+      if (!res.ok) {
+        const d = await res.json()
+        setError(d.error ?? '產生失敗')
+        return
+      }
+      const blob = await res.blob()
+      const driveUrl = res.headers.get('X-Drive-Url') ?? ''
+      const shipmentNo = res.headers.get('X-Shipment-No') ?? ''
+      const summaryRaw = res.headers.get('X-Summary') ?? ''
+      const summary: SummaryItem[] = summaryRaw ? JSON.parse(decodeURIComponent(summaryRaw)) : []
+
+      // Trigger download
+      const url = URL.createObjectURL(blob)
+      const a = document.createElement('a')
+      a.href = url
+      a.download = `${shipmentNo}${label ? `_${label}` : ''}_店鋪貨單.xlsx`
+      a.click()
+      URL.revokeObjectURL(url)
+
+      setResult({ driveUrl, shipmentNo, summary })
+    } catch {
+      setError('網路錯誤，請稍後再試')
+    } finally {
+      setGenerating(false)
+    }
+  }
+
+  const canGenerate = !!date && !!roundNo && !!file && selectedStores.length > 0
+
+  return (
+    <div className="bg-white border border-gray-200 rounded-xl shadow-sm overflow-hidden">
+      <div className="px-5 py-4 border-b border-gray-100">
+        <h2 className="font-semibold text-gray-800 text-sm">手動產生出貨單</h2>
+        <p className="text-xs text-gray-400 mt-0.5">上傳供應商 Excel，選擇日期、回目與門市，一鍵產生出貨單</p>
+      </div>
+
+      <div className="px-5 py-4 space-y-4">
+        {/* Row 1: date + round + label */}
+        <div className="flex flex-wrap gap-3">
+          <div className="flex flex-col gap-1">
+            <label className="text-xs text-gray-500">配送日期</label>
+            <input
+              type="date"
+              value={date}
+              onChange={e => setDate(e.target.value)}
+              className="border border-gray-200 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-lopia-red"
+            />
+          </div>
+          <div className="flex flex-col gap-1">
+            <label className="text-xs text-gray-500">回目數</label>
+            <input
+              type="number"
+              min="1"
+              value={roundNo}
+              onChange={e => setRoundNo(e.target.value)}
+              placeholder="例：5"
+              className="w-24 border border-gray-200 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-lopia-red"
+            />
+          </div>
+          <div className="flex flex-col gap-1 flex-1">
+            <label className="text-xs text-gray-500">批次名稱（選填，用於檔名）</label>
+            <input
+              type="text"
+              value={label}
+              onChange={e => setLabel(e.target.value)}
+              placeholder="例：CITY20260401"
+              className="border border-gray-200 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-lopia-red"
+            />
+          </div>
+        </div>
+
+        {/* Row 2: store checkboxes */}
+        <div>
+          <div className="flex items-center justify-between mb-2">
+            <label className="text-xs text-gray-500">門市</label>
+            <button
+              onClick={toggleAll}
+              className="text-xs text-lopia-red hover:underline"
+            >
+              {selectedStores.length === SKILL_STORES.length ? '全消' : '全選'}
+            </button>
+          </div>
+          <div className="flex flex-wrap gap-2">
+            {SKILL_STORES.map(s => (
+              <button
+                key={s.code}
+                onClick={() => toggleStore(s.code)}
+                className={`px-2.5 py-1 rounded-full text-xs font-medium transition-colors border ${
+                  selectedStores.includes(s.code)
+                    ? 'bg-lopia-red text-white border-lopia-red'
+                    : 'bg-white text-gray-500 border-gray-200 hover:border-lopia-red hover:text-lopia-red'
+                }`}
+              >
+                {s.label}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        {/* Row 3: file upload */}
+        <div>
+          <label className="text-xs text-gray-500 block mb-2">供應商配送 Excel</label>
+          <div className="flex items-center gap-3">
+            <input
+              ref={fileRef}
+              type="file"
+              accept=".xlsx,.xls"
+              className="hidden"
+              onChange={e => setFile(e.target.files?.[0] ?? null)}
+            />
+            <button
+              onClick={() => fileRef.current?.click()}
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-gray-200 text-xs font-medium text-gray-600 hover:border-lopia-red hover:text-lopia-red transition-colors"
+            >
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+                <polyline points="17 8 12 3 7 8"/>
+                <line x1="12" y1="3" x2="12" y2="15"/>
+              </svg>
+              選擇 Excel 檔案
+            </button>
+            {file && (
+              <span className="text-xs text-gray-500 truncate max-w-[200px]">{file.name}</span>
+            )}
+          </div>
+        </div>
+
+        {/* Generate button + error */}
+        {error && <p className="text-xs text-red-500">{error}</p>}
+        <div className="flex justify-end">
+          <button
+            onClick={handleGenerate}
+            disabled={!canGenerate || generating}
+            className="flex items-center gap-2 px-5 py-2 rounded-lg bg-lopia-red text-white text-sm font-medium hover:bg-lopia-red-dark transition-colors disabled:opacity-40"
+          >
+            {generating ? (
+              <svg className="animate-spin w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                <circle cx="12" cy="12" r="10" strokeOpacity="0.25"/>
+                <path d="M12 2a10 10 0 0 1 10 10" strokeOpacity="0.75"/>
+              </svg>
+            ) : (
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
+                <polyline points="14 2 14 8 20 8"/>
+                <line x1="16" y1="13" x2="8" y2="13"/>
+                <line x1="16" y1="17" x2="8" y2="17"/>
+              </svg>
+            )}
+            {generating ? '產生中...' : '產生出貨單'}
+          </button>
+        </div>
+
+        {/* Result + summary */}
+        {result && (
+          <div className="border border-emerald-200 bg-emerald-50 rounded-lg px-4 py-3 space-y-3">
+            <div className="flex items-center justify-between">
+              <span className="text-sm font-semibold text-emerald-700">✓ {result.shipmentNo} 已產生並下載</span>
+              {result.driveUrl && (
+                <a href={result.driveUrl} target="_blank" rel="noopener noreferrer"
+                  className="text-xs text-blue-500 hover:underline">
+                  Drive 連結 →
+                </a>
+              )}
+            </div>
+
+            {/* Summary table */}
+            {result.summary.length > 0 && (
+              <div>
+                <p className="text-xs font-medium text-emerald-700 mb-1.5">📦 本次出貨彙總</p>
+                <table className="w-full text-xs">
+                  <thead>
+                    <tr className="text-gray-500 border-b border-emerald-200">
+                      <th className="text-left pb-1 font-medium">商品名稱</th>
+                      <th className="text-right pb-1 font-medium pr-4">入數</th>
+                      <th className="text-right pb-1 font-medium">總箱數</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {result.summary.map((item, i) => (
+                      <tr key={i} className="border-b border-emerald-100">
+                        <td className="py-0.5 text-gray-700 truncate max-w-[200px]">{item.name}</td>
+                        <td className="py-0.5 text-gray-500 text-right pr-4">{item.boxSpec}</td>
+                        <td className={`py-0.5 text-right font-medium ${item.total === 0 ? 'text-gray-300' : 'text-gray-800'}`}>
+                          {item.total} 箱
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                  <tfoot>
+                    <tr>
+                      <td colSpan={2} className="pt-1.5 font-semibold text-emerald-700">總計</td>
+                      <td className="pt-1.5 text-right font-bold text-emerald-700">
+                        {result.summary.reduce((s, i) => s + i.total, 0)} 箱
+                      </td>
+                    </tr>
+                  </tfoot>
+                </table>
+
+                {/* Plain numbers for clipboard */}
+                <details className="mt-2">
+                  <summary className="text-xs text-gray-400 cursor-pointer hover:text-gray-600">純數字（庫存貼上用）</summary>
+                  <pre className="mt-1 text-xs bg-white border border-emerald-100 rounded p-2 text-gray-600 select-all">
+                    {result.summary.map(i => i.total).join('\n')}
+                  </pre>
+                </details>
+              </div>
+            )}
+          </div>
+        )}
+      </div>
+    </div>
+  )
+}
+
 // ── Main Page ──────────────────────────────────────────────────────────────────
 
 export default function OrdersPage() {
   const [authed, setAuthed] = useState(false)
+  const [tab, setTab] = useState<'notion' | 'manual'>('notion')
   const [shipments, setShipments] = useState<(Shipment & { shippedBoxes?: number })[]>([])
   const [records, setRecords] = useState<ShipmentRecord[]>([])
   const [loading, setLoading] = useState(false)
@@ -390,7 +661,6 @@ export default function OrdersPage() {
       const res = await fetch('/api/shipments')
       const data = await res.json()
       setShipments(data.shipments ?? [])
-      // Get records separately for round grouping
       const recRes = await fetch('/api/records')
       const recData = await recRes.json()
       setRecords(recData.records ?? [])
@@ -442,7 +712,7 @@ export default function OrdersPage() {
 
           <button
             onClick={fetchData}
-            disabled={loading}
+            disabled={loading || tab === 'manual'}
             className="flex items-center gap-1.5 text-xs text-gray-500 hover:text-lopia-red transition-colors px-2.5 py-1.5 rounded-md hover:bg-lopia-red-light border border-gray-200 hover:border-lopia-red disabled:opacity-40"
           >
             <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"
@@ -456,50 +726,73 @@ export default function OrdersPage() {
       </header>
 
       <main className="max-w-4xl mx-auto px-4 py-6 space-y-4">
-        {/* Search + Filter */}
-        <div className="flex flex-col sm:flex-row gap-3">
-          <div className="relative flex-1">
-            <svg className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-              <circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/>
-            </svg>
-            <input
-              type="text"
-              value={search}
-              onChange={e => setSearch(e.target.value)}
-              placeholder="搜尋批次名稱或商品..."
-              className="w-full pl-9 pr-4 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-lopia-red bg-white"
-            />
-          </div>
-          <div className="flex gap-2">
-            {(['all', 'pending', 'ready'] as const).map(f => (
-              <button
-                key={f}
-                onClick={() => setFilter(f)}
-                className={`px-3 py-2 text-xs font-medium rounded-lg transition-colors ${
-                  filter === f
-                    ? 'bg-lopia-red text-white'
-                    : 'bg-white border border-gray-200 text-gray-600 hover:border-lopia-red hover:text-lopia-red'
-                }`}
-              >
-                {f === 'all' ? '全部' : f === 'pending' ? '未完成' : '可產生'}
-              </button>
-            ))}
-          </div>
+        {/* Tabs */}
+        <div className="flex gap-1 bg-gray-100 rounded-lg p-1 w-fit">
+          {([['notion', '批次出貨'], ['manual', '手動產生']] as const).map(([key, label]) => (
+            <button
+              key={key}
+              onClick={() => setTab(key)}
+              className={`px-4 py-1.5 rounded-md text-sm font-medium transition-colors ${
+                tab === key
+                  ? 'bg-white text-gray-900 shadow-sm'
+                  : 'text-gray-500 hover:text-gray-700'
+              }`}
+            >
+              {label}
+            </button>
+          ))}
         </div>
 
-        {/* Batch list */}
-        {loading ? (
-          <div className="text-center py-16 text-gray-400 text-sm">載入中...</div>
-        ) : filtered.length === 0 ? (
-          <div className="text-center py-16 text-gray-400 text-sm">
-            {search ? '找不到符合的批次' : '沒有批次資料'}
-          </div>
+        {tab === 'manual' ? (
+          <ManualGeneratePanel />
         ) : (
-          <div className="space-y-3">
-            {filtered.map(s => (
-              <BatchCard key={s.id} shipment={s} records={records} onRefresh={fetchData} />
-            ))}
-          </div>
+          <>
+            {/* Search + Filter */}
+            <div className="flex flex-col sm:flex-row gap-3">
+              <div className="relative flex-1">
+                <svg className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/>
+                </svg>
+                <input
+                  type="text"
+                  value={search}
+                  onChange={e => setSearch(e.target.value)}
+                  placeholder="搜尋批次名稱或商品..."
+                  className="w-full pl-9 pr-4 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-lopia-red bg-white"
+                />
+              </div>
+              <div className="flex gap-2">
+                {(['all', 'pending', 'ready'] as const).map(f => (
+                  <button
+                    key={f}
+                    onClick={() => setFilter(f)}
+                    className={`px-3 py-2 text-xs font-medium rounded-lg transition-colors ${
+                      filter === f
+                        ? 'bg-lopia-red text-white'
+                        : 'bg-white border border-gray-200 text-gray-600 hover:border-lopia-red hover:text-lopia-red'
+                    }`}
+                  >
+                    {f === 'all' ? '全部' : f === 'pending' ? '未完成' : '可產生'}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {/* Batch list */}
+            {loading ? (
+              <div className="text-center py-16 text-gray-400 text-sm">載入中...</div>
+            ) : filtered.length === 0 ? (
+              <div className="text-center py-16 text-gray-400 text-sm">
+                {search ? '找不到符合的批次' : '沒有批次資料'}
+              </div>
+            ) : (
+              <div className="space-y-3">
+                {filtered.map(s => (
+                  <BatchCard key={s.id} shipment={s} records={records} onRefresh={fetchData} />
+                ))}
+              </div>
+            )}
+          </>
         )}
       </main>
     </div>
