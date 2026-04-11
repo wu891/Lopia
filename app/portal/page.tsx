@@ -119,6 +119,8 @@ function CustomsSection({ batches }: { batches: Shipment[] }) {
   const [releaseDate, setReleaseDate] = useState('')
   const [pickupLocation, setPickupLocation] = useState('')
   const [remarks, setRemarks] = useState('')
+  const [pesticidePassed, setPesticidePassed] = useState(false)
+  const [radiationPassed, setRadiationPassed] = useState(false)
   const [needsFumigation, setNeedsFumigation] = useState(false)
   const [saving, setSaving] = useState(false)
   const [saved, setSaved] = useState(false)
@@ -133,10 +135,11 @@ function CustomsSection({ batches }: { batches: Shipment[] }) {
 
   function handleBatchChange(id: string) {
     setSelectedBatchId(id)
-    // 預填煙燻狀態：若 Notion 上已有申請中 / 進行中，預設勾選
     const batch = batches.find(b => b.id === id)
-    const existing = batch?.fumigation ?? ''
-    setNeedsFumigation(['申請中', '進行中', '完成'].includes(existing))
+    // 預填：從 Notion 現有狀態自動勾選
+    setPesticidePassed(batch?.pesticideTest === '合格')
+    setRadiationPassed(batch?.radiationTest === '合格')
+    setNeedsFumigation(['申請中', '進行中', '完成'].includes(batch?.fumigation ?? ''))
   }
 
   async function handleSubmit(e: React.FormEvent) {
@@ -162,11 +165,15 @@ function CustomsSection({ batches }: { batches: Shipment[] }) {
       })
       if (!res.ok) throw new Error('Failed')
 
-      // 2. 更新 Notion 批次頁的燻蒸狀態
+      // 2. 更新 Notion 批次頁檢驗欄位
       await fetch(`/api/shipments/${selectedBatchId}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ fumigation: needsFumigation ? '申請中' : '不需要' }),
+        body: JSON.stringify({
+          fumigation:    needsFumigation  ? '申請中' : '不需要',
+          ...(pesticidePassed ? { pesticideTest: '合格' } : {}),
+          ...(radiationPassed ? { radiationTest: '合格' } : {}),
+        }),
       })
 
       setSaved(true)
@@ -174,6 +181,8 @@ function CustomsSection({ batches }: { batches: Shipment[] }) {
       setPickupLocation('')
       setRemarks('')
       setSelectedBatchId('')
+      setPesticidePassed(false)
+      setRadiationPassed(false)
       setNeedsFumigation(false)
       setTimeout(() => setSaved(false), 3000)
     } catch {
@@ -183,19 +192,35 @@ function CustomsSection({ batches }: { batches: Shipment[] }) {
     }
   }
 
-  // 檢驗狀態顏色
-  function inspColor(val: string | null) {
-    if (!val) return 'text-gray-300'
-    if (['進行中', '申請中'].includes(val)) return 'text-yellow-600'
-    if (['合格', '完成', '不需要'].includes(val)) return 'text-green-600'
-    if (['不合格'].includes(val)) return 'text-red-500'
-    return 'text-gray-600'
+  // 共用 checkbox UI
+  function InspCheckbox({
+    checked, onChange, icon, label,
+  }: { checked: boolean; onChange: (v: boolean) => void; icon: string; label: string }) {
+    return (
+      <label className="flex items-center gap-3 cursor-pointer select-none bg-white rounded-lg border border-gray-100 px-3 py-2.5">
+        <div className={`w-5 h-5 rounded-md border-2 flex items-center justify-center transition-colors flex-shrink-0 ${
+          checked ? 'bg-lopia-red border-lopia-red' : 'bg-white border-gray-300'
+        }`}>
+          {checked && (
+            <svg width="11" height="11" viewBox="0 0 12 12" fill="none">
+              <path d="M2 6l3 3 5-5" stroke="white" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+            </svg>
+          )}
+        </div>
+        <div>
+          <p className="text-[10px] text-gray-400 leading-none mb-0.5">{icon}</p>
+          <p className="text-sm font-semibold text-gray-700 leading-tight">{label}</p>
+        </div>
+        <input type="checkbox" className="sr-only" checked={checked} onChange={e => onChange(e.target.checked)} />
+      </label>
+    )
   }
 
   return (
     <form onSubmit={handleSubmit} className="space-y-5">
       <p className="text-sm text-gray-500">通關完成後，請填寫以下放貨資訊，讓貨運業者安排取貨。</p>
 
+      {/* ── 選擇批次 */}
       <div>
         <label className="block text-sm font-semibold text-gray-700 mb-1.5">選擇批次 *</label>
         <select
@@ -207,57 +232,36 @@ function CustomsSection({ batches }: { batches: Shipment[] }) {
           <option value="">— 請選擇批次 —</option>
           {activeBatches.map(b => (
             <option key={b.id} value={b.id}>
-              {b.ivName}{b.arrivalTW ? ` (抵台 ${b.arrivalTW})` : ''}
+              {b.ivName}{b.productSummary ? ` — ${b.productSummary}` : ''}{b.arrivalTW ? ` (抵台 ${b.arrivalTW})` : ''}
             </option>
           ))}
         </select>
       </div>
 
-      {/* ── 檢驗資訊（選批次後顯示） */}
+      {/* ── 檢驗狀態 3 個勾選（選批次後顯示） */}
       {selectedBatch && (
-        <div className="rounded-xl border border-gray-100 bg-gray-50 px-4 py-3 space-y-3">
-          <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide">檢驗狀態</p>
-
-          {/* 農藥 / 輻射 (read-only from Notion) */}
-          <div className="grid grid-cols-2 gap-3">
-            <div className="bg-white rounded-lg border border-gray-100 px-3 py-2.5">
-              <p className="text-[10px] text-gray-400 mb-0.5">🧪 農藥檢驗</p>
-              <p className={`text-sm font-semibold ${inspColor(selectedBatch.pesticideTest)}`}>
-                {selectedBatch.pesticideTest ?? '尚無資料'}
-              </p>
-            </div>
-            <div className="bg-white rounded-lg border border-gray-100 px-3 py-2.5">
-              <p className="text-[10px] text-gray-400 mb-0.5">☢️ 輻射檢驗</p>
-              <p className={`text-sm font-semibold ${inspColor(selectedBatch.radiationTest)}`}>
-                {selectedBatch.radiationTest ?? '尚無資料'}
-              </p>
-            </div>
+        <div className="rounded-xl border border-gray-100 bg-gray-50 px-4 py-3 space-y-2">
+          <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-1">檢驗狀態</p>
+          <div className="grid grid-cols-1 gap-2">
+            <InspCheckbox
+              checked={pesticidePassed}
+              onChange={setPesticidePassed}
+              icon="🧪 農藥檢驗"
+              label="農藥檢驗合格"
+            />
+            <InspCheckbox
+              checked={radiationPassed}
+              onChange={setRadiationPassed}
+              icon="☢️ 輻射檢驗"
+              label="輻射檢驗合格"
+            />
+            <InspCheckbox
+              checked={needsFumigation}
+              onChange={setNeedsFumigation}
+              icon="🌿 煙燻處理"
+              label="需要煙燻處理"
+            />
           </div>
-
-          {/* 煙燻處理 checkbox */}
-          <label className="flex items-center gap-3 cursor-pointer select-none">
-            <div className="relative">
-              <input
-                type="checkbox"
-                checked={needsFumigation}
-                onChange={e => setNeedsFumigation(e.target.checked)}
-                className="sr-only"
-              />
-              <div className={`w-5 h-5 rounded-md border-2 flex items-center justify-center transition-colors ${
-                needsFumigation ? 'bg-lopia-red border-lopia-red' : 'bg-white border-gray-300'
-              }`}>
-                {needsFumigation && (
-                  <svg width="11" height="11" viewBox="0 0 12 12" fill="none">
-                    <path d="M2 6l3 3 5-5" stroke="white" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
-                  </svg>
-                )}
-              </div>
-            </div>
-            <div>
-              <p className="text-sm font-semibold text-gray-700">需要煙燻處理</p>
-              <p className="text-xs text-gray-400">勾選後將更新 Notion 批次頁的燻蒸狀態為「申請中」</p>
-            </div>
-          </label>
         </div>
       )}
 

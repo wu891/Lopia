@@ -364,11 +364,16 @@ export async function createShipment(data: {
 
 // ── Update Shipment Fields ────────────────────────────────────────────────────
 
-export async function updateShipmentFumigation(id: string, value: string) {
-  await notion.pages.update({
-    page_id: id,
-    properties: {
-      '燻蒸狀態': { select: { name: value } },
-    },
-  })
+export async function updateShipmentInspection(id: string, data: {
+  fumigation?: string
+  pesticideTest?: string
+  radiationTest?: string
+}) {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const props: any = {}
+  if (data.fumigation)    props['燻蒸狀態'] = { select: { name: data.fumigation } }
+  if (data.pesticideTest) props['農藥檢驗'] = { select: { name: data.pesticideTest } }
+  if (data.radiationTest) props['輻射檢驗'] = { select: { name: data.radiationTest } }
+  if (Object.keys(props).length === 0) return
+  await notion.pages.update({ page_id: id, properties: props })
 }
