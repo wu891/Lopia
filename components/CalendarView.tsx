@@ -1,11 +1,12 @@
 'use client'
 import { useState, useRef, useEffect } from 'react'
-import { Shipment } from '@/lib/notion'
+import { Shipment, LogisticsEvent } from '@/lib/notion'
 import { Lang } from '@/lib/i18n'
 
 interface Props {
   shipments: Shipment[]
   lang: Lang
+  logisticsEvents?: LogisticsEvent[]
 }
 
 const STATUS_DOT: Record<string, string> = {
@@ -21,7 +22,20 @@ function isSameDay(a: Date, b: Date) {
          a.getDate()     === b.getDate()
 }
 
-export default function CalendarView({ shipments, lang }: Props) {
+function parseLocalDate(dateStr: string): Date {
+  // Parse YYYY-MM-DD as local date to avoid UTC shift
+  const [y, m, d] = dateStr.split('-').map(Number)
+  return new Date(y, m - 1, d)
+}
+
+// Logistics event types shown in the calendar cell
+interface LogisticsMarker {
+  type: '放貨' | '配送' | '送達'
+  batchId: string
+  label: string
+}
+
+export default function CalendarView({ shipments, lang, logisticsEvents = [] }: Props) {
   const today = new Date()
   const [year,  setYear]  = useState(today.getFullYear())
   const [month, setMonth] = useState(today.getMonth())
@@ -29,7 +43,6 @@ export default function CalendarView({ shipments, lang }: Props) {
   const detailRef = useRef<HTMLDivElement>(null)
   const isJa = lang === 'ja'
 
-  // Scroll detail panel into view when a batch is selected
   useEffect(() => {
     if (selected && detailRef.current) {
       detailRef.current.scrollIntoView({ behavior: 'smooth', block: 'nearest' })
@@ -37,7 +50,7 @@ export default function CalendarView({ shipments, lang }: Props) {
   }, [selected])
 
   // Build grid
-  const startDow   = new Date(year, month, 1).getDay()
+  const startDow    = new Date(year, month, 1).getDay()
   const daysInMonth = new Date(year, month + 1, 0).getDate()
   const cells: (Date | null)[] = []
   for (let i = 0; i < startDow; i++) cells.push(null)
@@ -47,8 +60,35 @@ export default function CalendarView({ shipments, lang }: Props) {
   function shipmentsOnDay(day: Date): Shipment[] {
     return shipments.filter(s => {
       if (!s.arrivalTW) return false
-      return isSameDay(new Date(s.arrivalTW), day)
+      return isSameDay(parseLocalDate(s.arrivalTW), day)
     })
+  }
+
+  function logisticsMarkersOnDay(day: Date): LogisticsMarker[] {
+    const markers: LogisticsMarker[] = []
+    for (const e of logisticsEvents) {
+      if (e.eventType === '通關放貨' && e.releaseDate) {
+        if (isSameDay(parseLocalDate(e.releaseDate), day)) {
+          const batch = shipments.find(s => s.id === e.batchId)
+          markers.push({ type: '放貨', batchId: e.batchId ?? '', label: batch?.ivName ?? '' })
+        }
+      }
+      if (e.eventType === '配送' && e.estDelivery) {
+        if (isSameDay(parseLocalDate(e.estDelivery), day)) {
+          const batch = shipments.find(s => s.id === e.batchId)
+          const existing = markers.find(m => m.type === '配送' && m.batchId === e.batchId)
+          if (!existing) markers.push({ type: '配送', batchId: e.batchId ?? '', label: batch?.ivName ?? '' })
+        }
+      }
+      if (e.eventType === '配送' && e.actualDelivery && e.deliveryStatus === '已送達') {
+        if (isSameDay(parseLocalDate(e.actualDelivery), day)) {
+          const batch = shipments.find(s => s.id === e.batchId)
+          const existing = markers.find(m => m.type === '送達' && m.batchId === e.batchId)
+          if (!existing) markers.push({ type: '送達', batchId: e.batchId ?? '', label: batch?.ivName ?? '' })
+        }
+      }
+    }
+    return markers
   }
 
   function prevMonth() {
@@ -68,6 +108,32 @@ export default function CalendarView({ shipments, lang }: Props) {
   const dowLabels = isJa
     ? ['日','月','火','水','木','金','土']
     : ['日','一','二','三','四','五','六']
+
+  // Logistics detail for selected batch
+  const selectedLogistics = selected
+    ? logisticsEvents.filter(e => e.batchId === selected.id)
+    : []
+  const customsEvent = selectedLogistics.find(e => e.eventType === '通關放貨')
+  const deliveryEvents = selectedLogistics.filter(e => e.eventType === '配送')
+
+  // Group delivery events by round
+  const deliveryByRound = new Map<number, LogisticsEvent[]>()
+  for (const e of deliveryEvents) {
+    const key = e.round ?? 0
+    if (!deliveryByRound.has(key)) deliveryByRound.set(key, [])
+    deliveryByRound.get(key)!.push(e)
+  }
+
+  const MARKER_STYLE: Record<string, string> = {
+    '放貨': 'bg-yellow-100 text-yellow-700',
+    '配送': 'bg-blue-100 text-blue-700',
+    '送達': 'bg-green-100 text-green-700',
+  }
+  const MARKER_ICON: Record<string, string> = {
+    '放貨': '🟡',
+    '配送': '🚚',
+    '送達': '✅',
+  }
 
   return (
     <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
@@ -101,6 +167,7 @@ export default function CalendarView({ shipments, lang }: Props) {
           const dow      = day.getDay()
           const isToday  = isSameDay(day, today)
           const batches  = shipmentsOnDay(day)
+          const markers  = logisticsMarkersOnDay(day)
 
           return (
             <div key={day.toISOString()}
@@ -114,7 +181,7 @@ export default function CalendarView({ shipments, lang }: Props) {
                 {day.getDate()}
               </div>
 
-              {/* Batch chips */}
+              {/* Batch chips (arrivalTW) */}
               <div className="space-y-0.5">
                 {batches.map(s => {
                   const isActive = selected?.id === s.id
@@ -137,6 +204,18 @@ export default function CalendarView({ shipments, lang }: Props) {
                     </button>
                   )
                 })}
+
+                {/* Logistics markers */}
+                {markers.map((m, i) => (
+                  <div
+                    key={`${m.type}-${m.batchId}-${i}`}
+                    title={`${m.type}: ${m.label}`}
+                    className={`w-full flex items-center gap-1 px-1.5 py-0.5 rounded text-xs leading-tight font-medium ${MARKER_STYLE[m.type]}`}
+                  >
+                    <span className="text-[10px]">{MARKER_ICON[m.type]}</span>
+                    <span className="truncate">{m.type}</span>
+                  </div>
+                ))}
               </div>
             </div>
           )
@@ -213,6 +292,68 @@ export default function CalendarView({ shipments, lang }: Props) {
               )}
             </div>
           )}
+
+          {/* Logistics section */}
+          {selectedLogistics.length > 0 && (
+            <div className="mt-3 pt-3 border-t border-red-100 space-y-2">
+              <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide">
+                {isJa ? '物流情報' : '物流進度'}
+              </p>
+
+              {/* Customs release */}
+              {customsEvent && (
+                <div className="flex items-start gap-2 text-xs">
+                  <span>🟡</span>
+                  <div>
+                    <span className="font-medium text-yellow-700">
+                      {isJa ? '放貨日：' : '放貨日：'}{customsEvent.releaseDate}
+                    </span>
+                    {customsEvent.pickupLocation && (
+                      <p className="text-gray-500 mt-0.5">取貨地點：{customsEvent.pickupLocation}</p>
+                    )}
+                  </div>
+                </div>
+              )}
+
+              {/* Delivery rounds */}
+              {Array.from(deliveryByRound.entries())
+                .sort((a, b) => a[0] - b[0])
+                .map(([round, events]) => {
+                  const allDelivered = events.every(e => e.deliveryStatus === '已送達')
+                  const someDelivered = events.some(e => e.deliveryStatus === '已送達')
+                  return (
+                    <div key={round} className="text-xs">
+                      <div className="flex items-center gap-1.5 mb-1">
+                        <span>{allDelivered ? '✅' : someDelivered ? '🚚' : '🚚'}</span>
+                        <span className="font-medium text-gray-700">
+                          第{round}次配送
+                          {allDelivered && <span className="text-green-600 ml-1">全數送達</span>}
+                        </span>
+                      </div>
+                      <div className="ml-5 space-y-0.5">
+                        {events.map(e => (
+                          <div key={e.id} className="flex items-center justify-between gap-2 text-gray-500">
+                            <span className="truncate">{e.store}</span>
+                            <div className="flex items-center gap-1.5 flex-shrink-0">
+                              {e.estDelivery && (
+                                <span className="text-gray-400">{e.estDelivery}</span>
+                              )}
+                              <span className={`px-1.5 py-0.5 rounded text-[10px] font-medium ${
+                                e.deliveryStatus === '已送達' ? 'bg-green-100 text-green-700' :
+                                e.deliveryStatus === '配送中' ? 'bg-blue-100 text-blue-700' :
+                                'bg-gray-100 text-gray-500'
+                              }`}>
+                                {e.deliveryStatus ?? '待配送'}
+                              </span>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )
+                })}
+            </div>
+          )}
         </div>
       )}
 
@@ -224,9 +365,11 @@ export default function CalendarView({ shipments, lang }: Props) {
             {label}
           </div>
         ))}
-        <span className="text-xs text-gray-400 ml-auto">
-          {isJa ? '抵台日を基準' : '以抵台日定位'}
-        </span>
+        <div className="flex items-center gap-2 ml-auto">
+          <span className="text-xs text-gray-400">🟡放貨</span>
+          <span className="text-xs text-gray-400">🚚配送</span>
+          <span className="text-xs text-gray-400">✅送達</span>
+        </div>
       </div>
     </div>
   )

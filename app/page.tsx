@@ -1,6 +1,6 @@
 'use client'
 import { useEffect, useState, useCallback } from 'react'
-import { Shipment, ShipmentRecord } from '@/lib/notion'
+import { Shipment, ShipmentRecord, LogisticsEvent } from '@/lib/notion'
 import { Lang, t } from '@/lib/i18n'
 import Header from '@/components/Header'
 import ShipmentCard from '@/components/ShipmentCard'
@@ -19,10 +19,15 @@ interface RecordsData {
   records: ShipmentRecord[]
 }
 
+interface LogisticsData {
+  events: LogisticsEvent[]
+}
+
 export default function Home() {
   const [lang, setLang] = useState<Lang>('zh')
   const [data, setData] = useState<ApiData | null>(null)
   const [recordsData, setRecordsData] = useState<RecordsData | null>(null)
+  const [logisticsData, setLogisticsData] = useState<LogisticsData | null>(null)
   const [loading, setLoading] = useState(true)
   const [tab, setTab] = useState<Tab>('shipments')
   const [viewMode, setViewMode] = useState<'list' | 'calendar'>('list')
@@ -34,16 +39,19 @@ export default function Home() {
   const fetchData = useCallback(async () => {
     setLoading(true)
     try {
-      const [shipmentsRes, recordsRes] = await Promise.all([
+      const [shipmentsRes, recordsRes, logisticsRes] = await Promise.all([
         fetch('/api/shipments', { cache: 'no-store' }),
-        fetch('/api/records', { cache: 'no-store' }),
+        fetch('/api/records',   { cache: 'no-store' }),
+        fetch('/api/logistics', { cache: 'no-store' }),
       ])
-      const [shipmentsJson, recordsJson] = await Promise.all([
+      const [shipmentsJson, recordsJson, logisticsJson] = await Promise.all([
         shipmentsRes.json(),
         recordsRes.json(),
+        logisticsRes.json(),
       ])
       setData(shipmentsJson)
       setRecordsData(recordsJson)
+      setLogisticsData(logisticsJson)
     } catch (e) {
       console.error(e)
     } finally {
@@ -178,7 +186,11 @@ export default function Home() {
                 </div>
               </div>
             ) : viewMode === 'calendar' ? (
-              <CalendarView shipments={data?.shipments ?? []} lang={lang} />
+              <CalendarView
+                shipments={data?.shipments ?? []}
+                lang={lang}
+                logisticsEvents={logisticsData?.events ?? []}
+              />
             ) : filtered.length === 0 ? (
               <div className="flex items-center justify-center h-48">
                 <p className="text-gray-400 text-sm">{T.noData}</p>

@@ -4,6 +4,7 @@ const notion = new Client({ auth: process.env.NOTION_API_KEY })
 
 const IMPORT_STATUS_DB = process.env.NOTION_IMPORT_STATUS_DB!
 const SHIPMENT_RECORDS_DB = process.env.NOTION_SHIPMENT_RECORDS_DB!
+const LOGISTICS_DB = process.env.NOTION_LOGISTICS_DB!
 
 export interface Shipment {
   id: string
@@ -209,6 +210,112 @@ export async function updateShipmentRecord(id: string, data: Partial<{
 
   const page = await notion.pages.update({ page_id: id, properties: props })
   return pageToRecord(page)
+}
+
+// ── Logistics Events ──────────────────────────────────────────────────────────
+
+export type LogisticsEventType = '通關放貨' | '配送'
+export type DeliveryStatus = '待配送' | '配送中' | '已送達'
+
+export interface LogisticsEvent {
+  id: string
+  eventNo: string
+  eventType: LogisticsEventType | null
+  batchId: string | null
+  store: string | null
+  round: number | null
+  releaseDate: string | null
+  pickupLocation: string | null
+  estDelivery: string | null
+  actualDelivery: string | null
+  deliveryStatus: DeliveryStatus | null
+  remarks: string | null
+  createdAt: string
+}
+
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+function pageToLogisticsEvent(page: any): LogisticsEvent {
+  const p = page.properties
+  const relation = p['關聯批次']?.relation as Array<{ id: string }> | undefined
+  return {
+    id: page.id,
+    eventNo: getText(p['事件編號']) ?? '',
+    eventType: (getSelect(p['事件類型']) as LogisticsEventType | null),
+    batchId: relation?.[0]?.id ?? null,
+    store: getSelect(p['關聯門市']),
+    round: getNumber(p['出貨輪次']),
+    releaseDate: getDate(p['放貨日期']),
+    pickupLocation: getText(p['取貨地點']),
+    estDelivery: getDate(p['預計送達']),
+    actualDelivery: getDate(p['實際送達']),
+    deliveryStatus: (getSelect(p['配送狀態']) as DeliveryStatus | null),
+    remarks: getText(p['業者備註']),
+    createdAt: p['建立時間']?.created_time ?? '',
+  }
+}
+
+export async function getLogisticsEvents(): Promise<LogisticsEvent[]> {
+  const response = await notion.databases.query({
+    database_id: LOGISTICS_DB,
+    sorts: [{ property: '建立時間', direction: 'descending' }],
+  })
+  return response.results.map(pageToLogisticsEvent)
+}
+
+export async function createLogisticsEvent(data: {
+  eventNo: string
+  eventType: LogisticsEventType
+  batchId: string
+  store?: string
+  round?: number
+  releaseDate?: string
+  pickupLocation?: string
+  estDelivery?: string
+  actualDelivery?: string
+  deliveryStatus?: DeliveryStatus
+  remarks?: string
+}): Promise<LogisticsEvent> {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const props: any = {
+    '事件編號': { title: [{ text: { content: data.eventNo } }] },
+    '事件類型': { select: { name: data.eventType } },
+    '關聯批次': { relation: [{ id: data.batchId }] },
+  }
+  if (data.store)          props['關聯門市']  = { select: { name: data.store } }
+  if (data.round != null)  props['出貨輪次']  = { number: data.round }
+  if (data.releaseDate)    props['放貨日期']  = { date: { start: data.releaseDate } }
+  if (data.pickupLocation) props['取貨地點']  = { rich_text: [{ text: { content: data.pickupLocation } }] }
+  if (data.estDelivery)    props['預計送達']  = { date: { start: data.estDelivery } }
+  if (data.actualDelivery) props['實際送達']  = { date: { start: data.actualDelivery } }
+  if (data.deliveryStatus) props['配送狀態']  = { select: { name: data.deliveryStatus } }
+  if (data.remarks)        props['業者備註']  = { rich_text: [{ text: { content: data.remarks } }] }
+
+  const page = await notion.pages.create({
+    parent: { database_id: LOGISTICS_DB },
+    properties: props,
+  })
+  return pageToLogisticsEvent(page)
+}
+
+export async function updateLogisticsEvent(id: string, data: Partial<{
+  releaseDate: string
+  pickupLocation: string
+  estDelivery: string
+  actualDelivery: string
+  deliveryStatus: DeliveryStatus
+  remarks: string
+}>): Promise<LogisticsEvent> {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const props: any = {}
+  if (data.releaseDate)    props['放貨日期'] = { date: { start: data.releaseDate } }
+  if (data.pickupLocation) props['取貨地點'] = { rich_text: [{ text: { content: data.pickupLocation } }] }
+  if (data.estDelivery)    props['預計送達'] = { date: { start: data.estDelivery } }
+  if (data.actualDelivery) props['實際送達'] = { date: { start: data.actualDelivery } }
+  if (data.deliveryStatus) props['配送狀態'] = { select: { name: data.deliveryStatus } }
+  if (data.remarks != null) props['業者備註'] = { rich_text: [{ text: { content: data.remarks } }] }
+
+  const page = await notion.pages.update({ page_id: id, properties: props })
+  return pageToLogisticsEvent(page)
 }
 
 // ── Delete (archive) ──────────────────────────────────────────────────────────
