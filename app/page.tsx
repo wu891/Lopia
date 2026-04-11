@@ -4,6 +4,7 @@ import { Shipment, ShipmentRecord, LogisticsEvent } from '@/lib/notion'
 import { Lang, t } from '@/lib/i18n'
 import Header from '@/components/Header'
 import ShipmentCard from '@/components/ShipmentCard'
+import CompactShipmentRow from '@/components/CompactShipmentRow'
 import StoreList from '@/components/StoreList'
 import AddBatchForm from '@/components/AddBatchForm'
 import CalendarView from '@/components/CalendarView'
@@ -12,12 +13,13 @@ type Tab = 'shipments' | 'stores'
 
 // ── Month-grouped list ──────────────────────────────────────
 function MonthGroupedList({
-  shipments, lang, allRecords, onRecordChange,
+  shipments, lang, allRecords, onRecordChange, compact = false,
 }: {
   shipments: Shipment[]
   lang: Lang
   allRecords: ShipmentRecord[]
   onRecordChange: () => void
+  compact?: boolean
 }) {
   const groups: { monthKey: string; label: string; items: Shipment[] }[] = []
   for (const s of shipments) {
@@ -37,22 +39,37 @@ function MonthGroupedList({
     <div>
       {groups.map(group => (
         <div key={group.monthKey} className="mb-6">
-          <div className="sticky top-14 z-20 -mx-4 px-4 py-2 mb-3
-            bg-gray-50/95 backdrop-blur-sm border-b border-gray-200">
+          <div className={`sticky top-14 z-20 -mx-4 px-4 py-2 mb-3
+            bg-gray-50/95 backdrop-blur-sm border-b border-gray-200 flex items-center gap-2`}>
             <span className="text-sm font-bold text-gray-700">{group.label}</span>
-            <span className="ml-2 text-xs text-gray-400 font-normal">{group.items.length}</span>
+            <span className="text-xs text-gray-400 font-normal">{group.items.length}</span>
           </div>
-          <div className="space-y-4">
-            {group.items.map(s => (
-              <ShipmentCard
-                key={s.id}
-                shipment={s}
-                lang={lang}
-                allRecords={allRecords}
-                onRecordChange={onRecordChange}
-              />
-            ))}
-          </div>
+
+          {compact ? (
+            <div className="bg-white border border-gray-200 rounded-xl shadow-sm overflow-hidden divide-y divide-gray-100">
+              {group.items.map(s => (
+                <CompactShipmentRow
+                  key={s.id}
+                  shipment={s}
+                  lang={lang}
+                  allRecords={allRecords}
+                  onRecordChange={onRecordChange}
+                />
+              ))}
+            </div>
+          ) : (
+            <div className="space-y-4">
+              {group.items.map(s => (
+                <ShipmentCard
+                  key={s.id}
+                  shipment={s}
+                  lang={lang}
+                  allRecords={allRecords}
+                  onRecordChange={onRecordChange}
+                />
+              ))}
+            </div>
+          )}
         </div>
       ))}
     </div>
@@ -294,6 +311,7 @@ export default function Home() {
                 lang={lang}
                 allRecords={allRecords}
                 onRecordChange={refreshRecords}
+                compact={filter === 'done'}
               />
             )}
           </div>
