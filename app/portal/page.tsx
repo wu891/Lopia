@@ -122,24 +122,55 @@ function CustomsSection({ batches }: { batches: Shipment[] }) {
   const [pesticidePassed, setPesticidePassed] = useState(false)
   const [radiationPassed, setRadiationPassed] = useState(false)
   const [needsFumigation, setNeedsFumigation] = useState(false)
+  const [inspSaving, setInspSaving] = useState(false)
+  const [inspSaved, setInspSaved] = useState(false)
   const [saving, setSaving] = useState(false)
   const [saved, setSaved] = useState(false)
   const [error, setError] = useState('')
 
-  // Show batches that haven't fully cleared yet
   const activeBatches = batches.filter(b =>
     !b.actualClearance || b.deliveryStatus === '未到'
   )
-
   const selectedBatch = batches.find(b => b.id === selectedBatchId) ?? null
 
   function handleBatchChange(id: string) {
     setSelectedBatchId(id)
     const batch = batches.find(b => b.id === id)
-    // 預填：從 Notion 現有狀態自動勾選
     setPesticidePassed(batch?.pesticideTest === '合格')
     setRadiationPassed(batch?.radiationTest === '合格')
     setNeedsFumigation(['申請中', '進行中', '完成'].includes(batch?.fumigation ?? ''))
+  }
+
+  // 即時更新 Notion（勾選當下觸發）
+  async function patchNotion(patch: Record<string, string>) {
+    if (!selectedBatchId) return
+    setInspSaving(true)
+    try {
+      await fetch(`/api/shipments/${selectedBatchId}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(patch),
+      })
+      setInspSaved(true)
+      setTimeout(() => setInspSaved(false), 1500)
+    } catch {
+      // 靜默失敗，送出時仍會再次更新
+    } finally {
+      setInspSaving(false)
+    }
+  }
+
+  async function handlePesticide(v: boolean) {
+    setPesticidePassed(v)
+    if (v) await patchNotion({ pesticideTest: '合格' })
+  }
+  async function handleRadiation(v: boolean) {
+    setRadiationPassed(v)
+    if (v) await patchNotion({ radiationTest: '合格' })
+  }
+  async function handleFumigation(v: boolean) {
+    setNeedsFumigation(v)
+    await patchNotion({ fumigation: v ? '申請中' : '不需要' })
   }
 
   async function handleSubmit(e: React.FormEvent) {
@@ -149,7 +180,6 @@ function CustomsSection({ batches }: { batches: Shipment[] }) {
     setError('')
     const batch = batches.find(b => b.id === selectedBatchId)
     try {
-      // 1. 建立通關放貨事件
       const res = await fetch('/api/logistics', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -165,12 +195,12 @@ function CustomsSection({ batches }: { batches: Shipment[] }) {
       })
       if (!res.ok) throw new Error('Failed')
 
-      // 2. 更新 Notion 批次頁檢驗欄位
+      // 送出時再次確認同步（防止中途網路失敗）
       await fetch(`/api/shipments/${selectedBatchId}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          fumigation:    needsFumigation  ? '申請中' : '不需要',
+          fumigation: needsFumigation ? '申請中' : '不需要',
           ...(pesticidePassed ? { pesticideTest: '合格' } : {}),
           ...(radiationPassed ? { radiationTest: '合格' } : {}),
         }),
@@ -192,12 +222,13 @@ function CustomsSection({ batches }: { batches: Shipment[] }) {
     }
   }
 
-  // 共用 checkbox UI
+  // 共用 checkbox 元件
   function InspCheckbox({
-    checked, onChange, icon, label,
-  }: { checked: boolean; onChange: (v: boolean) => void; icon: string; label: string }) {
+    checked, onToggle, label, disabled,
+  }: { checked: boolean; onToggle: (v: boolean) => void; label: string; disabled: boolean }) {
     return (
-      <label className="flex items-center gap-3 cursor-pointer select-none bg-white rounded-lg border border-gray-100 px-3 py-2.5">
+      <label className={`flex items-center gap-3 select-none bg-white rounded-lg border px-4 py-3 transition-colors
+        ${disabled ? 'opacity-40 cursor-not-allowed border-gray-100' : 'cursor-pointer border-gray-100 active:bg-gray-50'}`}>
         <div className={`w-5 h-5 rounded-md border-2 flex items-center justify-center transition-colors flex-shrink-0 ${
           checked ? 'bg-lopia-red border-lopia-red' : 'bg-white border-gray-300'
         }`}>
@@ -207,11 +238,14 @@ function CustomsSection({ batches }: { batches: Shipment[] }) {
             </svg>
           )}
         </div>
-        <div>
-          <p className="text-[10px] text-gray-400 leading-none mb-0.5">{icon}</p>
-          <p className="text-sm font-semibold text-gray-700 leading-tight">{label}</p>
-        </div>
-        <input type="checkbox" className="sr-only" checked={checked} onChange={e => onChange(e.target.checked)} />
+        <span className="text-sm font-semibold text-gray-700">{label}</span>
+        <input
+          type="checkbox"
+          className="sr-only"
+          checked={checked}
+          disabled={disabled}
+          onChange={e => onToggle(e.target.checked)}
+        />
       </label>
     )
   }
@@ -238,32 +272,44 @@ function CustomsSection({ batches }: { batches: Shipment[] }) {
         </select>
       </div>
 
-      {/* ── 檢驗狀態 3 個勾選（選批次後顯示） */}
-      {selectedBatch && (
-        <div className="rounded-xl border border-gray-100 bg-gray-50 px-4 py-3 space-y-2">
-          <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-1">檢驗狀態</p>
-          <div className="grid grid-cols-1 gap-2">
-            <InspCheckbox
-              checked={pesticidePassed}
-              onChange={setPesticidePassed}
-              icon="🧪 農藥檢驗"
-              label="農藥檢驗合格"
-            />
-            <InspCheckbox
-              checked={radiationPassed}
-              onChange={setRadiationPassed}
-              icon="☢️ 輻射檢驗"
-              label="輻射檢驗合格"
-            />
-            <InspCheckbox
-              checked={needsFumigation}
-              onChange={setNeedsFumigation}
-              icon="🌿 煙燻處理"
-              label="需要煙燻處理"
-            />
-          </div>
+      {/* ── 需要檢驗（選批次後顯示） */}
+      <div className="rounded-xl border border-gray-100 bg-gray-50 px-4 py-3 space-y-2">
+        <div className="flex items-center justify-between mb-1">
+          <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide">需要檢驗</p>
+          {inspSaving && (
+            <span className="flex items-center gap-1 text-[10px] text-gray-400">
+              <div className="w-3 h-3 border border-gray-300 border-t-lopia-red rounded-full animate-spin" />
+              更新中
+            </span>
+          )}
+          {inspSaved && !inspSaving && (
+            <span className="text-[10px] text-green-500 font-medium">✓ 已同步</span>
+          )}
         </div>
-      )}
+        <div className="grid grid-cols-1 gap-2">
+          <InspCheckbox
+            checked={pesticidePassed}
+            onToggle={handlePesticide}
+            label="農藥檢驗"
+            disabled={!selectedBatch}
+          />
+          <InspCheckbox
+            checked={radiationPassed}
+            onToggle={handleRadiation}
+            label="輻射檢驗"
+            disabled={!selectedBatch}
+          />
+          <InspCheckbox
+            checked={needsFumigation}
+            onToggle={handleFumigation}
+            label="煙燻處理"
+            disabled={!selectedBatch}
+          />
+        </div>
+        {!selectedBatch && (
+          <p className="text-[10px] text-gray-400 text-center pt-1">請先選擇批次</p>
+        )}
+      </div>
 
       <div>
         <label className="block text-sm font-semibold text-gray-700 mb-1.5">放貨日期 *</label>
@@ -678,7 +724,10 @@ export default function PortalPage() {
       <div className="bg-white border-b border-gray-200 sticky top-0 z-10">
         <div className="max-w-lg mx-auto px-4 py-3 flex items-center gap-3">
           <div className="w-8 h-8 bg-lopia-red rounded-lg flex items-center justify-center flex-shrink-0">
-            <span className="text-white text-sm font-bold">L</span>
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M1 3h15v13H1z"/><path d="M16 8h4l3 3v5h-7V8z"/>
+              <circle cx="5.5" cy="18.5" r="2.5"/><circle cx="18.5" cy="18.5" r="2.5"/>
+            </svg>
           </div>
           <div>
             <h1 className="font-bold text-gray-800 text-sm leading-tight">LOPIA 物流通報</h1>
@@ -686,29 +735,40 @@ export default function PortalPage() {
           </div>
           <button
             onClick={() => { sessionStorage.removeItem('lopia_portal_authed'); setAuthed(false) }}
-            className="ml-auto text-xs text-gray-400 hover:text-gray-600"
+            className="ml-auto flex items-center gap-1 text-xs text-gray-400 hover:text-gray-600 border border-gray-200 px-2.5 py-1 rounded-md hover:border-gray-300 transition-colors cursor-pointer"
           >
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/>
+            </svg>
             登出
           </button>
         </div>
 
         {/* Tab bar */}
-        <div className="max-w-lg mx-auto px-4 pb-2 flex gap-1">
+        <div className="max-w-lg mx-auto flex border-b border-gray-200">
           <button
             onClick={() => setTab('customs')}
-            className={`flex-1 py-2 rounded-lg text-sm font-semibold transition-all ${
-              tab === 'customs' ? 'bg-lopia-red text-white' : 'text-gray-500 hover:bg-gray-50'
+            className={`flex-1 flex items-center justify-center gap-1.5 py-2.5 text-sm font-semibold border-b-2 -mb-px transition-colors cursor-pointer ${
+              tab === 'customs' ? 'border-lopia-red text-lopia-red' : 'border-transparent text-gray-500 hover:text-gray-700'
             }`}
           >
-            📋 通關回報
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/>
+              <line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><polyline points="10 9 9 9 8 9"/>
+            </svg>
+            通關回報
           </button>
           <button
             onClick={() => setTab('freight')}
-            className={`flex-1 py-2 rounded-lg text-sm font-semibold transition-all ${
-              tab === 'freight' ? 'bg-lopia-red text-white' : 'text-gray-500 hover:bg-gray-50'
+            className={`flex-1 flex items-center justify-center gap-1.5 py-2.5 text-sm font-semibold border-b-2 -mb-px transition-colors cursor-pointer ${
+              tab === 'freight' ? 'border-lopia-red text-lopia-red' : 'border-transparent text-gray-500 hover:text-gray-700'
             }`}
           >
-            🚚 配送回報
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M1 3h15v13H1z"/><path d="M16 8h4l3 3v5h-7V8z"/>
+              <circle cx="5.5" cy="18.5" r="2.5"/><circle cx="18.5" cy="18.5" r="2.5"/>
+            </svg>
+            配送回報
           </button>
         </div>
       </div>
