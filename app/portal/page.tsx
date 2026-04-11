@@ -283,7 +283,10 @@ function CustomsSection({ batches }: { batches: Shipment[] }) {
             </span>
           )}
           {inspSaved && !inspSaving && (
-            <span className="text-[10px] text-green-500 font-medium">✓ 已同步</span>
+            <span className="flex items-center gap-0.5 text-[10px] text-green-500 font-medium">
+              <svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
+              已同步
+            </span>
           )}
         </div>
         <div className="grid grid-cols-1 gap-2">
@@ -351,7 +354,12 @@ function CustomsSection({ batches }: { batches: Shipment[] }) {
         disabled={saving || !selectedBatchId || !releaseDate}
         className="w-full py-4 bg-lopia-red text-white font-bold rounded-xl text-base disabled:opacity-40 active:opacity-80 transition-opacity"
       >
-        {saved ? '✓ 已送出' : saving ? '送出中...' : '送出放貨通知'}
+        {saved ? (
+        <span className="flex items-center justify-center gap-2">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
+          已送出
+        </span>
+      ) : saving ? '送出中...' : '送出放貨通知'}
       </button>
     </form>
   )
@@ -561,7 +569,10 @@ function FreightSection({
               )
             })}
           </div>
-          <p className="text-xs text-gray-400 mt-2">🔴 紅點 = 今日可出貨輪次；其餘輪次為不同日期，不可選取</p>
+          <p className="flex items-center gap-1.5 text-xs text-gray-400 mt-2">
+            <span className="inline-block w-2 h-2 rounded-full bg-lopia-red shrink-0" />
+            紅點 = 今日可出貨輪次；其餘輪次為不同日期，不可選取
+          </p>
         </div>
       )}
 
@@ -585,11 +596,18 @@ function FreightSection({
                 <button
                   type="button"
                   onClick={() => updateStore(i, 'delivered', !s.delivered)}
-                  className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-semibold transition-all ${
+                  className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-semibold transition-all cursor-pointer ${
                     s.delivered ? 'bg-green-500 text-white' : 'bg-gray-100 text-gray-500'
                   }`}
                 >
-                  {s.delivered ? '✓ 已送達' : '未送達'}
+                  {s.delivered ? (
+                    <>
+                      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
+                        <polyline points="20 6 9 17 4 12"/>
+                      </svg>
+                      已送達
+                    </>
+                  ) : '未送達'}
                 </button>
               </div>
 
@@ -609,7 +627,10 @@ function FreightSection({
                 <label className="block text-xs text-gray-500 mb-1.5">簽收照</label>
                 {s.photoUrl ? (
                   <div className="flex items-center gap-2">
-                    <span className="text-xs text-green-600 font-medium">✓ 已上傳</span>
+                    <span className="flex items-center gap-1 text-xs text-green-600 font-medium">
+                      <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
+                      已上傳
+                    </span>
                     <a
                       href={s.photoUrl}
                       target="_blank"
@@ -636,7 +657,10 @@ function FreightSection({
                     px-4 py-2 rounded-lg border border-dashed border-gray-300
                     text-sm text-gray-500 hover:border-lopia-red hover:text-lopia-red
                     transition-colors bg-white active:bg-gray-50">
-                    <span>📷</span>
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                      <path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/>
+                      <circle cx="12" cy="13" r="4"/>
+                    </svg>
                     <span>上傳出貨單簽收照</span>
                     <input
                       type="file"
@@ -665,7 +689,12 @@ function FreightSection({
           disabled={saving}
           className="w-full py-4 bg-lopia-red text-white font-bold rounded-xl text-base disabled:opacity-40 active:opacity-80 transition-opacity"
         >
-          {saved ? '✓ 已儲存' : saving ? '儲存中...' : '儲存配送狀態'}
+          {saved ? (
+            <span className="flex items-center justify-center gap-2">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
+              已儲存
+            </span>
+          ) : saving ? '儲存中...' : '儲存配送狀態'}
         </button>
       )}
     </form>
