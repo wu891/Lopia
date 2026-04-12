@@ -93,10 +93,11 @@ lib/
 
 ## 門市清單（lib/stores.ts）
 
-**營業中（open）11 間**：LaLaport台中、桃園春日、新北中和環球、新莊宏匯、高雄漢神巨蛋、南港LaLaport、IKEA台中南屯、高雄夢時代、台南小北門、台南三井Outlet、台中漢神中港
+**營業中（open）11 間**：LaLaport台中、桃園春日、新北中和環球、新莊宏匯、高雄漢神巨蛋、南港LaLaport、IKEA台中南屯、高雄夢時代、台南小北門、台南三井Outlet（= MOP）、台中漢神中港
 
 **即將開幕（coming_soon）3 間**：台北大巨蛋（2026-05）、台南SOGO新天（2026-06）、高雄漢神百貨（2026-09）
 
+> **重要**：MOP / MOP店 = 台南三井 Outlet 店（同一間門市），出貨單上的「MOP」需統一為「台南三井 Outlet 店」
 > 新增門市：在 `lib/stores.ts` 的 `STORES` 陣列加入一筆，status 用 `'open'` 或 `'coming_soon'`
 
 ---
