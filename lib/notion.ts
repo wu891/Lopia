@@ -146,22 +146,38 @@ function pageToRecord(page: any): ShipmentRecord {
 // ── Read ──────────────────────────────────────────────────────────────────────
 
 export async function getShipments(): Promise<Shipment[]> {
-  const response = await notion.databases.query({
-    database_id: IMPORT_STATUS_DB,
-    sorts: [{ property: '日本出發日', direction: 'descending' }],
-  })
-  return response.results.map(pageToShipment)
+  const results: Shipment[] = []
+  let cursor: string | undefined
+  do {
+    const response = await notion.databases.query({
+      database_id: IMPORT_STATUS_DB,
+      sorts: [{ property: '日本出發日', direction: 'descending' }],
+      page_size: 100,
+      ...(cursor ? { start_cursor: cursor } : {}),
+    })
+    results.push(...response.results.map(pageToShipment))
+    cursor = response.has_more ? (response.next_cursor ?? undefined) : undefined
+  } while (cursor)
+  return results
 }
 
 export async function getShipmentRecords(): Promise<ShipmentRecord[]> {
-  const response = await notion.databases.query({
-    database_id: SHIPMENT_RECORDS_DB,
-    sorts: [
-      { property: '出貨輪次', direction: 'ascending' },
-      { property: '出貨日期', direction: 'ascending' },
-    ],
-  })
-  return response.results.map(pageToRecord)
+  const results: ShipmentRecord[] = []
+  let cursor: string | undefined
+  do {
+    const response = await notion.databases.query({
+      database_id: SHIPMENT_RECORDS_DB,
+      sorts: [
+        { property: '出貨輪次', direction: 'ascending' },
+        { property: '出貨日期', direction: 'ascending' },
+      ],
+      page_size: 100,
+      ...(cursor ? { start_cursor: cursor } : {}),
+    })
+    results.push(...response.results.map(pageToRecord))
+    cursor = response.has_more ? (response.next_cursor ?? undefined) : undefined
+  } while (cursor)
+  return results
 }
 
 // ── Create ────────────────────────────────────────────────────────────────────
