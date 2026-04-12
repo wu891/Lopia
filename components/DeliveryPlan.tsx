@@ -106,8 +106,10 @@ export default function DeliveryPlan({ batchId, batchName, totalBoxes, records, 
   const sName        = (s: typeof STORES[0]) => lang === 'ja' ? s.name_ja : s.name_zh
 
   // ── Pre-save form summary (computed live from rounds state) ──
+  // Only count rounds that WILL actually be saved (have a date set)
   const formStoreTotals: Record<string, { boxes: number; rounds: number }> = {}
   for (const r of rounds) {
+    if (!r.date) continue  // rounds without a date are skipped in handleSave
     for (const s of r.stores) {
       const n = Number(s.boxes)
       if (n > 0) {
@@ -121,6 +123,8 @@ export default function DeliveryPlan({ batchId, batchName, totalBoxes, records, 
   const hasSummary   = formTotal > 0
   const formMatchOk  = totalBoxes != null && formTotal === totalBoxes
   const formMatchWarn= totalBoxes != null && formTotal > 0 && formTotal !== totalBoxes
+  // Warn user about rounds with boxes but no date (they will NOT be saved)
+  const undatedRoundsCount = rounds.filter(r => !r.date && r.stores.some(s => Number(s.boxes) > 0)).length
 
   // ── Excel ────────────────────────────────────────────
   async function handleExcelFile(e: React.ChangeEvent<HTMLInputElement>) {
@@ -490,6 +494,16 @@ export default function DeliveryPlan({ batchId, batchName, totalBoxes, records, 
             </div>
           ))}
         </div>
+        {undatedRoundsCount > 0 && (
+          <div className="flex items-start gap-1.5 px-2 py-1.5 bg-red-50 border border-red-200 rounded-lg text-xs text-red-600">
+            <span className="flex-shrink-0 mt-0.5">⚠</span>
+            <span>
+              {lang === 'ja'
+                ? `${undatedRoundsCount} 回次は日付未設定のため保存されません。日付を入力してください。`
+                : `${undatedRoundsCount} 個輪次尚未設定日期，儲存時將被略過。請補填出貨日期。`}
+            </span>
+          </div>
+        )}
         <div className={`flex items-center justify-between pt-1.5 border-t text-xs font-semibold ${
           formMatchOk   ? 'border-green-200 text-green-700' :
           formMatchWarn ? 'border-yellow-200 text-yellow-700' :
