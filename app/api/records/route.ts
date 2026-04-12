@@ -1,13 +1,23 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createShipmentRecord, getShipmentRecords } from '@/lib/notion'
 
+const CORS = {
+  'Access-Control-Allow-Origin': '*',
+  'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
+  'Access-Control-Allow-Headers': 'Content-Type',
+}
+
+export async function OPTIONS() {
+  return new Response(null, { status: 204, headers: CORS })
+}
+
 export async function GET() {
   try {
     const records = await getShipmentRecords()
-    return NextResponse.json({ records })
+    return NextResponse.json({ records }, { headers: CORS })
   } catch (err) {
     console.error(err)
-    return NextResponse.json({ error: 'Failed to fetch records' }, { status: 500 })
+    return NextResponse.json({ error: 'Failed to fetch records' }, { status: 500, headers: CORS })
   }
 }
 
