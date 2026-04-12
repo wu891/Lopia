@@ -536,10 +536,10 @@ export default function DeliveryPlan({ batchId, batchName, totalBoxes, records, 
       <div className="flex items-center justify-between gap-2 flex-wrap">
         <button
           onClick={() => setCollapsed(c => !c)}
-          className="flex items-center gap-1.5 group"
+          className="flex items-center gap-1.5 group min-h-[44px] px-1 -ml-1 cursor-pointer"
         >
           <span className={`text-gray-300 text-xs transition-transform duration-200 ${collapsed ? '' : 'rotate-90'}`}>▶</span>
-          <span className="text-xs text-gray-400 font-medium group-hover:text-gray-600 transition-colors">
+          <span className="text-xs text-gray-500 font-medium group-hover:text-gray-700 transition-colors">
             {T.deliveryPlan}
             {roundGroups.length > 0 && collapsed && (
               <span className="ml-1.5 text-gray-300">({roundGroups.length}{T.roundSuffix})</span>

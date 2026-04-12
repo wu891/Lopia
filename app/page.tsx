@@ -203,16 +203,14 @@ export default function Home() {
 
         {/* Shipments tab */}
         {tab === 'shipments' && (
-          <div className="space-y-4">
-            {/* Toolbar */}
-            <div className="flex flex-col sm:flex-row gap-2 items-start sm:items-center">
-              <AddBatchForm lang={lang} onBatchAdded={fetchData} />
-
+          <div className="space-y-3">
+            {/* ── Toolbar Row 1: view toggle + search + add ── */}
+            <div className="flex items-center gap-2">
               {/* List / Calendar toggle */}
-              <div className="flex border border-gray-200 rounded-lg overflow-hidden">
+              <div className="flex border border-gray-200 rounded-lg overflow-hidden shrink-0">
                 <button
                   onClick={() => setViewMode('list')}
-                  className={`flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium transition-colors cursor-pointer ${
+                  className={`flex items-center gap-1.5 px-3 py-2 text-xs font-semibold transition-colors cursor-pointer min-h-[36px] ${
                     viewMode === 'list'
                       ? 'bg-lopia-red-light text-lopia-red'
                       : 'bg-white text-gray-500 hover:bg-gray-50'
@@ -226,7 +224,7 @@ export default function Home() {
                 </button>
                 <button
                   onClick={() => setViewMode('calendar')}
-                  className={`flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium transition-colors cursor-pointer border-l border-gray-200 ${
+                  className={`flex items-center gap-1.5 px-3 py-2 text-xs font-semibold transition-colors cursor-pointer border-l border-gray-200 min-h-[36px] ${
                     viewMode === 'calendar'
                       ? 'bg-lopia-red-light text-lopia-red'
                       : 'bg-white text-gray-500 hover:bg-gray-50'
@@ -240,8 +238,8 @@ export default function Home() {
                 </button>
               </div>
 
-              {/* Search + filter (list mode only) */}
-              {viewMode === 'list' && (<>
+              {/* Search */}
+              {viewMode === 'list' && (
                 <div className="flex-1 relative min-w-0">
                   <svg className="absolute left-2.5 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                     <circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/>
@@ -251,49 +249,80 @@ export default function Home() {
                     value={search}
                     onChange={e => setSearch(e.target.value)}
                     placeholder={T.search}
-                    className="w-full border border-gray-200 rounded-lg pl-8 pr-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-lopia-red bg-white"
+                    className="w-full border border-gray-200 rounded-lg pl-8 pr-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-lopia-red bg-white min-h-[36px]"
                   />
                 </div>
-                <div className="flex gap-1">
-                  {(['all', 'active', 'done'] as const).map(f => (
+              )}
+
+              {/* Add batch button (outlined) */}
+              <AddBatchForm lang={lang} onBatchAdded={fetchData} />
+            </div>
+
+            {/* ── Toolbar Row 2: filter pills with counts ── */}
+            {viewMode === 'list' && (
+              <div className="flex gap-1.5">
+                {(['all', 'active', 'done'] as const).map(f => {
+                  const allShipments = data?.shipments ?? []
+                  const count =
+                    f === 'all'    ? allShipments.length :
+                    f === 'active' ? allShipments.filter(s => s.deliveryStatus !== '全數出貨').length :
+                    allShipments.filter(s => s.deliveryStatus === '全數出貨').length
+                  return (
                     <button key={f} onClick={() => setFilter(f)}
-                      className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-all border cursor-pointer ${
+                      className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-semibold transition-all border cursor-pointer ${
                         filter === f
                           ? 'bg-lopia-red text-white border-lopia-red'
-                          : 'bg-white text-gray-500 border-gray-200 hover:bg-gray-50'
+                          : 'bg-white text-gray-500 border-gray-200 hover:border-lopia-red hover:text-lopia-red'
                       }`}>
                       {f === 'all' ? T.filterAll : f === 'active' ? T.filterActive : T.filterDone}
+                      <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded-full ${
+                        filter === f ? 'bg-white/25 text-white' : 'bg-gray-100 text-gray-400'
+                      }`}>{count}</span>
                     </button>
-                  ))}
-                </div>
-              </>)}
+                  )
+                })}
+              </div>
+            )}
             </div>
 
             {loading ? (
-              <div className="flex items-center justify-center h-48">
-                <div className="flex flex-col items-center gap-3">
-                  {/* Skeleton cards */}
-                  <div className="w-full max-w-2xl space-y-3">
-                    {[1, 2].map(i => (
-                      <div key={i} className="bg-white border border-gray-200 rounded-xl p-4 animate-pulse">
-                        <div className="flex justify-between mb-3">
-                          <div className="h-4 bg-gray-200 rounded w-32" />
-                          <div className="h-4 bg-gray-200 rounded w-16" />
+              <div className="space-y-3">
+                {[1, 2, 3].map(i => (
+                  <div key={i} className="bg-white border border-gray-200 rounded-xl overflow-hidden shadow-sm">
+                    <div className="p-5">
+                      {/* Header row */}
+                      <div className="flex justify-between mb-4">
+                        <div>
+                          <div className="animate-shimmer h-4 rounded w-40 mb-2" />
+                          <div className="animate-shimmer h-3 rounded w-56" />
                         </div>
-                        <div className="flex gap-4 mb-3">
-                          {[1,2,3,4].map(j => (
-                            <div key={j} className="flex-1 flex flex-col items-center gap-1">
-                              <div className="w-7 h-7 bg-gray-200 rounded-full" />
-                              <div className="h-3 bg-gray-200 rounded w-10" />
-                            </div>
-                          ))}
+                        <div className="flex gap-2">
+                          <div className="animate-shimmer h-5 rounded-full w-20" />
+                          <div className="animate-shimmer h-5 rounded-full w-20" />
                         </div>
-                        <div className="h-2 bg-gray-200 rounded-full" />
                       </div>
-                    ))}
+                      {/* Timeline dots */}
+                      <div className="flex justify-between mt-6 mb-2">
+                        {[1,2,3,4].map(j => (
+                          <div key={j} className="flex flex-col items-center gap-2 flex-1">
+                            <div className="animate-shimmer w-8 h-8 rounded-full" />
+                            <div className="animate-shimmer h-2.5 rounded w-10" />
+                            <div className="animate-shimmer h-2.5 rounded w-8" />
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                    {/* Meta bar */}
+                    <div className="px-5 py-3 bg-gray-50 border-t border-gray-100 grid grid-cols-3 gap-6">
+                      {[1,2,3].map(j => (
+                        <div key={j}>
+                          <div className="animate-shimmer h-2.5 rounded w-12 mb-1.5" />
+                          <div className="animate-shimmer h-3 rounded w-20" />
+                        </div>
+                      ))}
+                    </div>
                   </div>
-                  <span className="text-sm text-gray-400">{T.loading}</span>
-                </div>
+                ))}
               </div>
             ) : viewMode === 'calendar' ? (
               <CalendarView
@@ -302,8 +331,19 @@ export default function Home() {
                 logisticsEvents={logisticsData?.events ?? []}
               />
             ) : filtered.length === 0 ? (
-              <div className="flex items-center justify-center h-48">
-                <p className="text-gray-400 text-sm">{T.noData}</p>
+              <div className="bg-white border border-gray-200 rounded-xl shadow-sm flex flex-col items-center justify-center py-14 px-6 text-center">
+                <svg width="44" height="44" viewBox="0 0 24 24" fill="none" stroke="#D1D5DB" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" className="mb-3">
+                  <circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/>
+                </svg>
+                <p className="text-gray-500 font-semibold text-sm mb-1">{T.noData}</p>
+                {search && (
+                  <button
+                    onClick={() => { setSearch(''); setFilter('all') }}
+                    className="mt-3 text-xs font-semibold text-lopia-red border border-lopia-red-light bg-lopia-red-light hover:bg-red-100 px-4 py-2 rounded-lg transition-colors cursor-pointer"
+                  >
+                    清除搜尋
+                  </button>
+                )}
               </div>
             ) : (
               <MonthGroupedList

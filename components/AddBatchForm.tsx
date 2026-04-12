@@ -142,12 +142,14 @@ export default function AddBatchForm({ lang, onBatchAdded }: Props) {
 
   return (
     <>
-      {/* Trigger button */}
+      {/* Trigger button — outlined style to reduce red density */}
       <button
         onClick={() => setOpen(true)}
-        className="flex items-center gap-1.5 px-3 py-2 bg-lopia-red text-white text-sm font-medium rounded-lg hover:bg-lopia-red-dark transition-colors shadow-sm"
+        className="flex items-center gap-1.5 px-3 py-2 min-h-[36px] bg-white text-lopia-red text-sm font-semibold rounded-lg border-[1.5px] border-lopia-red hover:bg-lopia-red-light transition-colors cursor-pointer"
       >
-        <span className="text-base leading-none">+</span>
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+          <line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/>
+        </svg>
         {isJa ? '新規バッチ登録' : '新增批次'}
       </button>
 

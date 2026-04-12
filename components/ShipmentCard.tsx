@@ -71,19 +71,19 @@ export default function ShipmentCard({ shipment, lang, allRecords, onRecordChang
       <div className="px-5 py-2.5 bg-gray-50 border-t border-gray-100 grid grid-cols-2 sm:grid-cols-3 gap-x-6 gap-y-1.5">
         {shipment.flightNo && (
           <div className="flex flex-col">
-            <span className="text-xs text-gray-400">{T.flightNo}</span>
+            <span className="text-xs text-gray-500">{T.flightNo}</span>
             <span className="text-xs font-medium text-gray-700">{shipment.flightNo}</span>
           </div>
         )}
         {shipment.awbNo && (
           <div className="flex flex-col">
-            <span className="text-xs text-gray-400">{T.awbNo}</span>
+            <span className="text-xs text-gray-500">{T.awbNo}</span>
             <span className="text-xs font-medium text-gray-700">{shipment.awbNo}</span>
           </div>
         )}
         {shipment.warehouse && (
           <div className="flex flex-col">
-            <span className="text-xs text-gray-400">{T.warehouse}</span>
+            <span className="text-xs text-gray-500">{T.warehouse}</span>
             <span className="text-xs font-medium text-lopia-red">{shipment.warehouse}</span>
           </div>
         )}
@@ -111,7 +111,7 @@ export default function ShipmentCard({ shipment, lang, allRecords, onRecordChang
 
         {/* Documents */}
         <div>
-          <p className="text-xs text-gray-400 mb-1.5">{T.documents}</p>
+          <p className="text-xs text-gray-500 mb-1.5">{T.documents}</p>
           <DocumentStatus shipment={shipment} lang={lang} />
         </div>
 

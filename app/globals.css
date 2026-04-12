@@ -1,4 +1,4 @@
-@import url('https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@400;500;700&family=Noto+Sans+TC:wght@400;500;700&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Poppins:wght@600;700&family=Noto+Sans+JP:wght@400;500;700&family=Noto+Sans+TC:wght@400;500;700&display=swap');
 
 @tailwind base;
 @tailwind components;
@@ -14,7 +14,23 @@
 
 body {
   background-color: #F5F5F5;
-  font-family: 'Noto Sans JP', 'Noto Sans TC', sans-serif;
+  font-family: 'Inter', 'Noto Sans JP', 'Noto Sans TC', sans-serif;
+}
+
+/* Poppins for batch names / headings */
+.font-heading {
+  font-family: 'Poppins', 'Noto Sans JP', sans-serif;
+}
+
+/* Shimmer skeleton animation */
+@keyframes shimmer {
+  0%   { background-position: -600px 0; }
+  100% { background-position:  600px 0; }
+}
+.animate-shimmer {
+  background: linear-gradient(90deg, #F3F4F6 25%, #E5E7EB 50%, #F3F4F6 75%);
+  background-size: 600px 100%;
+  animation: shimmer 1.4s infinite ease-in-out;
 }
 
 /* Timeline pulse animation */

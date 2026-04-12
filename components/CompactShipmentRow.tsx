@@ -54,7 +54,7 @@ export default function CompactShipmentRow({ shipment, lang, allRecords, onRecor
         tabIndex={0}
         onClick={() => setOpen(o => !o)}
         onKeyDown={e => e.key === 'Enter' && setOpen(o => !o)}
-        className="flex items-center gap-3 px-4 py-3 hover:bg-gray-50 transition-colors cursor-pointer select-none"
+        className="flex items-center gap-3 px-4 py-3 min-h-[52px] hover:bg-gray-50 transition-colors cursor-pointer select-none"
       >
         {/* Chevron */}
         <svg
@@ -76,18 +76,24 @@ export default function CompactShipmentRow({ shipment, lang, allRecords, onRecor
             )}
           </div>
           {shipment.productSummary && (
-            <p className="text-[11px] text-gray-400 truncate mt-0.5 hidden sm:block">{shipment.productSummary}</p>
+            <p className="text-[11px] text-gray-500 truncate mt-0.5 hidden sm:block">{shipment.productSummary}</p>
           )}
+          {/* Mobile-only: show key dates below name when collapsed */}
+          <p className="text-[10px] text-gray-400 mt-0.5 sm:hidden">
+            {arrivalStr !== '—' && <>抵台 {arrivalStr}</>}
+            {arrivalStr !== '—' && clearanceStr !== '—' && <span className="mx-1">·</span>}
+            {clearanceStr !== '—' && <>出關 {clearanceStr}</>}
+          </p>
         </div>
 
         {/* Key dates + boxes — right side */}
         <div className="flex items-center gap-3 shrink-0 text-xs text-gray-500">
           <div className="hidden md:flex items-center gap-0.5">
-            <span className="text-gray-400 text-[10px]">抵台</span>
+            <span className="text-gray-500 text-[10px]">抵台</span>
             <span className="font-medium text-gray-700 ml-0.5">{arrivalStr}</span>
           </div>
           <div className="hidden md:flex items-center gap-0.5">
-            <span className="text-gray-400 text-[10px]">出關</span>
+            <span className="text-gray-500 text-[10px]">出關</span>
             <span className={`font-medium ml-0.5 ${shipment.actualClearance ? 'text-gray-700' : 'text-gray-300'}`}>{clearanceStr}</span>
           </div>
           {shipment.totalBoxes != null && (
@@ -158,7 +164,7 @@ export default function CompactShipmentRow({ shipment, lang, allRecords, onRecor
             />
 
             <div>
-              <p className="text-xs text-gray-400 mb-1.5">{T.documents}</p>
+              <p className="text-xs text-gray-500 mb-1.5">{T.documents}</p>
               <DocumentStatus shipment={shipment} lang={lang} />
             </div>
 
