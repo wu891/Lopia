@@ -834,11 +834,17 @@ function addProductRow(batchId) {
 }
 
 // ── Excel Parser for Price Config ─────────────────────────
-// 出貨單欄位結構（from lopia-trade-ops skill）:
-//   Row 14 = 表頭: 日期(A) | 商品類別(B) | 商品名稱(C) | 箱入數(D) | 箱數(E) | 單價(F) | 總金額(G) | 備註(H)
-//   Row 15+ = 商品資料列
-// 供應商 Excel 結構:
-//   Col[0]=入数/箱, Col[1]=商品名, Col[2]=ケース数(箱), Col[3+]=原価(first num >= 100)
+// ===== 出貨單 SKILL 定義的兩種 Excel 格式 =====
+//
+// 【出貨單 S*.xlsx】(系統產生)
+//   Row 9 (idx 8) = 表頭: 商品名稱(A-B merged) | 入數(玉)(B) | 箱數(C) | 單價TWD/箱(D) | 小計TWD(E)
+//   Row 10+ = 商品資料列
+//   偵測：Row 1 含「日商夢多」或「出貨單」
+//
+// 【供應商計畫 Excel】(台湾ロピア苺XX.xlsx)
+//   Sheet names = "{N}回目{店名}"
+//   A=入數(每箱幾玉), B=商品名稱, C=ケース數(箱數), E=原価(直接當TWD售價)
+//   偵測：header 含 ケース/数量/箱數/商品名
 
 function parseExcelForBatch(batchId, input) {
     const file = input.files[0];
@@ -852,7 +858,7 @@ function parseExcelForBatch(batchId, input) {
             const wb = XLSX.read(e.target.result, { type: 'array', raw: true });
 
             // Skip summary/excluded sheets
-            const EXCLUDE = new Set(['彙整_商品總數','請款単','総数','総量','総計','summary','彙整','總量']);
+            const EXCLUDE = new Set(['彙整_商品總數','請款単','総数','総量','総計','summary','彙整','總量','總表']);
             const sheets = wb.SheetNames.filter(n => {
                 const b = n.trim();
                 return !EXCLUDE.has(b) && !b.startsWith('出貨単_') && !b.startsWith('彙整') && !b.startsWith('総表');
@@ -865,63 +871,61 @@ function parseExcelForBatch(batchId, input) {
                 const ws = wb.Sheets[sn];
                 const rows = XLSX.utils.sheet_to_json(ws, { header: 1, defval: null, raw: true });
 
-                // ── Format A: TMJ 出貨單 (S*.xlsx) ──────────────────────
-                // Fixed structure per lopia-trade-ops skill:
-                //   Row 14 (idx 13) = header row
-                //   A=日期, B=商品類別, C=商品名稱, D=箱入數, E=箱數, F=單價, G=總金額
-                //   Row 15+ (idx 14+) = product data until '總數' row
-                //
-                // Detection: Row 7 (idx 6) contains '客戶名稱' or Row 1 contains 'Trade Media'
-                const isTMJShipmentOrder = rows.some((r, i) => i < 5 && r?.some(c =>
-                    String(c||'').includes('Trade Media')
-                )) || rows.some((r, i) => i >= 5 && i <= 8 && r?.some(c =>
-                    String(c||'').includes('客戶名稱')
-                ));
+                // ── Format A: 出貨單 (S*.xlsx) ──────────────────────────
+                // 偵測：前幾行含「日商夢多」或「出貨單」或「納品書」
+                // 結構：Row 9 header = 商品名稱 | 入數(玉) | 箱數 | 單價(TWD/箱) | 小計(TWD)
+                //       商品名稱在 col A (可能A-B合併), 單價在 col D (index 3)
+                const isShipmentOrder = rows.some((r, i) => i < 8 && r?.some(c => {
+                    const s = String(c||'');
+                    return s.includes('日商夢多') || s.includes('Trade Media') ||
+                           s.includes('出貨單') || s.includes('納品書') || s.includes('出貨明細');
+                }));
 
-                if (isTMJShipmentOrder) {
-                    format = 'TMJ出貨單';
-                    // Find header row: contains '商品名稱' and '單價'
+                if (isShipmentOrder) {
+                    format = '出貨單';
+                    // Find header row containing 商品名稱 + (單價 or 箱數)
                     let hdrIdx = rows.findIndex(r => {
                         if (!r) return false;
                         const cells = r.map(c => String(c||''));
-                        return cells.some(c => c.includes('商品名稱') || c.includes('商品名')) &&
-                               cells.some(c => c.includes('單價') || c.includes('単価'));
+                        return cells.some(c => c.includes('商品名')) &&
+                               cells.some(c => c.includes('單價') || c.includes('箱數') || c.includes('入數'));
                     });
-                    // Fallback: try row 13 (idx 13) per spec
-                    if (hdrIdx === -1 && rows[13]) hdrIdx = 13;
-                    if (hdrIdx === -1) continue;
+                    if (hdrIdx === -1) {
+                        // Fallback: try idx 8 (Row 9 per SKILL spec)
+                        if (rows[8] && rows[8].some(c => c != null)) hdrIdx = 8;
+                        else continue;
+                    }
 
-                    // Map columns from header
+                    // Determine column layout from header
                     const hdr = rows[hdrIdx].map(c => String(c||'').trim());
-                    // Prefer exact matching; fallback to fixed positions B/C/D/E/F
-                    const catCol  = hdr.findIndex(c => c.includes('類別')) !== -1 ? hdr.findIndex(c => c.includes('類別')) : 1;  // B
-                    const nameCol = hdr.findIndex(c => c.includes('商品名')) !== -1 ? hdr.findIndex(c => c.includes('商品名')) : 2;  // C
-                    const specCol = hdr.findIndex(c => c.includes('箱入') || c.includes('入數') || c.includes('入数')) !== -1
-                                  ? hdr.findIndex(c => c.includes('箱入') || c.includes('入數') || c.includes('入数')) : 3;  // D
-                    const priceCol = hdr.findIndex(c => c.includes('單價') || c.includes('単価')) !== -1
-                                   ? hdr.findIndex(c => c.includes('單價') || c.includes('単価')) : 5;  // F (column index 5)
+                    // SKILL spec: 商品名稱(A) | 入數(玉)(B) | 箱數(C) | 單價TWD/箱(D) | 小計TWD(E)
+                    const nameCol  = Math.max(0, hdr.findIndex(c => c.includes('商品名')));
+                    const specCol  = hdr.findIndex(c => c.includes('入數') || c.includes('入数') || c.includes('玉'));
+                    const priceCol = hdr.findIndex(c => c.includes('單價') || c.includes('単価'));
+                    // Fallback positions per SKILL: name=0, spec=1, price=3
+                    const nCol = nameCol >= 0 ? nameCol : 0;
+                    const sCol = specCol >= 0 ? specCol : 1;
+                    const pCol = priceCol >= 0 ? priceCol : 3; // col D = index 3
 
                     for (let r = hdrIdx + 1; r < rows.length; r++) {
                         const row = rows[r];
                         if (!row) continue;
-                        const name = String(row[nameCol] || '').trim();
-                        // Stop at '總數' or '合計' row
-                        if (!name || name === '總數' || name === '合計' || name === '小計' || name === '總　計：') continue;
-                        const spec = String(row[specCol] || '').trim();
-                        const price = parseFloat(row[priceCol]) || 0;
-                        const cat = String(row[catCol] || '').trim();
-                        const category = cat.includes('加工') ? '加工品' : classifyProduct(name);
+                        const name = String(row[nCol] || '').trim();
+                        if (!name || name.includes('合計') || name.includes('合　計') || name.includes('總數') || name.includes('小計') || name.includes('備註') || name.includes('簽名')) continue;
+                        const spec = sCol >= 0 ? String(row[sCol] || '').trim() : '';
+                        const price = parseFloat(row[pCol]) || 0;
                         if (price <= 0) continue;
                         if (!products.some(p => p.name === name && p.unitPrice === price)) {
-                            products.push({ name, spec, unitPrice: price, category });
+                            products.push({ name, spec, unitPrice: price, category: classifyProduct(name) });
                         }
                     }
                     continue;
                 }
 
-                // ── Format B: 供應商 Excel (台湾ロピア苺XX.xlsx) ─────────
-                // Typical layout:  B=商品名, C=ケース, D=数量, E=原価(単価TWD)
-                // Key: 原価(unit price) is in the column with header 原価/原價, typically Col E (index 4)
+                // ── Format B: 供應商計畫 Excel ──────────────────────────
+                // Sheet names like "5回目台中", or store names "台中"
+                // A=入數(每箱幾玉), B=商品名稱, C=ケース數, E=原価(TWD)
+                // 原価直接當TWD售價，不需換算
                 const supplierHdrIdx = rows.findIndex(r => r?.some(c =>
                     c != null && (String(c).includes('ケース') || String(c).includes('数量') ||
                     String(c).includes('箱數') || String(c).includes('商品名'))
@@ -929,33 +933,33 @@ function parseExcelForBatch(batchId, input) {
 
                 if (supplierHdrIdx !== -1) {
                     format = format || '供應商Excel';
-                    // Find the 原価 column from the header row
+                    // Find 原価 column from header; SKILL says E欄 = index 4
                     const supplierHdr = rows[supplierHdrIdx].map(c => String(c||'').trim());
                     let priceColB = supplierHdr.findIndex(c => c.includes('原価') || c.includes('原價') || c.includes('単価') || c.includes('單價'));
-                    // Also find 商品名 column from header
                     let nameColB = supplierHdr.findIndex(c => c.includes('商品名') || c.includes('品名'));
-                    // Fallback: 原価 defaults to col E (index 4), 商品名 defaults to col B (index 1)
-                    if (priceColB === -1) priceColB = 4; // Col E
-                    if (nameColB === -1) nameColB = 1;   // Col B
+                    // SKILL fixed positions: B=商品名(index 1), E=原価(index 4)
+                    if (priceColB === -1) priceColB = 4; // Col E = index 4
+                    if (nameColB === -1) nameColB = 1;   // Col B = index 1
 
                     for (let r = supplierHdrIdx + 1; r < rows.length; r++) {
                         const row = rows[r];
                         if (!row) continue;
                         const name = String(row[nameColB] || '').trim();
-                        const spec = String(row[0] || '').trim();
                         if (!name) continue;
+                        // A欄 = 入數 (spec)
+                        const rawSpec = String(row[0] || '').trim();
+                        const spec = rawSpec ? (rawSpec.includes('玉') || rawSpec.includes('房') ? rawSpec : rawSpec + '玉') : '';
+                        // E欄 = 原価 → 直接作為 TWD 售價
                         const price = parseFloat(row[priceColB]) || 0;
                         if (price <= 0) continue;
-                        const specFmt = spec ? (spec.includes('房') ? spec : `${spec}房`.replace(/房房$/,'房')) : '';
-                        if (!products.some(p => p.name === name && p.unitPrice === price)) {
-                            products.push({ name, spec: specFmt, unitPrice: price, category: classifyProduct(name) });
+                        if (!products.some(p => p.name === name && p.unitPrice === price && p.spec === spec)) {
+                            products.push({ name, spec, unitPrice: price, category: classifyProduct(name) });
                         }
                     }
                     continue;
                 }
 
                 // ── Format C: 含表頭的通用格式 ────────────────────────────
-                // Scan for any row with header-like content (商品名 + 單價/原価/price)
                 const genericHdrIdx = rows.findIndex(r => {
                     if (!r) return false;
                     const cells = r.map(c => String(c||''));
