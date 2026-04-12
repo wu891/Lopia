@@ -31,21 +31,32 @@ export async function GET() {
   try {
     const [shipments, records] = await Promise.all([getShipments(), getShipmentRecords()])
 
-    // Aggregate shipped boxes per batch
-    const shippedMap: Record<string, number> = {}
+    // Aggregate per batch: planned (non-cancelled) and done (completed)
+    const plannedMap: Record<string, number> = {}
+    const doneMap: Record<string, number> = {}
     for (const r of records) {
-      if (r.batchId && r.boxes) {
-        shippedMap[r.batchId] = (shippedMap[r.batchId] ?? 0) + r.boxes
+      if (!r.batchId || !r.boxes) continue
+      if (r.planStatus !== '已取消') {
+        plannedMap[r.batchId] = (plannedMap[r.batchId] ?? 0) + r.boxes
+      }
+      if (r.planStatus === '已完成') {
+        doneMap[r.batchId] = (doneMap[r.batchId] ?? 0) + r.boxes
       }
     }
 
-    const enriched = shipments.map(s => ({
-      ...s,
-      shippedBoxes: shippedMap[s.id] ?? 0,
-      remainingBoxes: s.totalBoxes != null
-        ? Math.max(0, s.totalBoxes - (shippedMap[s.id] ?? 0))
-        : null,
-    }))
+    const enriched = shipments.map(s => {
+      const planned = plannedMap[s.id] ?? 0
+      const done = doneMap[s.id] ?? 0
+      // All shipped when: status is 全數出貨, OR all active rounds are completed
+      const allDone = planned > 0 && done >= planned
+      const shipped = s.deliveryStatus === '全數出貨' || allDone ? planned : done
+      return {
+        ...s,
+        plannedBoxes: planned,
+        shippedBoxes: shipped,
+        remainingBoxes: s.totalBoxes != null ? Math.max(0, s.totalBoxes - shipped) : null,
+      }
+    })
 
     return NextResponse.json({
       shipments: enriched,
