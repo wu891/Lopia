@@ -666,12 +666,39 @@ async function syncFromNotion() {
             const batch = shipMap[rec.batchId] || {};
             const batchName = batch.ivName || rec.batchId?.slice(0, 8) || '未知批次';
             const productSummary = batch.productSummary || batchName;
+            const boxes = rec.boxes || 0;
+            const notionAmount = rec.amount || 0;  // 金額 from Notion
 
-            // Get prices for this batch
+            // If Notion record has a pre-calculated amount, use it directly
+            if (notionAmount > 0 && boxes > 0) {
+                // Parse product info from remarks if available (format: "SXXX | product details | 計:XXXTWD")
+                const remarkParts = (rec.remarks || '').split(' | ');
+                let productName = productSummary;
+                if (remarkParts.length >= 2) {
+                    // Extract first product name from remarks
+                    const prodPart = remarkParts[1] || '';
+                    const firstProd = prodPart.split(' / ')[0] || '';
+                    if (firstProd) {
+                        const match = firstProd.match(/^(.+?)\s+\d/);
+                        productName = match ? match[1] : firstProd.split(' ')[0] || productSummary;
+                    }
+                }
+                allData.push({
+                    id: genId(), source: 'notion', notionRecordId: rec.id,
+                    date: rec.date || '', batchId: rec.batchId, batchName,
+                    shipmentNo: rec.shipmentNo || '', store: rec.store,
+                    product: productName, spec: '',
+                    quantity: boxes,
+                    unitPrice: Math.round(notionAmount / boxes),
+                    category: classifyProduct(productName)
+                });
+                return;
+            }
+
+            // Fallback: use batchPrices from localStorage
             const prices = batchPrices[rec.batchId] || [];
 
             if (prices.length > 0) {
-                // Expand into per-product rows (distribute boxes proportionally if multiple products)
                 if (prices.length === 1) {
                     const p = prices[0];
                     allData.push({
@@ -679,13 +706,12 @@ async function syncFromNotion() {
                         date: rec.date || '', batchId: rec.batchId, batchName,
                         shipmentNo: rec.shipmentNo || '', store: rec.store,
                         product: p.product, spec: p.spec || '',
-                        quantity: rec.boxes || 0,
+                        quantity: boxes,
                         unitPrice: p.unitPrice, category: p.category
                     });
                 } else {
-                    // Multiple products: user may have split quantities, otherwise lump to first product
                     prices.forEach((p, idx) => {
-                        const qty = p.quantity != null ? p.quantity : (idx === 0 ? rec.boxes : 0);
+                        const qty = p.quantity != null ? p.quantity : (idx === 0 ? boxes : 0);
                         if (qty > 0) {
                             allData.push({
                                 id: genId(), source: 'notion', notionRecordId: rec.id,
@@ -699,13 +725,13 @@ async function syncFromNotion() {
                     });
                 }
             } else {
-                // No price set yet — add placeholder row
+                // No price and no amount — placeholder
                 allData.push({
                     id: genId(), source: 'notion', notionRecordId: rec.id,
                     date: rec.date || '', batchId: rec.batchId, batchName,
                     shipmentNo: rec.shipmentNo || '', store: rec.store,
                     product: productSummary, spec: '',
-                    quantity: rec.boxes || 0,
+                    quantity: boxes,
                     unitPrice: 0, category: classifyProduct(productSummary)
                 });
             }
