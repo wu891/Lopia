@@ -24,14 +24,14 @@ export async function GET() {
 export async function POST(req: NextRequest) {
   try {
     const data = await req.json()
-    const { batchId, store, date, boxes, round, planStatus, remarks } = data
+    const { batchId, store, date, boxes, round, planStatus, remarks, amount, shipmentNo: customNo } = data
 
     if (!batchId || !store || !date || boxes == null) {
       return NextResponse.json({ error: 'Missing required fields' }, { status: 400 })
     }
 
     const roundNum = round ?? 1
-    const shipmentNo = `${batchId.slice(0, 8)}-R${String(roundNum).padStart(2, '0')}-${Date.now().toString(36).toUpperCase()}`
+    const shipmentNo = customNo || `${batchId.slice(0, 8)}-R${String(roundNum).padStart(2, '0')}-${Date.now().toString(36).toUpperCase()}`
 
     const record = await createShipmentRecord({
       shipmentNo,
@@ -39,6 +39,7 @@ export async function POST(req: NextRequest) {
       store,
       date,
       boxes: Number(boxes),
+      amount: amount != null ? Number(amount) : undefined,
       round: roundNum,
       planStatus: planStatus ?? '計畫中',
       remarks,

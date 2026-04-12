@@ -49,6 +49,7 @@ export interface ShipmentRecord {
   store: string | null
   date: string | null
   boxes: number | null
+  amount: number | null
   remarks: string | null
   round: number | null
   planStatus: string | null
@@ -135,6 +136,7 @@ function pageToRecord(page: any): ShipmentRecord {
     store: getSelect(p['出貨門市']),
     date: getDate(p['出貨日期']),
     boxes: getNumber(p['出貨箱數']),
+    amount: getNumber(p['金額']),
     remarks: getText(p['備註']),
     round: getNumber(p['出貨輪次']),
     planStatus: getSelect(p['計畫狀態']),
@@ -170,6 +172,7 @@ export async function createShipmentRecord(data: {
   store: string
   date: string
   boxes: number
+  amount?: number
   round?: number
   planStatus?: string
   remarks?: string
@@ -182,6 +185,7 @@ export async function createShipmentRecord(data: {
       '出貨門市': { select: { name: data.store } },
       '出貨日期': { date: { start: data.date } },
       '出貨箱數': { number: data.boxes },
+      ...(data.amount != null ? { '金額': { number: data.amount } } : {}),
       ...(data.round != null ? { '出貨輪次': { number: data.round } } : {}),
       ...(data.planStatus ? { '計畫狀態': { select: { name: data.planStatus } } } : { '計畫狀態': { select: { name: '計畫中' } } }),
       ...(data.remarks ? { '備註': { rich_text: [{ text: { content: data.remarks } }] } } : {}),
