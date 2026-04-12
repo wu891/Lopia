@@ -612,7 +612,8 @@ function resolveStore(name) {
 }
 
 // ── Data ──────────────────────────────────────────────────
-let allData = [];        // rows: {id, date, batchId, batchName, shipmentNo, store, product, spec, quantity, unitPrice, category, source}
+let allData = [];        // rows: {id, date, batchId, batchName, shipmentNo, store, product, spec, quantity, unitPrice, amount, category, source}
+// amount = exact TWD value (from Notion 金額 or quantity*unitPrice); always use amount for totals to avoid rounding errors
 let filteredData = [];
 let batchPrices = {};    // {batchId: [{product, spec, unitPrice, category}]}
 let lastSync = null;
@@ -632,6 +633,8 @@ function saveLocal() {
     if (lastSync) localStorage.setItem('lopia_last_sync', lastSync);
 }
 function genId() { return Date.now().toString(36) + Math.random().toString(36).slice(2, 7); }
+// Use r.amount when available (exact Notion 金額), otherwise fall back to quantity*unitPrice
+function rowAmt(r) { return (r.amount != null && r.amount > 0) ? r.amount : r.quantity * r.unitPrice; }
 
 // ── Notion Sync ───────────────────────────────────────────
 async function syncFromNotion() {
@@ -661,9 +664,15 @@ async function syncFromNotion() {
         // Keep only completed records from Notion
         const completed = records.filter(r => r.planStatus === '已完成' || r.boxes > 0);
 
-        // Get batches that need prices
+        // Get batches that need prices (skip batches where all records already have Notion amounts)
         const batchIds = [...new Set(completed.map(r => r.batchId).filter(Boolean))];
-        const batchesNeedingPrices = batchIds.filter(id => !batchPrices[id] || batchPrices[id].length === 0);
+        const batchesNeedingPrices = batchIds.filter(id => {
+            const batchRecs = completed.filter(r => r.batchId === id);
+            // If every record for this batch has a Notion 金額, no need to configure prices
+            const allHaveAmounts = batchRecs.length > 0 && batchRecs.every(r => (r.amount || 0) > 0);
+            if (allHaveAmounts) return false;
+            return !batchPrices[id] || batchPrices[id].length === 0;
+        });
 
         // Remove old Notion-sourced rows and rebuild
         allData = allData.filter(r => r.source !== 'notion');
@@ -674,9 +683,9 @@ async function syncFromNotion() {
             const batchName = batch.ivName || rec.batchId?.slice(0, 8) || '未知批次';
             const productSummary = batch.productSummary || batchName;
             const boxes = rec.boxes || 0;
-            const notionAmount = rec.amount || 0;  // 金額 from Notion
+            const notionAmount = rec.amount || 0;  // 金額 from Notion (exact TWD value)
 
-            // If Notion record has a pre-calculated amount, use it directly
+            // If Notion record has a pre-calculated amount, use it directly (no rounding)
             if (notionAmount > 0 && boxes > 0) {
                 // Parse product info from remarks if available (format: "SXXX | product details | 計:XXXTWD")
                 const remarkParts = (rec.remarks || '').split(' | ');
@@ -696,7 +705,8 @@ async function syncFromNotion() {
                     shipmentNo: rec.shipmentNo || '', store: rec.store,
                     product: productName, spec: '',
                     quantity: boxes,
-                    unitPrice: Math.round(notionAmount / boxes),
+                    unitPrice: Math.round(notionAmount / boxes),  // for display only
+                    amount: notionAmount,  // exact value — use this for totals
                     category: classifyProduct(productName)
                 });
                 return;
@@ -714,7 +724,9 @@ async function syncFromNotion() {
                         shipmentNo: rec.shipmentNo || '', store: rec.store,
                         product: p.product, spec: p.spec || '',
                         quantity: boxes,
-                        unitPrice: p.unitPrice, category: p.category
+                        unitPrice: p.unitPrice,
+                        amount: boxes * p.unitPrice,
+                        category: p.category
                     });
                 } else {
                     prices.forEach((p, idx) => {
@@ -726,7 +738,9 @@ async function syncFromNotion() {
                                 shipmentNo: rec.shipmentNo || '', store: rec.store,
                                 product: p.product, spec: p.spec || '',
                                 quantity: qty,
-                                unitPrice: p.unitPrice, category: p.category
+                                unitPrice: p.unitPrice,
+                                amount: qty * p.unitPrice,
+                                category: p.category
                             });
                         }
                     });
@@ -739,7 +753,9 @@ async function syncFromNotion() {
                     shipmentNo: rec.shipmentNo || '', store: rec.store,
                     product: productSummary, spec: '',
                     quantity: boxes,
-                    unitPrice: 0, category: classifyProduct(productSummary)
+                    unitPrice: 0,
+                    amount: 0,
+                    category: classifyProduct(productSummary)
                 });
             }
         });
@@ -1114,11 +1130,18 @@ function rebuildNotionRows() {
         if (prices.length === 0) { newRows.push(...rows); return; }
         if (prices.length === 1) {
             const p = prices[0];
-            rows.forEach(r => newRows.push({ ...r, product: p.product, spec: p.spec || '', unitPrice: p.unitPrice, category: p.category }));
+            rows.forEach(r => {
+                // Preserve existing Notion amount; only recalculate if amount was 0
+                const amt = (r.amount && r.amount > 0) ? r.amount : r.quantity * p.unitPrice;
+                newRows.push({ ...r, product: p.product, spec: p.spec || '', unitPrice: p.unitPrice, amount: amt, category: p.category });
+            });
         } else {
             prices.forEach((p, idx) => {
                 if (idx === 0) {
-                    rows.forEach(r => newRows.push({ ...r, product: p.product, spec: p.spec || '', unitPrice: p.unitPrice, category: p.category }));
+                    rows.forEach(r => {
+                        const amt = (r.amount && r.amount > 0) ? r.amount : r.quantity * p.unitPrice;
+                        newRows.push({ ...r, product: p.product, spec: p.spec || '', unitPrice: p.unitPrice, amount: amt, category: p.category });
+                    });
                 }
             });
         }
@@ -1145,7 +1168,7 @@ function parseCSV(text) {
         const unitPrice = parseFloat(price) || 0;
         if (!product || quantity <= 0) return;
         const nd = date.replace(/\//g,'-');
-        results.push({ id: genId(), source: 'manual', date: nd, batchId: null, batchName: batchName||'', shipmentNo: '', store: resolveStore(store), product, spec: spec||'', quantity, unitPrice, category: classifyProduct(product) });
+        results.push({ id: genId(), source: 'manual', date: nd, batchId: null, batchName: batchName||'', shipmentNo: '', store: resolveStore(store), product, spec: spec||'', quantity, unitPrice, amount: quantity * unitPrice, category: classifyProduct(product) });
     });
     return results;
 }
@@ -1233,9 +1256,9 @@ function applyFilters() {
 
 // ── KPIs ──────────────────────────────────────────────────
 function renderKPIs() {
-    const totalAmt = filteredData.reduce((s,r) => s + r.quantity * r.unitPrice, 0);
+    const totalAmt = filteredData.reduce((s,r) => s + rowAmt(r), 0);
     const totalBoxes = filteredData.reduce((s,r) => s + r.quantity, 0);
-    const processedAmt = filteredData.filter(r=>r.category==='加工品').reduce((s,r) => s + r.quantity * r.unitPrice, 0);
+    const processedAmt = filteredData.filter(r=>r.category==='加工品').reduce((s,r) => s + rowAmt(r), 0);
     const tax = Math.round(processedAmt * 0.05);
     const storeSet = new Set(filteredData.map(r=>r.store));
     const batchSet = new Set(filteredData.map(r=>r.batchId||r.batchName));
@@ -1263,7 +1286,7 @@ function renderMonthlyTrend() {
     filteredData.forEach(r => {
         const mk = getMonthKey(r.date);
         if (!byMonth[mk]) byMonth[mk] = {fruit:0, veg:0, processed:0};
-        const amt = r.quantity * r.unitPrice;
+        const amt = rowAmt(r);
         if (r.category==='加工品') byMonth[mk].processed += amt;
         else if (r.category==='蔬菜') byMonth[mk].veg += amt;
         else byMonth[mk].fruit += amt;
@@ -1287,7 +1310,7 @@ function renderMonthlyTrend() {
 
 function renderStoreShare() {
     const byStore = {};
-    filteredData.forEach(r => { byStore[r.store] = (byStore[r.store]||0) + r.quantity*r.unitPrice; });
+    filteredData.forEach(r => { byStore[r.store] = (byStore[r.store]||0) + rowAmt(r); });
     const entries = Object.entries(byStore).sort((a,b)=>b[1]-a[1]);
     if (charts.storeShare) charts.storeShare.destroy();
     charts.storeShare = new Chart(document.getElementById('chart-store-share'), {
@@ -1301,7 +1324,7 @@ function renderStoreShare() {
 
 function renderProductRank() {
     const byProduct = {};
-    filteredData.forEach(r => { byProduct[r.product] = (byProduct[r.product]||0) + r.quantity*r.unitPrice; });
+    filteredData.forEach(r => { byProduct[r.product] = (byProduct[r.product]||0) + rowAmt(r); });
     const entries = Object.entries(byProduct).sort((a,b)=>b[1]-a[1]).slice(0,10);
     if (charts.productRank) charts.productRank.destroy();
     charts.productRank = new Chart(document.getElementById('chart-product-rank'), {
@@ -1315,7 +1338,7 @@ function renderProductRank() {
 
 function renderCategorySplit() {
     const by = {'水果':0,'蔬菜':0,'加工品':0};
-    filteredData.forEach(r => by[r.category] = (by[r.category]||0) + r.quantity*r.unitPrice);
+    filteredData.forEach(r => by[r.category] = (by[r.category]||0) + rowAmt(r));
     const labels = Object.keys(by).filter(k=>by[k]>0);
     const colMap = {'水果':'#55A868CC','蔬菜':'#64B5CDCC','加工品':'#DD8452CC'};
     if (charts.categorySplit) charts.categorySplit.destroy();
@@ -1336,8 +1359,8 @@ function renderMonthlySummary() {
         if (!byMonth[mk]) byMonth[mk] = {batches:new Set(), boxes:0, fruitAmt:0, processedAmt:0};
         byMonth[mk].batches.add(r.batchId||r.batchName);
         byMonth[mk].boxes += r.quantity;
-        if (r.category==='加工品') byMonth[mk].processedAmt += r.quantity*r.unitPrice;
-        else byMonth[mk].fruitAmt += r.quantity*r.unitPrice;
+        if (r.category==='加工品') byMonth[mk].processedAmt += rowAmt(r);
+        else byMonth[mk].fruitAmt += rowAmt(r);
     });
     const months = Object.keys(byMonth).sort().reverse();
     const tbody = document.getElementById('monthly-summary-body');
@@ -1377,7 +1400,7 @@ function renderDetailTable() {
 
     data.sort((a,b) => {
         let va=a[detailSortCol], vb=b[detailSortCol];
-        if (detailSortCol==='subtotal'){va=a.quantity*a.unitPrice;vb=b.quantity*b.unitPrice;}
+        if (detailSortCol==='subtotal'){va=rowAmt(a);vb=rowAmt(b);}
         if (typeof va==='number') return detailSortDir==='asc'?va-vb:vb-va;
         return detailSortDir==='asc'?String(va||'').localeCompare(String(vb||'')):String(vb||'').localeCompare(String(va||''));
     });
@@ -1388,7 +1411,7 @@ function renderDetailTable() {
 
     let totalBoxes=0, totalAmt=0;
     document.getElementById('detail-table-body').innerHTML = data.map(r => {
-        const sub = r.quantity * r.unitPrice;
+        const sub = rowAmt(r);
         totalBoxes += r.quantity; totalAmt += sub;
         const priceDisplay = r.unitPrice===0 ? '<span style="color:#856404">未設定</span>' : fmtCurrency(r.unitPrice);
         return `<tr>
@@ -1398,7 +1421,7 @@ function renderDetailTable() {
             <td>${r.product}</td>
             <td class="text-right">${fmtNum(r.quantity)}</td>
             <td class="text-right">${priceDisplay}</td>
-            <td class="text-right"><strong>${r.unitPrice===0?'-':fmtCurrency(sub)}</strong></td>
+            <td class="text-right"><strong>${sub===0?'-':fmtCurrency(sub)}</strong></td>
             <td class="text-center">${categoryTag(r.category)}</td>
             <td class="text-center">${sourceTag(r.source)}</td>
             <td class="text-center no-print"><button class="delete-row" onclick="deleteRow('${r.id}')" title="刪除">&times;</button></td>
@@ -1436,8 +1459,8 @@ function renderStoreAnalysis() {
         if (!byStore[r.store]) byStore[r.store] = {store:r.store,shipments:new Set(),boxes:0,fruitAmt:0,processedAmt:0};
         byStore[r.store].shipments.add(r.batchId||r.batchName);
         byStore[r.store].boxes += r.quantity;
-        if (r.category==='加工品') byStore[r.store].processedAmt += r.quantity*r.unitPrice;
-        else byStore[r.store].fruitAmt += r.quantity*r.unitPrice;
+        if (r.category==='加工品') byStore[r.store].processedAmt += rowAmt(r);
+        else byStore[r.store].fruitAmt += rowAmt(r);
     });
 
     let entries = Object.values(byStore).map(d => ({
@@ -1614,7 +1637,7 @@ function addManualRow(){
     const price=parseFloat(document.getElementById('new-price').value)||0;
     const cat=document.getElementById('new-category').value;
     if(!date||!product||qty<=0||price<=0){showToast('請填入必要欄位','error');return;}
-    allData.push({id:genId(),source:'manual',date,batchId:null,batchName:bname,shipmentNo:sno,store,product,spec,quantity:qty,unitPrice:price,category:cat});
+    allData.push({id:genId(),source:'manual',date,batchId:null,batchName:bname,shipmentNo:sno,store,product,spec,quantity:qty,unitPrice:price,amount:qty*price,category:cat});
     saveLocal();refreshAll();toggleAddForm();showToast('已新增','success');
     ['new-date','new-shipment-no','new-batch-name','new-product','new-spec','new-qty','new-price'].forEach(id=>document.getElementById(id).value='');
 }
@@ -1622,7 +1645,7 @@ function addManualRow(){
 // ── Export ────────────────────────────────────────────────
 function exportAllData(){
     if(!allData.length){showToast('無資料','error');return;}
-    const ws=XLSX.utils.aoa_to_sheet([['日期','批次名稱','出貨單號','門市','商品名稱','入數','箱數','單價(TWD)','小計(TWD)','類別','來源'],...allData.map(r=>[r.date,r.batchName,r.shipmentNo,r.store,r.product,r.spec,r.quantity,r.unitPrice,r.quantity*r.unitPrice,r.category,r.source])]);
+    const ws=XLSX.utils.aoa_to_sheet([['日期','批次名稱','出貨單號','門市','商品名稱','入數','箱數','單價(TWD)','小計(TWD)','類別','來源'],...allData.map(r=>[r.date,r.batchName,r.shipmentNo,r.store,r.product,r.spec,r.quantity,r.unitPrice,rowAmt(r),r.category,r.source])]);
     ws['!cols']=[{wch:12},{wch:18},{wch:14},{wch:20},{wch:24},{wch:8},{wch:8},{wch:12},{wch:12},{wch:8},{wch:8}];
     const wb=XLSX.utils.book_new();XLSX.utils.book_append_sheet(wb,ws,'出貨明細');
     XLSX.writeFile(wb,'LOPIA_出貨明細_全部.xlsx');showToast('已下載','success');
