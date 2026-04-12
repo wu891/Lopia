@@ -47,14 +47,20 @@ export async function GET() {
     const enriched = shipments.map(s => {
       const planned = plannedMap[s.id] ?? 0
       const done = doneMap[s.id] ?? 0
-      // All shipped when: status is 全數出貨, OR all active rounds are completed
+      const total = s.totalBoxes ?? 0
+      // When 全數出貨: use totalBoxes as shipped (ground truth from Notion 入倉箱數)
+      // When all active rounds done: use planned as shipped
+      // Otherwise: use completed rounds sum
       const allDone = planned > 0 && done >= planned
-      const shipped = s.deliveryStatus === '全數出貨' || allDone ? planned : done
+      const shipped =
+        s.deliveryStatus === '全數出貨' ? total :
+        allDone ? planned :
+        done
       return {
         ...s,
         plannedBoxes: planned,
         shippedBoxes: shipped,
-        remainingBoxes: s.totalBoxes != null ? Math.max(0, s.totalBoxes - shipped) : null,
+        remainingBoxes: total > 0 ? Math.max(0, total - shipped) : null,
       }
     })
 
