@@ -35,14 +35,16 @@ export default function ShipmentCard({ shipment, lang, allRecords, onRecordChang
   const T = t[lang]
 
   const batchRecords = allRecords.filter(r => r.batchId === shipment.id)
-  const plannedBoxes = batchRecords
-    .filter(r => r.planStatus !== '已取消')
+  const activeRecords = batchRecords.filter(r => r.planStatus !== '已取消')
+  const plannedBoxes = activeRecords.reduce((s, r) => s + (r.boxes ?? 0), 0)
+  const roundShippedBoxes = batchRecords
+    .filter(r => r.planStatus === '已完成')
     .reduce((s, r) => s + (r.boxes ?? 0), 0)
-  const shippedBoxes = shipment.deliveryStatus === '全數出貨'
+  // All shipped if: top-level status is 全數出貨, OR all active rounds are 已完成
+  const allRoundsDone = activeRecords.length > 0 && activeRecords.every(r => r.planStatus === '已完成')
+  const shippedBoxes = shipment.deliveryStatus === '全數出貨' || allRoundsDone
     ? plannedBoxes
-    : batchRecords
-        .filter(r => r.planStatus === '已完成')
-        .reduce((s, r) => s + (r.boxes ?? 0), 0)
+    : roundShippedBoxes
 
   return (
     <div className="bg-white border border-gray-200 rounded-xl shadow-sm hover:shadow-md transition-shadow overflow-hidden">
