@@ -181,7 +181,9 @@ export default function DeliveryPlan({ batchId, batchName, totalBoxes, records, 
 
   // ── XLS Update ───────────────────────────────────────
   function computeDiff(parsed: ParsedDeliveryRound[]): DiffRound[] {
-    return parsed.map((p, idx) => {
+    const excelCount = parsed.length
+
+    const fromExcel: DiffRound[] = parsed.map((p, idx) => {
       const roundNo = idx + 1
       const existingGroup = roundGroups.find(g => g.roundNo === roundNo) ?? null
       const newStores = p.stores.map(s => ({ name: s.name, boxes: s.boxes })).filter(s => s.boxes > 0)
@@ -217,6 +219,26 @@ export default function DeliveryPlan({ batchId, batchName, totalBoxes, records, 
         date: keepDate,
       }
     })
+
+    // Notion rounds with roundNo > excelCount are stale — not in the new Excel, must be deleted
+    const staleRounds: DiffRound[] = roundGroups
+      .filter(g => g.roundNo > excelCount)
+      .map(g => ({
+        roundNo: g.roundNo,
+        existingGroup: g,
+        newStores: [],
+        storeDiffs: g.stores.map(s => ({
+          name: s.name,
+          oldBoxes: s.boxes,
+          newBoxes: null,
+          status: 'removed' as const,
+        })),
+        hasChanges: true,
+        dateChoice: 'keep' as const,
+        date: g.date ?? '',
+      }))
+
+    return [...fromExcel, ...staleRounds].sort((a, b) => a.roundNo - b.roundNo)
   }
 
   const [xlsUpdateFile, setXlsUpdateFile] = useState<File | null>(null)
@@ -250,6 +272,11 @@ export default function DeliveryPlan({ batchId, batchName, totalBoxes, records, 
     try {
       const changedRounds = diffRounds.filter(d => d.hasChanges)
       for (const d of changedRounds) {
+        // Stale round (exists in Notion but not in new Excel) — delete only, no date needed
+        if (d.newStores.length === 0 && d.existingGroup) {
+          await Promise.all(d.existingGroup.ids.map(id => fetch(`/api/records/${id}`, { method: 'DELETE' })))
+          continue
+        }
         const date = d.date
         if (!date) continue
         if (d.existingGroup) {
@@ -751,106 +778,117 @@ export default function DeliveryPlan({ batchId, batchName, totalBoxes, records, 
                 d.hasChanges ? 'border-orange-200 bg-white' : 'border-gray-200 bg-white/60'
               }`}>
                 {/* Round header */}
-                <div className={`flex items-center gap-2 px-3 py-2 ${
-                  d.hasChanges ? 'bg-orange-50' : 'bg-gray-50'
-                }`}>
-                  <span className={`text-xs font-semibold ${d.hasChanges ? 'text-orange-700' : 'text-gray-500'}`}>
-                    {T.roundNo}{d.roundNo}{T.roundSuffix}
-                  </span>
-                  {d.existingGroup?.date && (
-                    <span className="text-xs text-gray-400">
-                      {new Date(d.existingGroup.date).toLocaleDateString('zh-TW', { month: 'numeric', day: 'numeric' })}
-                    </span>
-                  )}
-                  <span className={`ml-auto text-xs font-medium ${d.hasChanges ? 'text-orange-600' : 'text-gray-400'}`}>
-                    {d.hasChanges
-                      ? (d.existingGroup ? `⚡ ${T.changedRound}` : `🆕 ${T.newRound}`)
-                      : `✓ ${T.unchangedRound}`}
-                  </span>
-                </div>
-
-                {/* Diff details (only if changed) */}
-                {d.hasChanges && (
-                  <div className="px-3 py-2 space-y-2">
-                    {/* Store diffs */}
-                    <div className="space-y-1">
-                      {d.storeDiffs.map(sd => (
-                        <div key={sd.name} className={`flex items-center justify-between text-xs rounded px-2 py-1 ${
-                          sd.status === 'added'   ? 'bg-green-50 text-green-700' :
-                          sd.status === 'removed' ? 'bg-red-50 text-red-600 line-through opacity-70' :
-                          sd.status === 'changed' ? 'bg-yellow-50 text-yellow-800' :
-                                                    'text-gray-400'
-                        }`}>
-                          <span className="font-medium">{sd.name}</span>
-                          <span className="flex items-center gap-1.5">
-                            {sd.status === 'changed' && (
-                              <><span className="line-through text-red-400">{sd.oldBoxes}{T.boxes}</span> →</>
-                            )}
-                            {sd.status === 'removed'
-                              ? <span>{sd.oldBoxes}{T.boxes}</span>
-                              : <span className="font-semibold">{sd.newBoxes}{T.boxes}</span>
-                            }
-                            <span className="text-xs ml-0.5">
-                              {sd.status === 'added' ? T.storeAdded :
-                               sd.status === 'removed' ? T.storeRemoved :
-                               sd.status === 'changed' ? T.qtyChanged : ''}
-                            </span>
+                {(() => {
+                  const isStale = d.newStores.length === 0 && d.existingGroup !== null
+                  return (
+                    <>
+                      <div className={`flex items-center gap-2 px-3 py-2 ${
+                        isStale ? 'bg-red-50' : d.hasChanges ? 'bg-orange-50' : 'bg-gray-50'
+                      }`}>
+                        <span className={`text-xs font-semibold ${isStale ? 'text-red-700' : d.hasChanges ? 'text-orange-700' : 'text-gray-500'}`}>
+                          {T.roundNo}{d.roundNo}{T.roundSuffix}
+                        </span>
+                        {d.existingGroup?.date && (
+                          <span className="text-xs text-gray-400">
+                            {new Date(d.existingGroup.date).toLocaleDateString('zh-TW', { month: 'numeric', day: 'numeric' })}
                           </span>
-                        </div>
-                      ))}
-                    </div>
+                        )}
+                        <span className={`ml-auto text-xs font-medium ${isStale ? 'text-red-600' : d.hasChanges ? 'text-orange-600' : 'text-gray-400'}`}>
+                          {isStale
+                            ? `🗑 ${T.deletedRound}`
+                            : d.hasChanges
+                              ? (d.existingGroup ? `⚡ ${T.changedRound}` : `🆕 ${T.newRound}`)
+                              : `✓ ${T.unchangedRound}`}
+                        </span>
+                      </div>
 
-                    {/* Date selection */}
-                    <div className="pt-1.5 border-t border-orange-100 space-y-1.5">
-                      <p className="text-xs text-gray-500 font-medium">📅 {T.deliveryDate}</p>
-                      {d.existingGroup?.date ? (
-                        <div className="space-y-1">
-                          <label className="flex items-center gap-2 cursor-pointer">
-                            <input
-                              type="radio"
-                              name={`date-choice-${d.roundNo}`}
-                              checked={d.dateChoice === 'keep'}
-                              onChange={() => updateDiffDate(d.roundNo, 'keep')}
-                              className="accent-lopia-red"
-                            />
-                            <span className="text-xs text-gray-700">
-                              {T.keepDate}
-                              <span className="font-semibold ml-1">
-                                {new Date(d.existingGroup.date).toLocaleDateString('zh-TW', { year: 'numeric', month: '2-digit', day: '2-digit' })}
-                              </span>
-                            </span>
-                          </label>
-                          <label className="flex items-center gap-2 cursor-pointer">
-                            <input
-                              type="radio"
-                              name={`date-choice-${d.roundNo}`}
-                              checked={d.dateChoice === 'new'}
-                              onChange={() => updateDiffDate(d.roundNo, 'new')}
-                              className="accent-lopia-red"
-                            />
-                            <span className="text-xs text-gray-700">{T.resetDate}</span>
-                          </label>
-                          {d.dateChoice === 'new' && (
-                            <input
-                              type="date"
-                              value={d.dateChoice === 'new' ? d.date : ''}
-                              onChange={e => updateDiffDate(d.roundNo, 'new', e.target.value)}
-                              className="w-full border border-gray-200 rounded-lg px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-lopia-red"
-                            />
+                      {/* Diff details (only if changed) */}
+                      {d.hasChanges && (
+                        <div className="px-3 py-2 space-y-2">
+                          {/* Store diffs */}
+                          <div className="space-y-1">
+                            {d.storeDiffs.map(sd => (
+                              <div key={sd.name} className={`flex items-center justify-between text-xs rounded px-2 py-1 ${
+                                sd.status === 'added'   ? 'bg-green-50 text-green-700' :
+                                sd.status === 'removed' ? 'bg-red-50 text-red-600 line-through opacity-70' :
+                                sd.status === 'changed' ? 'bg-yellow-50 text-yellow-800' :
+                                                          'text-gray-400'
+                              }`}>
+                                <span className="font-medium">{sd.name}</span>
+                                <span className="flex items-center gap-1.5">
+                                  {sd.status === 'changed' && (
+                                    <><span className="line-through text-red-400">{sd.oldBoxes}{T.boxes}</span> →</>
+                                  )}
+                                  {sd.status === 'removed'
+                                    ? <span>{sd.oldBoxes}{T.boxes}</span>
+                                    : <span className="font-semibold">{sd.newBoxes}{T.boxes}</span>
+                                  }
+                                  <span className="text-xs ml-0.5">
+                                    {sd.status === 'added' ? T.storeAdded :
+                                     sd.status === 'removed' ? T.storeRemoved :
+                                     sd.status === 'changed' ? T.qtyChanged : ''}
+                                  </span>
+                                </span>
+                              </div>
+                            ))}
+                          </div>
+
+                          {/* Date selection — not shown for stale (delete-only) rounds */}
+                          {!isStale && (
+                            <div className="pt-1.5 border-t border-orange-100 space-y-1.5">
+                              <p className="text-xs text-gray-500 font-medium">📅 {T.deliveryDate}</p>
+                              {d.existingGroup?.date ? (
+                                <div className="space-y-1">
+                                  <label className="flex items-center gap-2 cursor-pointer">
+                                    <input
+                                      type="radio"
+                                      name={`date-choice-${d.roundNo}`}
+                                      checked={d.dateChoice === 'keep'}
+                                      onChange={() => updateDiffDate(d.roundNo, 'keep')}
+                                      className="accent-lopia-red"
+                                    />
+                                    <span className="text-xs text-gray-700">
+                                      {T.keepDate}
+                                      <span className="font-semibold ml-1">
+                                        {new Date(d.existingGroup.date).toLocaleDateString('zh-TW', { year: 'numeric', month: '2-digit', day: '2-digit' })}
+                                      </span>
+                                    </span>
+                                  </label>
+                                  <label className="flex items-center gap-2 cursor-pointer">
+                                    <input
+                                      type="radio"
+                                      name={`date-choice-${d.roundNo}`}
+                                      checked={d.dateChoice === 'new'}
+                                      onChange={() => updateDiffDate(d.roundNo, 'new')}
+                                      className="accent-lopia-red"
+                                    />
+                                    <span className="text-xs text-gray-700">{T.resetDate}</span>
+                                  </label>
+                                  {d.dateChoice === 'new' && (
+                                    <input
+                                      type="date"
+                                      value={d.dateChoice === 'new' ? d.date : ''}
+                                      onChange={e => updateDiffDate(d.roundNo, 'new', e.target.value)}
+                                      className="w-full border border-gray-200 rounded-lg px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-lopia-red"
+                                    />
+                                  )}
+                                </div>
+                              ) : (
+                                <input
+                                  type="date"
+                                  value={d.date}
+                                  onChange={e => updateDiffDate(d.roundNo, 'new', e.target.value)}
+                                  placeholder={T.datePlaceholder}
+                                  className="w-full border border-gray-200 rounded-lg px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-lopia-red"
+                                />
+                              )}
+                            </div>
                           )}
                         </div>
-                      ) : (
-                        <input
-                          type="date"
-                          value={d.date}
-                          onChange={e => updateDiffDate(d.roundNo, 'new', e.target.value)}
-                          placeholder={T.datePlaceholder}
-                          className="w-full border border-gray-200 rounded-lg px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-lopia-red"
-                        />
                       )}
-                    </div>
-                  </div>
-                )}
+                    </>
+                  )
+                })()}
               </div>
             ))}
           </div>
@@ -867,7 +905,7 @@ export default function DeliveryPlan({ batchId, batchName, totalBoxes, records, 
                 onClick={doApplyUpdate}
                 disabled={
                   applyingUpdate ||
-                  diffRounds.filter(d => d.hasChanges).some(d => !d.date)
+                  diffRounds.filter(d => d.hasChanges && d.newStores.length > 0).some(d => !d.date)
                 }
                 className="flex-1 py-1.5 bg-orange-500 text-white text-xs font-semibold rounded-lg hover:bg-orange-600 disabled:opacity-40 transition-colors"
               >

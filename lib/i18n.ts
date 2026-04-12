@@ -63,6 +63,10 @@ export const t = {
     store: '門市',
     qty: '數量',
     note: '備注',
+    // Voice input
+    voiceStart: '語音輸入',
+    voiceStop: '停止錄音',
+    voiceNotSupported: '您的瀏覽器不支援語音輸入',
     // File upload
     uploadDocs: '上傳通關文件',
     selectBatch: '選擇批次',
@@ -117,6 +121,7 @@ export const t = {
     changedRound: '有更動',
     unchangedRound: '無變更',
     newRound: '新增輪次',
+    deletedRound: '不在新 Excel 中，將刪除',
     storeAdded: '＋新增',
     storeRemoved: '－移除',
     qtyChanged: '數量變更',
@@ -221,6 +226,10 @@ export const t = {
     store: '店舗',
     qty: '数量',
     note: '備考',
+    // Voice input
+    voiceStart: '音声入力',
+    voiceStop: '録音停止',
+    voiceNotSupported: 'お使いのブラウザは音声入力に対応していません',
     // File upload
     uploadDocs: '通関書類アップロード',
     selectBatch: 'バッチを選択',
@@ -275,6 +284,7 @@ export const t = {
     changedRound: '更新あり',
     unchangedRound: '変更なし',
     newRound: '新規回次',
+    deletedRound: '新しいExcelに含まれないため削除されます',
     storeAdded: '＋追加',
     storeRemoved: '－削除',
     qtyChanged: '数量変更',
