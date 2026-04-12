@@ -1395,6 +1395,7 @@ function renderDetailTable() {
     const search = document.getElementById('detail-search').value.toLowerCase();
 
     let data = allData.filter(r => {
+        if (rowAmt(r) === 0) return false;  // 隱藏金額為零（未設定單價）的紀錄
         if (month!=='all' && getMonthKey(r.date)!==month) return false;
         if (store!=='all' && r.store!==store) return false;
         if (search && !r.product.toLowerCase().includes(search) && !r.shipmentNo.toLowerCase().includes(search) && !r.batchName?.toLowerCase().includes(search)) return false;

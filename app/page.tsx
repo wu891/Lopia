@@ -95,7 +95,6 @@ export default function Home() {
   const [recordsData, setRecordsData] = useState<RecordsData | null>(null)
   const [logisticsData, setLogisticsData] = useState<LogisticsData | null>(null)
   const [loading, setLoading] = useState(true)
-  const [fetchError, setFetchError] = useState<string | null>(null)
   const [tab, setTab] = useState<Tab>('shipments')
   const [viewMode, setViewMode] = useState<'list' | 'calendar'>('list')
   const [search, setSearch] = useState('')
@@ -105,16 +104,12 @@ export default function Home() {
 
   const fetchData = useCallback(async () => {
     setLoading(true)
-    setFetchError(null)
     try {
       const [shipmentsRes, recordsRes, logisticsRes] = await Promise.all([
         fetch('/api/shipments', { cache: 'no-store' }),
         fetch('/api/records',   { cache: 'no-store' }),
         fetch('/api/logistics', { cache: 'no-store' }),
       ])
-      if (!shipmentsRes.ok || !recordsRes.ok || !logisticsRes.ok) {
-        throw new Error('API returned error status')
-      }
       const [shipmentsJson, recordsJson, logisticsJson] = await Promise.all([
         shipmentsRes.json(),
         recordsRes.json(),
@@ -125,7 +120,6 @@ export default function Home() {
       setLogisticsData(logisticsJson)
     } catch (e) {
       console.error(e)
-      setFetchError('資料載入失敗，請重新整理頁面')
     } finally {
       setLoading(false)
     }
@@ -275,16 +269,7 @@ export default function Home() {
               </>)}
             </div>
 
-            {fetchError ? (
-              <div className="flex items-center justify-center h-48">
-                <div className="flex flex-col items-center gap-3 text-center">
-                  <p className="text-sm text-red-500 font-medium">{fetchError}</p>
-                  <button onClick={fetchData} className="px-4 py-1.5 bg-lopia-red text-white text-sm rounded-lg hover:bg-lopia-red-dark transition-colors">
-                    重新載入
-                  </button>
-                </div>
-              </div>
-            ) : loading ? (
+            {loading ? (
               <div className="flex items-center justify-center h-48">
                 <div className="flex flex-col items-center gap-3">
                   {/* Skeleton cards */}
