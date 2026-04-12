@@ -605,7 +605,10 @@ function resolveStore(name) {
     const t = name.trim();
     if (ALL_STORES.includes(t)) return t;
     const l = t.toLowerCase();
-    for (const [k, v] of Object.entries(STORE_MAP)) {
+    // Sort by key length descending so longer/more specific keys match before shorter ones
+    // (e.g. '台中漢神中港' checked before '台中', '南港LaLaport' before '南港')
+    const entries = Object.entries(STORE_MAP).sort((a, b) => b[0].length - a[0].length);
+    for (const [k, v] of entries) {
         if (l === k.toLowerCase() || l.includes(k.toLowerCase())) return v;
     }
     return t;
@@ -702,7 +705,7 @@ async function syncFromNotion() {
                 allData.push({
                     id: genId(), source: 'notion', notionRecordId: rec.id,
                     date: rec.date || '', batchId: rec.batchId, batchName,
-                    shipmentNo: rec.shipmentNo || '', store: rec.store,
+                    shipmentNo: rec.shipmentNo || '', store: resolveStore(rec.store),
                     product: productName, spec: '',
                     quantity: boxes,
                     unitPrice: Math.round(notionAmount / boxes),  // for display only
@@ -721,7 +724,7 @@ async function syncFromNotion() {
                     allData.push({
                         id: genId(), source: 'notion', notionRecordId: rec.id,
                         date: rec.date || '', batchId: rec.batchId, batchName,
-                        shipmentNo: rec.shipmentNo || '', store: rec.store,
+                        shipmentNo: rec.shipmentNo || '', store: resolveStore(rec.store),
                         product: p.product, spec: p.spec || '',
                         quantity: boxes,
                         unitPrice: p.unitPrice,
@@ -735,7 +738,7 @@ async function syncFromNotion() {
                             allData.push({
                                 id: genId(), source: 'notion', notionRecordId: rec.id,
                                 date: rec.date || '', batchId: rec.batchId, batchName,
-                                shipmentNo: rec.shipmentNo || '', store: rec.store,
+                                shipmentNo: rec.shipmentNo || '', store: resolveStore(rec.store),
                                 product: p.product, spec: p.spec || '',
                                 quantity: qty,
                                 unitPrice: p.unitPrice,
@@ -750,7 +753,7 @@ async function syncFromNotion() {
                 allData.push({
                     id: genId(), source: 'notion', notionRecordId: rec.id,
                     date: rec.date || '', batchId: rec.batchId, batchName,
-                    shipmentNo: rec.shipmentNo || '', store: rec.store,
+                    shipmentNo: rec.shipmentNo || '', store: resolveStore(rec.store),
                     product: productSummary, spec: '',
                     quantity: boxes,
                     unitPrice: 0,
