@@ -944,16 +944,20 @@ function parseExcelForBatch(batchId, input) {
                     for (let r = supplierHdrIdx + 1; r < rows.length; r++) {
                         const row = rows[r];
                         if (!row) continue;
-                        const name = String(row[nameColB] || '').trim();
-                        if (!name) continue;
-                        // A欄 = 入數 (spec)
+                        const baseName = String(row[nameColB] || '').trim();
+                        if (!baseName) continue;
+                        // A欄 = 入數(玉/房) → 合併到商品名稱
                         const rawSpec = String(row[0] || '').trim();
-                        const spec = rawSpec ? (rawSpec.includes('玉') || rawSpec.includes('房') ? rawSpec : rawSpec + '玉') : '';
+                        let fullName = baseName;
+                        if (rawSpec) {
+                            const specLabel = (rawSpec.includes('玉') || rawSpec.includes('房')) ? rawSpec : rawSpec + '玉';
+                            fullName = baseName + '（' + specLabel + '）';
+                        }
                         // E欄 = 原価 → 直接作為 TWD 售價
                         const price = parseFloat(row[priceColB]) || 0;
                         if (price <= 0) continue;
-                        if (!products.some(p => p.name === name && p.unitPrice === price && p.spec === spec)) {
-                            products.push({ name, spec, unitPrice: price, category: classifyProduct(name) });
+                        if (!products.some(p => p.name === fullName && p.unitPrice === price)) {
+                            products.push({ name: fullName, spec: '', unitPrice: price, category: classifyProduct(baseName) });
                         }
                     }
                     continue;
