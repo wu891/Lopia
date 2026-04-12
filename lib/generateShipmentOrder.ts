@@ -288,7 +288,7 @@ function addSummarySheet(wb: ExcelJS.Workbook, storeOrders: StoreOrder[], shipme
   const hRow = ws.getRow(2)
   hRow.height = 20
   hRow.eachCell({ includeEmpty: true }, (cell, col) => {
-    cell.fill   = fill(col >= 4 + shortNames.length ? C_BLUE_DARK : C_BLUE_DARK)
+    cell.fill   = fill(C_BLUE_DARK)
     cell.font   = { bold: true, color: { argb: C_WHITE }, size: 11, name: 'Arial' }
     cell.border = border()
     cell.alignment = { horizontal: col === 1 ? 'left' : 'center', vertical: 'middle' }
