@@ -834,6 +834,12 @@ function addProductRow(batchId) {
 }
 
 // ── Excel Parser for Price Config ─────────────────────────
+// 出貨單欄位結構（from lopia-trade-ops skill）:
+//   Row 14 = 表頭: 日期(A) | 商品類別(B) | 商品名稱(C) | 箱入數(D) | 箱數(E) | 單價(F) | 總金額(G) | 備註(H)
+//   Row 15+ = 商品資料列
+// 供應商 Excel 結構:
+//   Col[0]=入数/箱, Col[1]=商品名, Col[2]=ケース数(箱), Col[3+]=原価(first num >= 100)
+
 function parseExcelForBatch(batchId, input) {
     const file = input.files[0];
     if (!file) return;
@@ -846,67 +852,90 @@ function parseExcelForBatch(batchId, input) {
             const wb = XLSX.read(e.target.result, { type: 'array', raw: true });
 
             // Skip summary/excluded sheets
-            const EXCLUDE = new Set(['彙整_商品總數','請款単','総数','総量','総計','summary','彙整']);
+            const EXCLUDE = new Set(['彙整_商品總數','請款単','総数','総量','総計','summary','彙整','總量']);
             const sheets = wb.SheetNames.filter(n => {
                 const b = n.trim();
                 return !EXCLUDE.has(b) && !b.startsWith('出貨単_') && !b.startsWith('彙整') && !b.startsWith('総表');
             });
 
             const products = []; // {name, spec, unitPrice, category}
+            let format = '';
 
             for (const sn of sheets) {
                 const ws = wb.Sheets[sn];
                 const rows = XLSX.utils.sheet_to_json(ws, { header: 1, defval: null, raw: true });
 
-                // ── Format A: 出貨單 (S*.xlsx) ───────────────────────────
-                // Row 9 (idx 8): headers = [商品名稱, 入數(玉), 箱數, 單價(TWD/箱), 小計(TWD)]
-                // Check if this sheet looks like a shipment order
-                const headerRowIdx = rows.findIndex((r, i) => {
-                    if (!r) return false;
-                    const cells = r.map(c => String(c||''));
-                    return cells.some(c => c.includes('商品名稱') || c.includes('商品名')) &&
-                           cells.some(c => c.includes('單價') || c.includes('単価') || c.includes('原価'));
-                });
+                // ── Format A: TMJ 出貨單 (S*.xlsx) ──────────────────────
+                // Fixed structure per lopia-trade-ops skill:
+                //   Row 14 (idx 13) = header row
+                //   A=日期, B=商品類別, C=商品名稱, D=箱入數, E=箱數, F=單價, G=總金額
+                //   Row 15+ (idx 14+) = product data until '總數' row
+                //
+                // Detection: Row 7 (idx 6) contains '客戶名稱' or Row 1 contains 'Trade Media'
+                const isTMJShipmentOrder = rows.some((r, i) => i < 5 && r?.some(c =>
+                    String(c||'').includes('Trade Media')
+                )) || rows.some((r, i) => i >= 5 && i <= 8 && r?.some(c =>
+                    String(c||'').includes('客戶名稱')
+                ));
 
-                if (headerRowIdx !== -1) {
-                    // Determine column indices from header
-                    const hdr = rows[headerRowIdx].map(c => String(c||'').trim());
-                    const nameCol  = hdr.findIndex(c => c.includes('商品名'));
-                    const specCol  = hdr.findIndex(c => c.includes('入數') || c.includes('入数') || c.includes('入数(玉)') || c.includes('玉'));
-                    const priceCol = hdr.findIndex(c => c.includes('單價') || c.includes('単価') || c.includes('原価'));
+                if (isTMJShipmentOrder) {
+                    format = 'TMJ出貨單';
+                    // Find header row: contains '商品名稱' and '單價'
+                    let hdrIdx = rows.findIndex(r => {
+                        if (!r) return false;
+                        const cells = r.map(c => String(c||''));
+                        return cells.some(c => c.includes('商品名稱') || c.includes('商品名')) &&
+                               cells.some(c => c.includes('單價') || c.includes('単価'));
+                    });
+                    // Fallback: try row 13 (idx 13) per spec
+                    if (hdrIdx === -1 && rows[13]) hdrIdx = 13;
+                    if (hdrIdx === -1) continue;
 
-                    for (let r = headerRowIdx + 1; r < rows.length; r++) {
+                    // Map columns from header
+                    const hdr = rows[hdrIdx].map(c => String(c||'').trim());
+                    // Prefer exact matching; fallback to fixed positions B/C/D/E/F
+                    const catCol  = hdr.findIndex(c => c.includes('類別')) !== -1 ? hdr.findIndex(c => c.includes('類別')) : 1;  // B
+                    const nameCol = hdr.findIndex(c => c.includes('商品名')) !== -1 ? hdr.findIndex(c => c.includes('商品名')) : 2;  // C
+                    const specCol = hdr.findIndex(c => c.includes('箱入') || c.includes('入數') || c.includes('入数')) !== -1
+                                  ? hdr.findIndex(c => c.includes('箱入') || c.includes('入數') || c.includes('入数')) : 3;  // D
+                    const priceCol = hdr.findIndex(c => c.includes('單價') || c.includes('単価')) !== -1
+                                   ? hdr.findIndex(c => c.includes('單價') || c.includes('単価')) : 5;  // F (column index 5)
+
+                    for (let r = hdrIdx + 1; r < rows.length; r++) {
                         const row = rows[r];
                         if (!row) continue;
-                        const name  = String(row[nameCol] || '').trim();
-                        const spec  = specCol >= 0 ? String(row[specCol] || '').trim() : '';
-                        const price = priceCol >= 0 ? parseFloat(row[priceCol]) : 0;
-                        if (!name || name === '合計' || name === '小計' || name === '합계') continue;
-                        if (isNaN(price) || price <= 0) continue;
-                        // Avoid duplicates (same name+price)
+                        const name = String(row[nameCol] || '').trim();
+                        // Stop at '總數' or '合計' row
+                        if (!name || name === '總數' || name === '合計' || name === '小計' || name === '總　計：') continue;
+                        const spec = String(row[specCol] || '').trim();
+                        const price = parseFloat(row[priceCol]) || 0;
+                        const cat = String(row[catCol] || '').trim();
+                        const category = cat.includes('加工') ? '加工品' : classifyProduct(name);
+                        if (price <= 0) continue;
                         if (!products.some(p => p.name === name && p.unitPrice === price)) {
-                            products.push({ name, spec, unitPrice: price, category: classifyProduct(name) });
+                            products.push({ name, spec, unitPrice: price, category });
                         }
                     }
-                    continue; // Done with this sheet
+                    continue;
                 }
 
                 // ── Format B: 供應商 Excel (台湾ロピア苺XX.xlsx) ─────────
                 // Headers contain: ケース / 数量 / 箱數 / 商品名
-                // Col[0]=入数/箱, Col[1]=商品名, Col[2]=箱数, Col[3/4]=原価
+                // Col[0]=入数/箱, Col[1]=商品名, Col[2]=箱数, Col[3+]=原価 (first num >= 100)
                 const supplierHdrIdx = rows.findIndex(r => r?.some(c =>
                     c != null && (String(c).includes('ケース') || String(c).includes('数量') ||
                     String(c).includes('箱數') || String(c).includes('商品名'))
                 ));
 
                 if (supplierHdrIdx !== -1) {
+                    format = format || '供應商Excel';
                     for (let r = supplierHdrIdx + 1; r < rows.length; r++) {
                         const row = rows[r];
                         if (!row) continue;
                         const name = String(row[1] || '').trim();
                         const spec = String(row[0] || '').trim();
                         if (!name) continue;
-                        // Unit price: first numeric >= 100 in cols 3+
+                        // Unit price: first numeric >= 100 starting from col 3
                         let price = 0;
                         for (let c = 3; c < row.length; c++) {
                             if (typeof row[c] === 'number' && row[c] >= 100) { price = row[c]; break; }
@@ -920,16 +949,37 @@ function parseExcelForBatch(batchId, input) {
                     continue;
                 }
 
-                // ── Format C: Generic scan ─────────────────────────────
-                // Scan every row: if col has string (name) and another col has number >= 100 (price)
-                for (let r = 0; r < rows.length; r++) {
-                    const row = rows[r];
-                    if (!row || row.length < 2) continue;
-                    const name = row.map(c => typeof c === 'string' ? c.trim() : '').find(c => c.length > 1 && !/^\d/.test(c) && !c.includes('合計') && !c.includes('小計'));
-                    const price = row.map(c => typeof c === 'number' ? c : NaN).find(c => c >= 100 && c < 100000);
-                    if (name && price && !isNaN(price)) {
-                        if (!products.some(p => p.name === name && p.unitPrice === price)) {
-                            products.push({ name, spec: '', unitPrice: price, category: classifyProduct(name) });
+                // ── Format C: 含表頭的通用格式 ────────────────────────────
+                // Scan for any row with header-like content (商品名 + 單價/原価/price)
+                const genericHdrIdx = rows.findIndex(r => {
+                    if (!r) return false;
+                    const cells = r.map(c => String(c||''));
+                    return cells.some(c => c.includes('商品') || c.includes('品名')) &&
+                           cells.some(c => c.includes('價') || c.includes('価') || c.includes('price'));
+                });
+
+                if (genericHdrIdx !== -1) {
+                    format = format || '通用表格';
+                    const hdr = rows[genericHdrIdx].map(c => String(c||'').trim());
+                    const gNameCol = hdr.findIndex(c => c.includes('商品') || c.includes('品名'));
+                    const gPriceCol = hdr.findIndex(c => c.includes('單價') || c.includes('単価') || c.includes('原価') || c.includes('售價') || c.includes('price'));
+                    const gSpecCol = hdr.findIndex(c => c.includes('入數') || c.includes('入数') || c.includes('規格') || c.includes('箱入'));
+                    const gCatCol = hdr.findIndex(c => c.includes('類別') || c.includes('分類'));
+
+                    if (gNameCol >= 0 && gPriceCol >= 0) {
+                        for (let r = genericHdrIdx + 1; r < rows.length; r++) {
+                            const row = rows[r];
+                            if (!row) continue;
+                            const name = String(row[gNameCol] || '').trim();
+                            if (!name || name.includes('合計') || name.includes('總數') || name.includes('小計')) continue;
+                            const price = parseFloat(row[gPriceCol]) || 0;
+                            if (price <= 0) continue;
+                            const spec = gSpecCol >= 0 ? String(row[gSpecCol]||'').trim() : '';
+                            const catRaw = gCatCol >= 0 ? String(row[gCatCol]||'').trim() : '';
+                            const category = catRaw.includes('加工') ? '加工品' : classifyProduct(name);
+                            if (!products.some(p => p.name === name && p.unitPrice === price)) {
+                                products.push({ name, spec, unitPrice: price, category });
+                            }
                         }
                     }
                 }
@@ -947,7 +997,8 @@ function parseExcelForBatch(batchId, input) {
             products.forEach(p => {
                 grid.insertAdjacentHTML('beforeend', makeProductRow(batchId, p.name, p.unitPrice, p.category));
             });
-            showParseResult(resultEl, true, `✓ 解析成功！帶入 ${products.length} 項商品，請確認後儲存`);
+            const fmtLabel = format ? ` [${format}]` : '';
+            showParseResult(resultEl, true, `✓ 解析成功${fmtLabel}！帶入 ${products.length} 項商品，請確認後儲存`);
 
         } catch(err) {
             showParseResult(resultEl, false, '解析失敗：' + err.message);
