@@ -2,9 +2,15 @@ import { Client } from '@notionhq/client'
 
 const notion = new Client({ auth: process.env.NOTION_API_KEY })
 
-const IMPORT_STATUS_DB = process.env.NOTION_IMPORT_STATUS_DB!
-const SHIPMENT_RECORDS_DB = process.env.NOTION_SHIPMENT_RECORDS_DB!
-const LOGISTICS_DB = process.env.NOTION_LOGISTICS_DB!
+function requireEnv(name: string): string {
+  const val = process.env[name]
+  if (!val) throw new Error(`Missing required env var: ${name}`)
+  return val
+}
+
+const IMPORT_STATUS_DB = requireEnv('NOTION_IMPORT_STATUS_DB')
+const SHIPMENT_RECORDS_DB = requireEnv('NOTION_SHIPMENT_RECORDS_DB')
+const LOGISTICS_DB = requireEnv('NOTION_LOGISTICS_DB')
 
 export interface Shipment {
   id: string

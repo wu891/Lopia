@@ -1,5 +1,5 @@
 'use client'
-import { useState } from 'react'
+import { useState, useRef, useCallback, useEffect } from 'react'
 import { parseSchedule, ParsedEntry } from '@/lib/parseSchedule'
 import { Shipment } from '@/lib/notion'
 import { Lang, t } from '@/lib/i18n'
@@ -29,6 +29,54 @@ export default function ScheduleParser({ lang, shipments }: Props) {
   const [importing, setImporting] = useState(false)
   const [importDone, setImportDone] = useState(false)
   const [selectedBatch, setSelectedBatch] = useState('')
+
+  // Voice input
+  const [isListening, setIsListening] = useState(false)
+  const [voiceSupported, setVoiceSupported] = useState(true)
+  const recognitionRef = useRef<any>(null)
+
+  useEffect(() => {
+    const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition
+    if (!SpeechRecognition) {
+      setVoiceSupported(false)
+      return
+    }
+    const recognition = new SpeechRecognition()
+    recognition.lang = lang === 'ja' ? 'ja-JP' : 'zh-TW'
+    recognition.continuous = true
+    recognition.interimResults = true
+
+    recognition.onresult = (event: any) => {
+      let transcript = ''
+      for (let i = 0; i < event.results.length; i++) {
+        transcript += event.results[i][0].transcript
+      }
+      setText(prev => {
+        // Replace from the point where voice started, keeping any pre-existing text
+        const base = (recognitionRef.current as any)?._baseText || ''
+        return base + (base ? '\n' : '') + transcript
+      })
+    }
+
+    recognition.onerror = () => setIsListening(false)
+    recognition.onend = () => setIsListening(false)
+
+    recognitionRef.current = recognition
+  }, [lang])
+
+  const toggleVoice = useCallback(() => {
+    if (!recognitionRef.current) return
+    if (isListening) {
+      recognitionRef.current.stop()
+      setIsListening(false)
+    } else {
+      // Save current text so we can append voice result after it
+      (recognitionRef.current as any)._baseText = text
+      recognitionRef.current.lang = lang === 'ja' ? 'ja-JP' : 'zh-TW'
+      recognitionRef.current.start()
+      setIsListening(true)
+    }
+  }, [isListening, text, lang])
 
   function handleParse() {
     const r = parseSchedule(text)
@@ -66,14 +114,42 @@ export default function ScheduleParser({ lang, shipments }: Props) {
             : '直接貼上平山先生的出貨排程文字，系統會自動解析。'}
         </p>
 
-        {/* Textarea */}
-        <textarea
-          value={text}
-          onChange={e => setText(e.target.value)}
-          placeholder={T.pasteHint}
-          rows={8}
-          className="w-full border border-gray-200 rounded-lg p-3 text-sm font-mono resize-y focus:outline-none focus:ring-2 focus:ring-lopia-red focus:border-transparent"
-        />
+        {/* Textarea with voice button */}
+        <div className="relative">
+          <textarea
+            value={text}
+            onChange={e => setText(e.target.value)}
+            placeholder={T.pasteHint}
+            rows={8}
+            className={`w-full border rounded-lg p-3 pr-12 text-sm font-mono resize-y focus:outline-none focus:ring-2 focus:ring-lopia-red focus:border-transparent ${
+              isListening ? 'border-lopia-red bg-red-50' : 'border-gray-200'
+            }`}
+          />
+          {voiceSupported && (
+            <button
+              onClick={toggleVoice}
+              title={isListening ? T.voiceStop : T.voiceStart}
+              className={`absolute right-2 top-2 w-9 h-9 flex items-center justify-center rounded-full transition-all ${
+                isListening
+                  ? 'bg-lopia-red text-white animate-pulse'
+                  : 'bg-gray-100 text-gray-500 hover:bg-gray-200 hover:text-gray-700'
+              }`}
+            >
+              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" className="w-5 h-5">
+                {isListening ? (
+                  <path d="M6 6h12v12H6z" />
+                ) : (
+                  <path d="M12 14a3 3 0 003-3V5a3 3 0 10-6 0v6a3 3 0 003 3zm5-3a5 5 0 01-10 0H5a7 7 0 0014 0h-2zm-5 9a1 1 0 01-1-1v-1.07A7.007 7.007 0 015 11H3a9.008 9.008 0 008 8.93V20a1 1 0 011 1h0a1 1 0 01-1 1z" />
+                )}
+              </svg>
+            </button>
+          )}
+        </div>
+        {isListening && (
+          <p className="text-xs text-lopia-red animate-pulse">
+            {lang === 'ja' ? '🎙 音声認識中...' : '🎙 語音辨識中...'}
+          </p>
+        )}
 
         <div className="flex gap-2">
           <button

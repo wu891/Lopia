@@ -16,25 +16,33 @@
 // Maps the shorthand store names used in Excel sheets
 // to the full display names used in our STORES list.
 export const EXCEL_STORE_MAP: Record<string, string> = {
+  // ── 較長/精確的別名放前面，避免子字串 fallback 誤判 ──
+  '台中漢神':   '台中漢神中港店',   // S0805, S1001, S1003, S1004
+  '漢神台中':   '台中漢神中港店',   // S0404, S0802
+  '漢神(台中)': '台中漢神中港店',   // S0803
+  '高雄巨蛋':   '高雄漢神巨蛋店',
+  '台北巨蛋':   '台北大巨蛋店',
+  '大巨蛋':     '台北大巨蛋店',
+  '夢時代':     '高雄夢時代店',
+  '小北門':     '台南小北門店',
+  // ── 一般縮寫 ──
   '台中':   'LaLaport 台中店',
   '桃園':   '桃園春日店',
   '中和':   '新北中和環球店',
   '新荘':   '新莊宏匯店',
   '新莊':   '新莊宏匯店',
   '高雄':   '高雄漢神巨蛋店',
-  '高雄巨蛋': '高雄漢神巨蛋店',
   '巨蛋':   '高雄漢神巨蛋店',
   '北蛋':   '台北大巨蛋店',
-  '大巨蛋': '台北大巨蛋店',
-  '台北巨蛋': '台北大巨蛋店',
   '南港':   '南港 LaLaport 店',
   'IKEA':   'IKEA 台中南屯店',
   'イケア': 'IKEA 台中南屯店',
   '夢時':   '高雄夢時代店',
-  '夢時代': '高雄夢時代店',
   '北門':   '台南小北門店',
+  '台南':   '台南小北門店',         // S1101 全店貨單的「台南」= 小北門（確認）
   'MOP':    '台南三井 Outlet 店',
   'mop':    '台南三井 Outlet 店',
+  'MO':     '台南三井 Outlet 店',   // 多張貨單使用 MO 作為三井縮寫
   '漢神':   '台中漢神中港店',
   '中漢':   '台中漢神中港店',
 }
@@ -129,8 +137,19 @@ export async function parseDeliveryExcel(
 
     if (!storeRaw) continue
 
-    // Map shorthand → full store name (fall back to raw if unknown)
-    const storeName = EXCEL_STORE_MAP[storeRaw] ?? storeRaw
+    // Map shorthand → full store name
+    // 1. Exact key match  2. Substring fallback (longest matching key wins)  3. Raw name
+    let storeName = EXCEL_STORE_MAP[storeRaw]
+    if (!storeName) {
+      const lower = storeRaw.toLowerCase()
+      let bestKey = ''
+      for (const key of Object.keys(EXCEL_STORE_MAP)) {
+        if (lower.includes(key.toLowerCase()) && key.length > bestKey.length) {
+          bestKey = key
+        }
+      }
+      storeName = bestKey ? EXCEL_STORE_MAP[bestKey] : storeRaw
+    }
 
     // Find header row
     let hdrIdx = -1

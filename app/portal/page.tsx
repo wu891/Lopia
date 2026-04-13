@@ -117,7 +117,9 @@ function PasswordGate({ onAuth }: { onAuth: () => void }) {
 function CustomsSection({ batches }: { batches: Shipment[] }) {
   const [selectedBatchId, setSelectedBatchId] = useState('')
   const [releaseDate, setReleaseDate] = useState('')
+  const [estPickupTime, setEstPickupTime] = useState('')
   const [pickupLocation, setPickupLocation] = useState('')
+  const [pickupLocationOther, setPickupLocationOther] = useState('')
   const [remarks, setRemarks] = useState('')
   const [pesticidePassed, setPesticidePassed] = useState(false)
   const [radiationPassed, setRadiationPassed] = useState(false)
@@ -180,6 +182,10 @@ function CustomsSection({ batches }: { batches: Shipment[] }) {
     setError('')
     const batch = batches.find(b => b.id === selectedBatchId)
     try {
+      const finalPickupLocation = pickupLocation === '其他' ? pickupLocationOther : pickupLocation
+      const timePrefix = estPickupTime ? `[預計取貨：${estPickupTime}]` : ''
+      const combinedRemarks = [timePrefix, remarks].filter(Boolean).join('\n')
+
       const res = await fetch('/api/logistics', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -188,9 +194,9 @@ function CustomsSection({ batches }: { batches: Shipment[] }) {
           eventType: '通關放貨',
           batchId: selectedBatchId,
           releaseDate,
-          pickupLocation,
+          pickupLocation: finalPickupLocation,
           deliveryStatus: '待配送',
-          remarks,
+          remarks: combinedRemarks,
         }),
       })
       if (!res.ok) throw new Error('Failed')
@@ -208,7 +214,9 @@ function CustomsSection({ batches }: { batches: Shipment[] }) {
 
       setSaved(true)
       setReleaseDate('')
+      setEstPickupTime('')
       setPickupLocation('')
+      setPickupLocationOther('')
       setRemarks('')
       setSelectedBatchId('')
       setPesticidePassed(false)
@@ -326,14 +334,41 @@ function CustomsSection({ batches }: { batches: Shipment[] }) {
       </div>
 
       <div>
+        <label className="block text-sm font-semibold text-gray-700 mb-1.5">取貨預估時間</label>
+        <select
+          value={estPickupTime}
+          onChange={e => setEstPickupTime(e.target.value)}
+          className="w-full border border-gray-200 rounded-xl px-4 py-3 text-base bg-white focus:outline-none focus:ring-2 focus:ring-lopia-red"
+        >
+          <option value="">— 請選擇時間 —</option>
+          {Array.from({ length: 24 }, (_, i) => {
+            const h = String(i).padStart(2, '0')
+            return <option key={h} value={`${h}:00`}>{h}:00</option>
+          })}
+        </select>
+      </div>
+
+      <div>
         <label className="block text-sm font-semibold text-gray-700 mb-1.5">取貨地點</label>
-        <input
-          type="text"
+        <select
           value={pickupLocation}
           onChange={e => setPickupLocation(e.target.value)}
-          placeholder="例：優儲倉庫 台中市..."
-          className="w-full border border-gray-200 rounded-xl px-4 py-3 text-base focus:outline-none focus:ring-2 focus:ring-lopia-red"
-        />
+          className="w-full border border-gray-200 rounded-xl px-4 py-3 text-base bg-white focus:outline-none focus:ring-2 focus:ring-lopia-red"
+        >
+          <option value="">— 請選擇取貨地點 —</option>
+          <option value="榮儲">榮儲</option>
+          <option value="華儲">華儲</option>
+          <option value="其他">其他（備註）</option>
+        </select>
+        {pickupLocation === '其他' && (
+          <input
+            type="text"
+            value={pickupLocationOther}
+            onChange={e => setPickupLocationOther(e.target.value)}
+            placeholder="請輸入取貨地點..."
+            className="w-full border border-gray-200 rounded-xl px-4 py-3 text-base focus:outline-none focus:ring-2 focus:ring-lopia-red mt-2"
+          />
+        )}
       </div>
 
       <div>
