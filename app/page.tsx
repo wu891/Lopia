@@ -97,7 +97,7 @@ export default function Home() {
   const [loading, setLoading] = useState(true)
   const [fetchError, setFetchError] = useState<string | null>(null)
   const [tab, setTab] = useState<Tab>('shipments')
-  const [viewMode, setViewMode] = useState<'list' | 'calendar'>('list')
+  const [viewMode, setViewMode] = useState<'card' | 'compact' | 'calendar'>('compact')
   const [search, setSearch] = useState('')
   const [filter, setFilter] = useState<'all' | 'active' | 'done'>('all')
 
@@ -214,12 +214,26 @@ export default function Home() {
             <div className="flex flex-col sm:flex-row gap-2 items-start sm:items-center">
               <AddBatchForm lang={lang} onBatchAdded={fetchData} />
 
-              {/* List / Calendar toggle */}
+              {/* Card / Compact / Calendar toggle */}
               <div className="flex border border-gray-200 rounded-lg overflow-hidden">
                 <button
-                  onClick={() => setViewMode('list')}
+                  onClick={() => setViewMode('card')}
                   className={`flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium transition-colors cursor-pointer ${
-                    viewMode === 'list'
+                    viewMode === 'card'
+                      ? 'bg-lopia-red-light text-lopia-red'
+                      : 'bg-white text-gray-500 hover:bg-gray-50'
+                  }`}
+                >
+                  <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/>
+                    <rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/>
+                  </svg>
+                  卡片
+                </button>
+                <button
+                  onClick={() => setViewMode('compact')}
+                  className={`flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium transition-colors cursor-pointer border-l border-gray-200 ${
+                    viewMode === 'compact'
                       ? 'bg-lopia-red-light text-lopia-red'
                       : 'bg-white text-gray-500 hover:bg-gray-50'
                   }`}
@@ -228,7 +242,7 @@ export default function Home() {
                     <line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/>
                     <line x1="3" y1="6" x2="3.01" y2="6"/><line x1="3" y1="12" x2="3.01" y2="12"/><line x1="3" y1="18" x2="3.01" y2="18"/>
                   </svg>
-                  {T.listView}
+                  精簡
                 </button>
                 <button
                   onClick={() => setViewMode('calendar')}
@@ -246,8 +260,8 @@ export default function Home() {
                 </button>
               </div>
 
-              {/* Search + filter (list mode only) */}
-              {viewMode === 'list' && (<>
+              {/* Search + filter (list/compact mode only) */}
+              {viewMode !== 'calendar' && (<>
                 <div className="flex-1 relative min-w-0">
                   <svg className="absolute left-2.5 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                     <circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/>
@@ -328,7 +342,7 @@ export default function Home() {
                 lang={lang}
                 allRecords={allRecords}
                 onRecordChange={refreshRecords}
-                compact={filter === 'done'}
+                compact={viewMode === 'compact'}
               />
             )}
           </div>
