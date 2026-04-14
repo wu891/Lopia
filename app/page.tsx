@@ -316,6 +316,7 @@ export default function Home() {
                 lang={lang}
                 logisticsEvents={logisticsData?.events ?? []}
                 records={allRecords}
+                onRefresh={fetchData}
               />
             ) : filtered.length === 0 ? (
               <div className="flex items-center justify-center h-48">

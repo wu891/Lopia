@@ -420,3 +420,10 @@ export async function updateShipmentInspection(id: string, data: {
   if (Object.keys(props).length === 0) return
   await notion.pages.update({ page_id: id, properties: props })
 }
+
+export async function updateShipmentDeliveryStatus(id: string, deliveryStatus: string) {
+  await notion.pages.update({
+    page_id: id,
+    properties: { '配送狀態': { select: { name: deliveryStatus } } },
+  })
+}

@@ -8,6 +8,7 @@ interface Props {
   lang: Lang
   logisticsEvents?: LogisticsEvent[]
   records?: ShipmentRecord[]
+  onRefresh?: () => void
 }
 
 const STATUS_DOT: Record<string, string> = {
@@ -48,13 +49,104 @@ const MARKER_ICON: Record<string, string> = {
   '送達': '✅',
 }
 
-export default function CalendarView({ shipments, lang, logisticsEvents = [], records = [] }: Props) {
+const BATCH_STATUSES = ['未到', '待出貨', '部分出貨', '配送中', '全數出貨']
+const STORE_STATUSES = ['待配送', '配送中', '已送達'] as const
+
+export default function CalendarView({ shipments, lang, logisticsEvents = [], records = [], onRefresh }: Props) {
   const today = new Date()
   const [year,  setYear]  = useState(today.getFullYear())
   const [month, setMonth] = useState(today.getMonth())
   const [selectedId, setSelectedId] = useState<string | null>(null)
   const isJa = lang === 'ja'
   const T = t[lang]
+
+  // ── Auth state ────────────────────────────────────────────────
+  const [authed, setAuthed] = useState(false)
+  const [showPwModal, setShowPwModal] = useState(false)
+  const [pwInput, setPwInput] = useState('')
+  const [pwError, setPwError] = useState('')
+  const [pwLoading, setPwLoading] = useState(false)
+  const [pendingEdit, setPendingEdit] = useState<(() => void) | null>(null)
+
+  // ── Edit state ────────────────────────────────────────────────
+  const [editingBatchStatus, setEditingBatchStatus] = useState(false)
+  const [editingStoreId, setEditingStoreId] = useState<string | null>(null)
+  const [savingId, setSavingId] = useState<string | null>(null)
+
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      setAuthed(sessionStorage.getItem('lopia_authed') === '1')
+    }
+  }, [])
+
+  // Reset edit state when switching batches
+  useEffect(() => {
+    setEditingBatchStatus(false)
+    setEditingStoreId(null)
+  }, [selectedId])
+
+  function requireAuth(fn: () => void) {
+    if (authed) { fn() } else {
+      setPendingEdit(() => fn)
+      setShowPwModal(true)
+    }
+  }
+
+  async function handlePwSubmit(e: React.FormEvent) {
+    e.preventDefault()
+    setPwLoading(true)
+    setPwError('')
+    try {
+      const res = await fetch('/api/auth', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ password: pwInput }),
+      })
+      const json = await res.json()
+      if (json.ok) {
+        sessionStorage.setItem('lopia_authed', '1')
+        setAuthed(true)
+        setShowPwModal(false)
+        setPwInput('')
+        pendingEdit?.()
+        setPendingEdit(null)
+      } else {
+        setPwError(json.error ?? '密碼錯誤')
+      }
+    } finally {
+      setPwLoading(false)
+    }
+  }
+
+  async function saveBatchStatus(batchId: string, status: string) {
+    setSavingId(batchId)
+    try {
+      await fetch(`/api/shipments/${batchId}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ deliveryStatus: status }),
+      })
+      setEditingBatchStatus(false)
+      onRefresh?.()
+    } finally {
+      setSavingId(null)
+    }
+  }
+
+  async function saveStoreStatus(eventId: string, status: string) {
+    setSavingId(eventId)
+    try {
+      await fetch(`/api/logistics/${eventId}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ deliveryStatus: status }),
+      })
+      setEditingStoreId(null)
+      onRefresh?.()
+    } finally {
+      setSavingId(null)
+    }
+  }
 
   // ESC key closes drawer
   useEffect(() => {
@@ -206,16 +298,40 @@ export default function CalendarView({ shipments, lang, logisticsEvents = [], re
                 </div>
               </div>
 
-              {/* Delivery status badge */}
-              {selected.deliveryStatus && (
-                <div className="flex items-center gap-2">
-                  <div className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium
-                    bg-white border border-gray-200 text-gray-700">
-                    <span className={`w-2 h-2 rounded-full flex-shrink-0 ${STATUS_DOT[selected.deliveryStatus] ?? 'bg-gray-400'}`} />
-                    {selected.deliveryStatus}
-                  </div>
+              {/* Delivery status badge – editable */}
+              <div className="flex items-center gap-2">
+                <div className="relative">
+                  <button
+                    onClick={() => requireAuth(() => setEditingBatchStatus(v => !v))}
+                    className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium
+                      bg-white border border-gray-200 text-gray-700 hover:border-gray-400 transition-colors"
+                  >
+                    <span className={`w-2 h-2 rounded-full flex-shrink-0 ${STATUS_DOT[selected.deliveryStatus ?? ''] ?? 'bg-gray-400'}`} />
+                    {selected.deliveryStatus ?? '—'}
+                    <span className="text-gray-300 text-[9px]">▼</span>
+                  </button>
+                  {editingBatchStatus && (
+                    <div className="absolute left-0 top-full mt-1 bg-white border border-gray-200 rounded-xl shadow-lg z-10 py-1 min-w-[130px]">
+                      {BATCH_STATUSES.map(s => (
+                        <button
+                          key={s}
+                          disabled={savingId === selected.id}
+                          onClick={() => saveBatchStatus(selected.id, s)}
+                          className={`w-full text-left px-3 py-2 text-xs hover:bg-gray-50 flex items-center gap-2 ${s === selected.deliveryStatus ? 'font-semibold text-lopia-red' : 'text-gray-700'}`}
+                        >
+                          <span className={`w-2 h-2 rounded-full flex-shrink-0 ${STATUS_DOT[s] ?? 'bg-gray-400'}`} />
+                          {s}
+                          {savingId === selected.id ? ' ⋯' : ''}
+                        </button>
+                      ))}
+                      <button
+                        onClick={() => setEditingBatchStatus(false)}
+                        className="w-full text-center px-3 py-1.5 text-[10px] text-gray-400 border-t border-gray-100 mt-0.5 hover:bg-gray-50"
+                      >取消</button>
+                    </div>
+                  )}
                 </div>
-              )}
+              </div>
 
               {/* Inspection status */}
               {(selected.radiationTest || selected.pesticideTest || selected.fumigation) && (
@@ -321,13 +437,34 @@ export default function CalendarView({ shipments, lang, logisticsEvents = [], re
                                   {e.estDelivery && (
                                     <span className="text-gray-400 text-[10px]">{e.estDelivery}</span>
                                   )}
-                                  <span className={`px-1.5 py-0.5 rounded text-[10px] font-medium ${
-                                    e.deliveryStatus === '已送達' ? 'bg-green-100 text-green-700' :
-                                    e.deliveryStatus === '配送中' ? 'bg-blue-100 text-blue-700' :
-                                    'bg-gray-100 text-gray-500'
-                                  }`}>
-                                    {e.deliveryStatus ?? '待配送'}
-                                  </span>
+                                  <div className="relative">
+                                    <button
+                                      onClick={() => requireAuth(() => setEditingStoreId(id => id === e.id ? null : e.id))}
+                                      className={`px-1.5 py-0.5 rounded text-[10px] font-medium hover:opacity-75 transition-opacity ${
+                                        e.deliveryStatus === '已送達' ? 'bg-green-100 text-green-700' :
+                                        e.deliveryStatus === '配送中' ? 'bg-blue-100 text-blue-700' :
+                                        'bg-gray-100 text-gray-500'
+                                      }`}
+                                    >
+                                      {savingId === e.id ? '⋯' : (e.deliveryStatus ?? '待配送')}
+                                    </button>
+                                    {editingStoreId === e.id && (
+                                      <div className="absolute right-0 top-full mt-1 bg-white border border-gray-200 rounded-xl shadow-lg z-10 py-1 min-w-[90px]">
+                                        {STORE_STATUSES.map(s => (
+                                          <button
+                                            key={s}
+                                            disabled={savingId === e.id}
+                                            onClick={() => saveStoreStatus(e.id, s)}
+                                            className={`w-full text-left px-2.5 py-1.5 text-[10px] hover:bg-gray-50 ${s === (e.deliveryStatus ?? '待配送') ? 'font-semibold text-lopia-red' : 'text-gray-700'}`}
+                                          >{s}</button>
+                                        ))}
+                                        <button
+                                          onClick={() => setEditingStoreId(null)}
+                                          className="w-full text-center px-2.5 py-1 text-[10px] text-gray-400 border-t border-gray-100 hover:bg-gray-50"
+                                        >取消</button>
+                                      </div>
+                                    )}
+                                  </div>
                                 </div>
                               </div>
                               )
@@ -346,6 +483,39 @@ export default function CalendarView({ shipments, lang, logisticsEvents = [], re
             </div>
           )}
         </div>
+
+        {/* ── Password modal overlay ──────────────────────────── */}
+        {showPwModal && (
+          <div className="absolute inset-0 bg-black/40 z-60 flex items-center justify-center p-6">
+            <div className="bg-white rounded-2xl p-5 w-full max-w-xs shadow-xl">
+              <p className="font-semibold text-gray-800 mb-1">需要編輯密碼</p>
+              <p className="text-xs text-gray-400 mb-4">輸入密碼後可修改狀態</p>
+              <form onSubmit={handlePwSubmit} className="space-y-3">
+                <input
+                  type="password"
+                  value={pwInput}
+                  onChange={e => setPwInput(e.target.value)}
+                  autoFocus
+                  placeholder="密碼"
+                  className="w-full border border-gray-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-lopia-red"
+                />
+                {pwError && <p className="text-red-500 text-xs">{pwError}</p>}
+                <div className="flex gap-2">
+                  <button
+                    type="button"
+                    onClick={() => { setShowPwModal(false); setPwInput(''); setPwError(''); setPendingEdit(null) }}
+                    className="flex-1 py-2 rounded-xl border border-gray-200 text-sm text-gray-500 hover:bg-gray-50"
+                  >取消</button>
+                  <button
+                    type="submit"
+                    disabled={pwLoading}
+                    className="flex-1 py-2 rounded-xl bg-lopia-red text-white text-sm font-medium disabled:opacity-50"
+                  >{pwLoading ? '⋯' : '確認'}</button>
+                </div>
+              </form>
+            </div>
+          </div>
+        )}
       </div>
 
       {/* ── Calendar card ─────────────────────────────────────── */}

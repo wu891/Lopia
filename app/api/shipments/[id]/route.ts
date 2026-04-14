@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { updateShipmentInspection } from '@/lib/notion'
+import { updateShipmentInspection, updateShipmentDeliveryStatus } from '@/lib/notion'
 
 export const dynamic = 'force-dynamic'
 
@@ -12,7 +12,11 @@ export async function PATCH(
     if (!id) return NextResponse.json({ error: 'Missing id' }, { status: 400 })
 
     const body = await req.json()
-    const { fumigation, pesticideTest, radiationTest } = body
+    const { fumigation, pesticideTest, radiationTest, deliveryStatus } = body
+
+    if (deliveryStatus !== undefined) {
+      await updateShipmentDeliveryStatus(id, deliveryStatus)
+    }
 
     await updateShipmentInspection(id, {
       ...(fumigation    !== undefined ? { fumigation }    : {}),
