@@ -31,16 +31,17 @@ export async function GET() {
   try {
     const [shipments, records] = await Promise.all([getShipments(), getShipmentRecords()])
 
-    // Aggregate per batch: planned (non-cancelled) and done (completed)
+    // Aggregate per batch: planned (non-cancelled) and done (date <= today and non-cancelled)
+    const today = new Date().toISOString().slice(0, 10)
     const plannedMap: Record<string, number> = {}
     const doneMap: Record<string, number> = {}
     for (const r of records) {
       if (!r.batchId || !r.boxes) continue
       if (r.planStatus !== '已取消') {
         plannedMap[r.batchId] = (plannedMap[r.batchId] ?? 0) + r.boxes
-      }
-      if (r.planStatus === '已完成') {
-        doneMap[r.batchId] = (doneMap[r.batchId] ?? 0) + r.boxes
+        if (r.date && r.date <= today) {
+          doneMap[r.batchId] = (doneMap[r.batchId] ?? 0) + r.boxes
+        }
       }
     }
 

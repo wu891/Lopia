@@ -28,7 +28,7 @@ interface RoundGroup {
   stores: { name: string; boxes: number }[]
   totalBoxes: number
   ids: string[]
-  isDone: boolean   // all records in round have planStatus === '已完成'
+  isDone: boolean   // date <= today and not cancelled
 }
 
 interface DiffRound {
@@ -47,19 +47,19 @@ interface DiffRound {
 }
 
 function groupByRound(records: ShipmentRecord[]): RoundGroup[] {
-  const map = new Map<number, RoundGroup & { statuses: (string | null)[] }>()
+  const today = new Date().toISOString().slice(0, 10)
+  const map = new Map<number, RoundGroup>()
   for (const r of records) {
     const key = r.round ?? 0
-    if (!map.has(key)) map.set(key, { roundNo: key, date: r.date ?? null, stores: [], totalBoxes: 0, ids: [], isDone: false, statuses: [] })
+    if (!map.has(key)) map.set(key, { roundNo: key, date: r.date ?? null, stores: [], totalBoxes: 0, ids: [], isDone: false })
     const g = map.get(key)!
     g.stores.push({ name: r.store ?? '', boxes: r.boxes ?? 0 })
     g.totalBoxes += r.boxes ?? 0
     g.ids.push(r.id)
-    g.statuses.push(r.planStatus)
   }
   return Array.from(map.values()).map(g => ({
     ...g,
-    isDone: g.statuses.length > 0 && g.statuses.every(s => s === '已完成'),
+    isDone: !!g.date && g.date <= today,
   })).sort((a, b) => a.roundNo - b.roundNo)
 }
 
@@ -75,7 +75,6 @@ export default function DeliveryPlan({ batchId, batchName, totalBoxes, records, 
   const [saving, setSaving]           = useState(false)
   const [saveError, setSaveError]     = useState('')
   const [deletingRound, setDeletingRound] = useState<number | null>(null)
-  const [markingDoneRound, setMarkingDoneRound] = useState<number | null>(null)
   // Which round row is expanded in the table
   const [expandedRound, setExpandedRound] = useState<number | null>(null)
   // Password protection
@@ -427,29 +426,6 @@ export default function DeliveryPlan({ batchId, batchName, totalBoxes, records, 
     requireAuth(() => doDeleteRound(group))
   }
 
-  async function doMarkRoundDone(group: RoundGroup) {
-    setMarkingDoneRound(group.roundNo)
-    try {
-      await Promise.all(group.ids.map(id =>
-        fetch(`/api/records/${id}`, {
-          method: 'PUT',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ planStatus: '已完成' }),
-        })
-      ))
-      await logChange(
-        '標記出貨完成',
-        batchId,
-        `第 ${group.roundNo} 次 / 日期: ${group.date ?? '—'} / ${group.totalBoxes} 箱`,
-      )
-      onRecordChange()
-    } finally { setMarkingDoneRound(null) }
-  }
-
-  function handleMarkRoundDone(group: RoundGroup) {
-    requireAuth(() => doMarkRoundDone(group))
-  }
-
   function cancelForm() { setShowForm(false); setEditRound(null); setSaveError(''); clearExcel() }
 
   async function doGenerateOrder(roundNo: number) {
@@ -704,18 +680,6 @@ export default function DeliveryPlan({ batchId, batchName, totalBoxes, records, 
                         {generatingRound === g.roundNo ? '⟳' : '📄'}
                       </button>
                     )}
-                    {g.isDone ? (
-                      <span className="text-emerald-500 text-xs" title="已完成">✓</span>
-                    ) : (
-                      <button
-                        onClick={() => handleMarkRoundDone(g)}
-                        disabled={markingDoneRound === g.roundNo}
-                        title={lang === 'ja' ? '出荷完了にする' : '標記已出貨完成'}
-                        className="text-gray-300 hover:text-emerald-500 transition-colors text-xs disabled:opacity-40"
-                      >
-                        {markingDoneRound === g.roundNo ? '…' : '✓'}
-                      </button>
-                    )}
                     <button onClick={() => startEdit(g)} className="text-gray-400 hover:text-lopia-red transition-colors text-xs">✏</button>
                     <button onClick={() => handleDeleteRound(g)} disabled={deletingRound === g.roundNo} className="text-gray-400 hover:text-red-500 transition-colors text-xs">
                       {deletingRound === g.roundNo ? '…' : '✕'}
@@ -736,25 +700,6 @@ export default function DeliveryPlan({ batchId, batchName, totalBoxes, records, 
                       <span>{T.subtotal}</span>
                       <span>{g.totalBoxes}{T.boxes}</span>
                     </div>
-                    {/* Mark as done button */}
-                    <div className="pt-1.5 border-t border-gray-100">
-                      {g.isDone ? (
-                        <div className="w-full py-1.5 bg-emerald-50 text-emerald-600 text-xs font-medium rounded-lg flex items-center justify-center gap-1">
-                          ✓ {lang === 'ja' ? '出荷完了' : '已出貨完成'}
-                        </div>
-                      ) : (
-                        <button
-                          onClick={() => handleMarkRoundDone(g)}
-                          disabled={markingDoneRound === g.roundNo}
-                          className="w-full py-1.5 bg-emerald-50 text-emerald-600 text-xs font-medium rounded-lg hover:bg-emerald-100 disabled:opacity-40 transition-colors flex items-center justify-center gap-1"
-                        >
-                          {markingDoneRound === g.roundNo
-                            ? <><span className="animate-spin inline-block">⟳</span> {lang === 'ja' ? '更新中...' : '更新中...'}</>
-                            : <>✓ {lang === 'ja' ? '出荷完了にする' : '標記已出貨完成'}</>}
-                        </button>
-                      )}
-                    </div>
-
                     {/* Generate shipment order button */}
                     <div className="pt-1.5 border-t border-gray-100">
                       {supplierExcelId ? (
