@@ -450,7 +450,7 @@ function FreightSection({
       return {
         store: s.name,
         boxes: s.boxes,
-        estDelivery: existing?.estDelivery ?? '',
+        estDelivery: existing?.estDelivery?.slice(0, 16) ?? '',
         delivered: existing?.deliveryStatus === '已送達',
         existingEventId: existing?.id ?? null,
         photoUrl: null,
@@ -558,7 +558,9 @@ function FreightSection({
           >
             <option value="">— 請選擇批次 —</option>
             {todayBatches.map(b => (
-              <option key={b.id} value={b.id}>{b.ivName}</option>
+              <option key={b.id} value={b.id}>
+                {b.ivName}{b.productSummary ? `　${b.productSummary}` : ''}
+              </option>
             ))}
           </select>
         )}
@@ -646,11 +648,11 @@ function FreightSection({
                 </button>
               </div>
 
-              {/* Est. delivery date */}
+              {/* Est. delivery time */}
               <div>
-                <label className="block text-xs text-gray-500 mb-1">預計送達日期</label>
+                <label className="block text-xs text-gray-500 mb-1">預計送達時間</label>
                 <input
-                  type="date"
+                  type="datetime-local"
                   value={s.estDelivery}
                   onChange={e => updateStore(i, 'estDelivery', e.target.value)}
                   className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-lopia-red"
