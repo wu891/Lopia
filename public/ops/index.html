@@ -683,24 +683,24 @@ async function syncFromNotion() {
         // Create rows from Notion records
         completed.forEach(rec => {
             const batch = shipMap[rec.batchId] || {};
-            const batchName = batch.ivName || rec.batchId?.slice(0, 8) || '未知批次';
+            // 優先使用出貨單號作為批次名稱，其次才嘗試進口批次 IV Name
+            const batchName = rec.shipmentNo || batch.ivName || rec.batchId?.slice(0, 8) || '未知批次';
             const productSummary = batch.productSummary || batchName;
             const boxes = rec.boxes || 0;
             const notionAmount = rec.amount || 0;  // 金額 from Notion (exact TWD value)
 
             // If Notion record has a pre-calculated amount, use it directly (no rounding)
             if (notionAmount > 0 && boxes > 0) {
-                // Parse product info from remarks if available (format: "SXXX | product details | 計:XXXTWD")
+                // Parse product info from remarks (format: "SXXX | 商品名稱 | 商品類別 | 計:XXXTWD")
                 const remarkParts = (rec.remarks || '').split(' | ');
                 let productName = productSummary;
+                let remarkCategory = null;
                 if (remarkParts.length >= 2) {
-                    // Extract first product name from remarks
-                    const prodPart = remarkParts[1] || '';
-                    const firstProd = prodPart.split(' / ')[0] || '';
-                    if (firstProd) {
-                        const match = firstProd.match(/^(.+?)\s+\d/);
-                        productName = match ? match[1] : firstProd.split(' ')[0] || productSummary;
-                    }
+                    const prodPart = remarkParts[1]?.trim() || '';
+                    if (prodPart) productName = prodPart;
+                    // category at index 2 (if not starting with "計:")
+                    const maybeCat = remarkParts[2]?.trim() || '';
+                    if (maybeCat && !maybeCat.startsWith('計:')) remarkCategory = maybeCat;
                 }
                 allData.push({
                     id: genId(), source: 'notion', notionRecordId: rec.id,
@@ -710,7 +710,7 @@ async function syncFromNotion() {
                     quantity: boxes,
                     unitPrice: Math.round(notionAmount / boxes),  // for display only
                     amount: notionAmount,  // exact value — use this for totals
-                    category: classifyProduct(productName)
+                    category: remarkCategory || classifyProduct(productName)
                 });
                 return;
             }
