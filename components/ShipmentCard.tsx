@@ -1,10 +1,12 @@
 'use client'
+import { useState, useRef, useEffect } from 'react'
 import { Shipment, ShipmentRecord } from '@/lib/notion'
 import { Lang, t } from '@/lib/i18n'
 import TimelineProgress from './TimelineProgress'
 import DocumentStatus from './DocumentStatus'
 import InventoryBar from './InventoryBar'
 import DeliveryPlan from './DeliveryPlan'
+import PasswordModal, { isAuthed, logChange } from './PasswordModal'
 
 interface ShipmentCardProps {
   shipment: Shipment
@@ -13,21 +15,110 @@ interface ShipmentCardProps {
   onRecordChange: () => void
 }
 
-// dot color + bg/text for each status value
+const STATUS_OPTIONS = ['待出貨', '部分出貨', '全數出貨'] as const
+
 const DELIVERY_BADGE: Record<string, { dot: string; cls: string }> = {
   '待出貨':  { dot: 'bg-gray-400',   cls: 'bg-gray-100 text-gray-600 border-gray-200' },
   '部分出貨':{ dot: 'bg-amber-400',  cls: 'bg-amber-50 text-amber-700 border-amber-200' },
   '全數出貨':{ dot: 'bg-emerald-500',cls: 'bg-emerald-50 text-emerald-700 border-emerald-200' },
 }
 
-function StatusBadge({ value }: { value: string | null }) {
-  if (!value) return null
-  const style = DELIVERY_BADGE[value] ?? { dot: 'bg-gray-400', cls: 'bg-gray-100 text-gray-500 border-gray-200' }
+function EditableStatusBadge({
+  value,
+  shipmentId,
+  lang,
+  onUpdated,
+}: {
+  value: string | null
+  shipmentId: string
+  lang: Lang
+  onUpdated: () => void
+}) {
+  const [current, setCurrent] = useState(value)
+  const [open, setOpen] = useState(false)
+  const [showAuth, setShowAuth] = useState(false)
+  const [saving, setSaving] = useState(false)
+  const ref = useRef<HTMLDivElement>(null)
+
+  useEffect(() => {
+    if (!open) return
+    function handler(e: MouseEvent) {
+      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false)
+    }
+    document.addEventListener('mousedown', handler)
+    return () => document.removeEventListener('mousedown', handler)
+  }, [open])
+
+  function handleClick(e: React.MouseEvent) {
+    e.stopPropagation()
+    if (!isAuthed()) { setShowAuth(true); return }
+    setOpen(o => !o)
+  }
+
+  async function handleSelect(status: string) {
+    if (status === current) { setOpen(false); return }
+    setOpen(false)
+    setSaving(true)
+    try {
+      await fetch(`/api/shipments/${shipmentId}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ deliveryStatus: status }),
+      })
+      await logChange('更新配送狀態', shipmentId, `${current ?? '—'} → ${status}`)
+      setCurrent(status)
+      onUpdated()
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  const style = DELIVERY_BADGE[current ?? ''] ?? { dot: 'bg-gray-400', cls: 'bg-gray-100 text-gray-500 border-gray-200' }
+
   return (
-    <span className={`inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-xs font-medium border ${style.cls}`}>
-      <span className={`w-1.5 h-1.5 rounded-full shrink-0 ${style.dot}`} />
-      {value}
-    </span>
+    <>
+      <div ref={ref} className="relative">
+        <button
+          onClick={handleClick}
+          disabled={saving}
+          className={`inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-xs font-medium border transition-opacity hover:opacity-75 cursor-pointer disabled:opacity-40 ${style.cls}`}
+        >
+          <span className={`w-1.5 h-1.5 rounded-full shrink-0 ${style.dot}`} />
+          {current ?? '—'}
+          <svg className="w-2.5 h-2.5 opacity-50" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+            <path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" />
+          </svg>
+        </button>
+
+        {open && (
+          <div className="absolute right-0 top-full mt-1 z-50 bg-white border border-gray-200 rounded-lg shadow-lg overflow-hidden min-w-[110px]">
+            {STATUS_OPTIONS.map(opt => {
+              const s = DELIVERY_BADGE[opt]
+              const isCurrent = opt === current
+              return (
+                <button
+                  key={opt}
+                  onClick={(e) => { e.stopPropagation(); handleSelect(opt) }}
+                  className={`w-full flex items-center gap-2 px-3 py-2 text-xs text-left transition-colors hover:bg-gray-50 ${isCurrent ? 'font-semibold' : 'text-gray-700'}`}
+                >
+                  <span className={`w-1.5 h-1.5 rounded-full shrink-0 ${s.dot}`} />
+                  {opt}
+                  {isCurrent && <span className="ml-auto text-lopia-red">✓</span>}
+                </button>
+              )
+            })}
+          </div>
+        )}
+      </div>
+
+      {showAuth && (
+        <PasswordModal
+          lang={lang}
+          onSuccess={() => { setShowAuth(false); setOpen(true) }}
+          onCancel={() => setShowAuth(false)}
+        />
+      )}
+    </>
   )
 }
 
@@ -54,7 +145,12 @@ export default function ShipmentCard({ shipment, lang, allRecords, onRecordChang
               {shipment.supplier}
             </span>
           )}
-          <StatusBadge value={shipment.deliveryStatus} />
+          <EditableStatusBadge
+            value={shipment.deliveryStatus}
+            shipmentId={shipment.id}
+            lang={lang}
+            onUpdated={onRecordChange}
+          />
         </div>
       </div>
 
