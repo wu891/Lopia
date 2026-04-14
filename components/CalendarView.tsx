@@ -23,7 +23,9 @@ function isSameDay(a: Date, b: Date) {
 }
 
 function parseLocalDate(dateStr: string): Date {
-  const [y, m, d] = dateStr.split('-').map(Number)
+  // Support both 'YYYY-MM-DD' and 'YYYY-MM-DDTHH:MM' (datetime-local)
+  const datePart = dateStr.split('T')[0]
+  const [y, m, d] = datePart.split('-').map(Number)
   return new Date(y, m - 1, d)
 }
 
@@ -31,6 +33,7 @@ interface LogisticsMarker {
   type: '放貨' | '配送' | '送達'
   batchId: string
   label: string
+  count: number   // number of stores for this batch on this day
 }
 
 const MARKER_STYLE: Record<string, string> = {
@@ -86,23 +89,36 @@ export default function CalendarView({ shipments, lang, logisticsEvents = [] }: 
 
   function logisticsMarkersOnDay(day: Date): LogisticsMarker[] {
     const markers: LogisticsMarker[] = []
+    const deliveryCount  = new Map<string, number>()  // batchId → # stores with estDelivery on day
+    const deliveredCount = new Map<string, number>()  // batchId → # stores actualDelivery+已送達 on day
+
     for (const e of logisticsEvents) {
+      const bid = e.batchId ?? ''
       if (e.eventType === '通關放貨' && e.releaseDate && isSameDay(parseLocalDate(e.releaseDate), day)) {
         const batch = shipments.find(s => s.id === e.batchId)
-        markers.push({ type: '放貨', batchId: e.batchId ?? '', label: batch?.ivName ?? '' })
+        if (!markers.find(m => m.type === '放貨' && m.batchId === bid))
+          markers.push({ type: '放貨', batchId: bid, label: batch?.ivName ?? '', count: 0 })
       }
       if (e.eventType === '配送' && e.estDelivery && isSameDay(parseLocalDate(e.estDelivery), day)) {
-        const batch = shipments.find(s => s.id === e.batchId)
-        if (!markers.find(m => m.type === '配送' && m.batchId === e.batchId))
-          markers.push({ type: '配送', batchId: e.batchId ?? '', label: batch?.ivName ?? '' })
+        deliveryCount.set(bid, (deliveryCount.get(bid) ?? 0) + 1)
       }
       if (e.eventType === '配送' && e.actualDelivery && e.deliveryStatus === '已送達' &&
           isSameDay(parseLocalDate(e.actualDelivery), day)) {
-        const batch = shipments.find(s => s.id === e.batchId)
-        if (!markers.find(m => m.type === '送達' && m.batchId === e.batchId))
-          markers.push({ type: '送達', batchId: e.batchId ?? '', label: batch?.ivName ?? '' })
+        deliveredCount.set(bid, (deliveredCount.get(bid) ?? 0) + 1)
       }
     }
+
+    // 配送中 markers（按 estDelivery 日期，顯示門市數）
+    for (const [bid, count] of deliveryCount) {
+      const batch = shipments.find(s => s.id === bid)
+      markers.push({ type: '配送', batchId: bid, label: batch?.ivName ?? '', count })
+    }
+    // 已送達 markers（按 actualDelivery 日期，顯示已送達門市數）
+    for (const [bid, count] of deliveredCount) {
+      const batch = shipments.find(s => s.id === bid)
+      markers.push({ type: '送達', batchId: bid, label: batch?.ivName ?? '', count })
+    }
+
     return markers
   }
 
@@ -402,8 +418,10 @@ export default function CalendarView({ shipments, lang, logisticsEvents = [] }: 
                           leading-tight font-medium transition-all cursor-pointer
                           ${isActive ? 'bg-lopia-red text-white' : MARKER_STYLE[m.type]}`}
                       >
-                        <span className="text-[10px]">{MARKER_ICON[m.type]}</span>
-                        <span className="truncate">{m.type}</span>
+                        <span className="text-[10px] flex-shrink-0">{MARKER_ICON[m.type]}</span>
+                        <span className="truncate">
+                          {m.type}{m.count > 0 ? ` ${m.count}間` : ''}
+                        </span>
                       </button>
                     )
                   })}

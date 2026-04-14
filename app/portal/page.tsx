@@ -420,6 +420,7 @@ function FreightSection({
   const [storeDeliveries, setStoreDeliveries] = useState<StoreDelivery[]>([])
   const [saving, setSaving] = useState(false)
   const [saved, setSaved] = useState(false)
+  const [savedBanner, setSavedBanner] = useState<{ batch: string; round: number; delivered: number; total: number } | null>(null)
   const [error, setError] = useState('')
 
   // 只顯示「今日（台灣時區）有排程輪次」的批次
@@ -523,7 +524,15 @@ function FreightSection({
         }
       }))
 
+      const deliveredCount = storeDeliveries.filter(s => s.delivered).length
+      const batch = batches.find(b => b.id === selectedBatchId)
       setSaved(true)
+      setSavedBanner({
+        batch: batch?.ivName ?? selectedBatchId,
+        round: selectedRound!,
+        delivered: deliveredCount,
+        total: storeDeliveries.length,
+      })
       onRefresh()
       setTimeout(() => setSaved(false), 3000)
     } catch {
@@ -719,6 +728,44 @@ function FreightSection({
       )}
 
       {error && <p className="text-red-500 text-sm">{error}</p>}
+
+      {/* ── Saved banner */}
+      {savedBanner && (
+        <div className="flex items-start gap-3 bg-green-50 border border-green-200 rounded-xl px-4 py-3">
+          <svg className="flex-shrink-0 mt-0.5 text-green-500" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+            <polyline points="20 6 9 17 4 12"/>
+          </svg>
+          <div className="flex-1 min-w-0">
+            <p className="text-sm font-semibold text-green-800">配送狀態已儲存</p>
+            <p className="text-xs text-green-700 mt-0.5">
+              {savedBanner.batch}・第 {savedBanner.round} 次
+              <span className="font-medium">{savedBanner.delivered}/{savedBanner.total} 間門市已送達</span>
+            </p>
+            <a
+              href="/"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-flex items-center gap-1 mt-1.5 text-xs text-green-700 underline underline-offset-2 hover:text-green-900"
+            >
+              前往主頁月曆確認
+              <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/>
+                <polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/>
+              </svg>
+            </a>
+          </div>
+          <button
+            type="button"
+            onClick={() => setSavedBanner(null)}
+            className="flex-shrink-0 text-green-400 hover:text-green-700 transition-colors"
+            aria-label="關閉"
+          >
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+              <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
+            </svg>
+          </button>
+        </div>
+      )}
 
       {storeDeliveries.length > 0 && (
         <button
