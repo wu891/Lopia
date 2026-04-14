@@ -525,7 +525,6 @@ function FreightSection({
       }))
 
       const deliveredCount = storeDeliveries.filter(s => s.delivered).length
-      const batch = batches.find(b => b.id === selectedBatchId)
       setSaved(true)
       setSavedBanner({
         batch: batch?.ivName ?? selectedBatchId,
