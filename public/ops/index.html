@@ -382,6 +382,7 @@
             <div class="filter-group"><label>月份</label><select id="detail-filter-month" onchange="renderDetailTable()"><option value="all">全部月份</option></select></div>
             <div class="filter-group"><label>門市</label><select id="detail-filter-store" onchange="renderDetailTable()"><option value="all">全部門市</option></select></div>
             <div class="filter-group"><label>搜尋</label><input type="text" id="detail-search" placeholder="商品、單號、批次..." oninput="renderDetailTable()"></div>
+            <div class="filter-group"><label style="cursor:pointer;display:flex;align-items:center;gap:4px"><input type="checkbox" id="hide-zero-amt" onchange="renderDetailTable()" style="cursor:pointer">隱藏零元</label></div>
             <div style="flex:1"></div>
             <button class="btn btn-outline btn-sm" onclick="toggleAddForm()">+ 手動新增</button>
             <button class="btn btn-outline btn-sm" onclick="exportAllData()">下載 Excel</button>
@@ -592,7 +593,7 @@ const STORE_MAP = {
     '大巨蛋':'台北大巨蛋店','北蛋':'台北大巨蛋店','sogo':'台南 SOGO 新天店','高漢':'高雄漢神百貨店'
 };
 const PROCESSED_KW = ['ジュース','果汁','ジャム','果醬','ドライ','果乾','ゼリー','果凍','チョコ','ケーキ','クッキー','餅乾','アイス','プリン','加工','調味','醬','sauce','ソース','漬け','醃','干し','乾燥','冷凍','罐','瓶','ボトル'];
-const VEG_KW = ['地瓜','さつまいも','サツマイモ','甘薯','馬鈴薯','じゃがいも','キャベツ','高麗菜','白菜','大根','蘿蔔','にんじん','紅蘿蔔','トマト','番茄','レタス','ほうれん草','きゅうり','なす','茄子','玉ねぎ','洋蔥','ねぎ','蔥','にんにく','大蒜','ブロッコリー','アスパラ','とうもろこし','えだまめ','毛豆','芋','野菜','蔬菜'];
+const VEG_KW = ['地瓜','さつまいも','サツマイモ','甘薯','シルクスイート','馬鈴薯','じゃがいも','キャベツ','高麗菜','白菜','大根','蘿蔔','にんじん','紅蘿蔔','トマト','番茄','レタス','ほうれん草','きゅうり','なす','茄子','玉ねぎ','洋蔥','ねぎ','蔥','にんにく','大蒜','ブロッコリー','アスパラ','とうもろこし','えだまめ','毛豆','芋','野菜','蔬菜'];
 
 function classifyProduct(name) {
     const l = name.toLowerCase();
@@ -683,8 +684,8 @@ async function syncFromNotion() {
         // Create rows from Notion records
         completed.forEach(rec => {
             const batch = shipMap[rec.batchId] || {};
-            // 優先使用出貨單號作為批次名稱，其次才嘗試進口批次 IV Name
-            const batchName = rec.shipmentNo || batch.ivName || rec.batchId?.slice(0, 8) || '未知批次';
+            // 優先使用進口批次 IV Name 作為穩定批次標識，shipmentNo 獨立保留
+            const batchName = batch.ivName || rec.shipmentNo || rec.batchId?.slice(0, 8) || '未知批次';
             const productSummary = batch.productSummary || batchName;
             const boxes = rec.boxes || 0;
             const notionAmount = rec.amount || 0;  // 金額 from Notion (exact TWD value)
@@ -1395,7 +1396,8 @@ function renderDetailTable() {
     const search = document.getElementById('detail-search').value.toLowerCase();
 
     let data = allData.filter(r => {
-        if (rowAmt(r) === 0) return false;  // 隱藏金額為零（未設定單價）的紀錄
+        const hideZero = document.getElementById('hide-zero-amt')?.checked;
+        if (hideZero && rowAmt(r) === 0) return false;  // 僅在勾選「隱藏零元」時才過濾
         if (month!=='all' && getMonthKey(r.date)!==month) return false;
         if (store!=='all' && r.store!==store) return false;
         if (search && !r.product.toLowerCase().includes(search) && !r.shipmentNo.toLowerCase().includes(search) && !r.batchName?.toLowerCase().includes(search)) return false;
