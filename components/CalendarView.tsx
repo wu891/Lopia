@@ -1,12 +1,13 @@
 'use client'
 import { useState, useEffect } from 'react'
-import { Shipment, LogisticsEvent } from '@/lib/notion'
+import { Shipment, LogisticsEvent, ShipmentRecord } from '@/lib/notion'
 import { Lang, t } from '@/lib/i18n'
 
 interface Props {
   shipments: Shipment[]
   lang: Lang
   logisticsEvents?: LogisticsEvent[]
+  records?: ShipmentRecord[]
 }
 
 const STATUS_DOT: Record<string, string> = {
@@ -47,7 +48,7 @@ const MARKER_ICON: Record<string, string> = {
   '送達': '✅',
 }
 
-export default function CalendarView({ shipments, lang, logisticsEvents = [] }: Props) {
+export default function CalendarView({ shipments, lang, logisticsEvents = [], records = [] }: Props) {
   const today = new Date()
   const [year,  setYear]  = useState(today.getFullYear())
   const [month, setMonth] = useState(today.getMonth())
@@ -301,10 +302,21 @@ export default function CalendarView({ shipments, lang, logisticsEvents = [] }: 
                           </div>
                           {/* Store rows */}
                           <div className="divide-y divide-gray-50">
-                            {events.map(e => (
+                            {events.map(e => {
+                              const rec = records.find(r =>
+                                r.batchId === e.batchId &&
+                                r.round === round &&
+                                r.store === e.store
+                              )
+                              return (
                               <div key={e.id}
                                 className="flex items-center justify-between gap-2 px-3 py-2 text-xs bg-white">
-                                <span className="text-gray-700 truncate flex-1">{e.store}</span>
+                                <span className="text-gray-700 truncate flex-1">
+                                  {e.store}
+                                  {rec?.boxes != null && (
+                                    <span className="ml-1.5 text-gray-400 font-normal">{rec.boxes}箱</span>
+                                  )}
+                                </span>
                                 <div className="flex items-center gap-1.5 flex-shrink-0">
                                   {e.estDelivery && (
                                     <span className="text-gray-400 text-[10px]">{e.estDelivery}</span>
@@ -318,7 +330,8 @@ export default function CalendarView({ shipments, lang, logisticsEvents = [] }: 
                                   </span>
                                 </div>
                               </div>
-                            ))}
+                              )
+                            })}
                           </div>
                         </div>
                       )
