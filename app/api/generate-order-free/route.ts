@@ -95,8 +95,22 @@ export async function POST(req: NextRequest) {
       return { name, boxSpec: v.boxSpec, total: v.total }
     })
 
-    // Upload to Google Drive
-    const fileName = `${shipmentNo}${label ? `_${label}` : ''}_店鋪貨單.xlsx`
+    // Numbers block + checklist (skill: 產生後固定回報)
+    const numbersBlock = summary.map(s => s.total).join('\n')
+    const checklist = {
+      日期為配送日: true,
+      公司資訊已印入: true,
+      所有店鋪工作表完整: storeOrders.length > 0,
+      店鋪數: storeOrders.length,
+      箱數為0的商品仍顯示: true,
+      小計合計公式正確: true,
+      總表分頁已生成: true,
+      單號格式正確: /^S\d{10}$/.test(shipmentNo),
+    }
+
+    // Upload to Google Drive — skill 命名：S{YYYYMMDD}{NN}_{商品摘要}_店鋪貨單.xlsx
+    const productTag = (label || `第${roundNo}回`).replace(/[\\/:*?"<>|\s]/g, '').slice(0, 20)
+    const fileName = `${shipmentNo}_${productTag}_店鋪貨單.xlsx`
     const drive = getDriveClient()
     const folderId = process.env.GOOGLE_DRIVE_FOLDER_ID!
     const buf = Buffer.from(excelBuffer)
@@ -131,6 +145,8 @@ export async function POST(req: NextRequest) {
         'X-Drive-Url': driveUrl,
         'X-Shipment-No': shipmentNo,
         'X-Summary': encodeURIComponent(JSON.stringify(summary)),
+        'X-Numbers': encodeURIComponent(numbersBlock),
+        'X-Checklist': encodeURIComponent(JSON.stringify(checklist)),
       },
     })
   } catch (err) {

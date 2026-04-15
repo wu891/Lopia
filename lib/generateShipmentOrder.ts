@@ -186,18 +186,21 @@ function addStoreSheet(wb: ExcelJS.Workbook, order: StoreOrder, shipmentNo: stri
   })
   ws.getCell('A9').alignment = { horizontal: 'left', vertical: 'middle' }
 
-  // R10+ products
-  let totalQty = 0
-  let totalAmt = 0
-  let prodRowStart = 10
+  // R10+ products — 小計使用 Excel 公式 =C{n}*D{n}
+  const prodRowStart = 10
+  const prodRowEnd = prodRowStart + order.products.length - 1
 
   for (let i = 0; i < order.products.length; i++) {
     const p = order.products[i]
-    const amt = p.quantity > 0 ? p.quantity * p.unitPrice : null
-    totalQty += p.quantity
-    if (amt) totalAmt += amt
+    const rowNum = prodRowStart + i
 
-    const row = ws.addRow([p.name, p.boxSpec || '—', p.quantity || 0, p.unitPrice || 0, amt ?? 0])
+    const row = ws.addRow([
+      p.name,
+      p.boxSpec || '—',
+      p.quantity || 0,
+      p.unitPrice || 0,
+      { formula: `C${rowNum}*D${rowNum}` },
+    ])
     row.height = 18
 
     const isAlt = i % 2 === 1
@@ -208,22 +211,33 @@ function addStoreSheet(wb: ExcelJS.Workbook, order: StoreOrder, shipmentNo: stri
       cell.font = { name: 'Arial', size: 11 }
     })
 
-    // Dim zero-box rows
+    // Dim zero-box rows (skill: 0 箱仍需列出)
     if (p.quantity === 0) {
       ;['A','B','C','D','E'].forEach(c => {
-        const cell = ws.getCell(`${c}${9 + i + 1}`)
+        const cell = ws.getCell(`${c}${rowNum}`)
         cell.font = { ...cell.font, color: { argb: 'FFBBBBBB' } }
       })
     }
 
     // Number formats
-    const rowNum = prodRowStart + i
     ws.getCell(`D${rowNum}`).numFmt = '#,##0'
     ws.getCell(`E${rowNum}`).numFmt = '#,##0'
   }
 
-  // Total row
-  const totalRow = ws.addRow(['合　計', '', totalQty, '箱', totalAmt])
+  // Total row — 使用 SUM 公式
+  const sumQtyFormula = order.products.length > 0
+    ? `SUM(C${prodRowStart}:C${prodRowEnd})`
+    : '0'
+  const sumAmtFormula = order.products.length > 0
+    ? `SUM(E${prodRowStart}:E${prodRowEnd})`
+    : '0'
+  const totalRow = ws.addRow([
+    '合　計',
+    '',
+    { formula: sumQtyFormula },
+    '箱',
+    { formula: sumAmtFormula },
+  ])
   totalRow.height = 20
   applyRow(totalRow, { bg: C_GRAY, bold: true, borders: true, valign: 'middle' })
   totalRow.getCell(1).alignment = { horizontal: 'left', vertical: 'middle' }
@@ -294,20 +308,36 @@ function addSummarySheet(wb: ExcelJS.Workbook, storeOrders: StoreOrder[], shipme
     cell.alignment = { horizontal: col === 1 ? 'left' : 'center', vertical: 'middle' }
   })
 
-  // R3+ product rows
+  // Column indices (1-based for Excel refs)
+  const firstStoreCol = 4                                  // D
+  const lastStoreCol  = 3 + shortNames.length              // D+N-1
+  const totalCol      = lastStoreCol + 1                   // 總箱數欄
+  const amountCol     = totalCol + 1                       // 總金額欄
+  const firstStoreLetter = colLetter(firstStoreCol)
+  const lastStoreLetter  = colLetter(lastStoreCol)
+  const totalLetter      = colLetter(totalCol)
+  const priceLetter      = 'C'                             // 單價 = C 欄
+  const productRowStart  = 3
+  const productRowEnd    = 2 + productKeys.length
+
+  // R3+ product rows — 各店箱數、總箱數(SUM)、總金額(總箱數*單價) 皆用公式
   for (let i = 0; i < productKeys.length; i++) {
     const pName = productKeys[i]
     const info = productMap.get(pName)!
-    let totalQty = 0
     const storeCounts = storeOrders.map(order => {
       const found = order.products.find(p => p.name === pName)
-      const q = found?.quantity ?? 0
-      totalQty += q
-      return q
+      return found?.quantity ?? 0
     })
-    const totalAmt = totalQty * info.unitPrice
+    const rowNum = productRowStart + i
 
-    const row = ws.addRow([pName, info.boxSpec || '—', info.unitPrice, ...storeCounts, totalQty, totalAmt])
+    const row = ws.addRow([
+      pName,
+      info.boxSpec || '—',
+      info.unitPrice,
+      ...storeCounts,
+      { formula: `SUM(${firstStoreLetter}${rowNum}:${lastStoreLetter}${rowNum})` },
+      { formula: `${totalLetter}${rowNum}*${priceLetter}${rowNum}` },
+    ])
     row.height = 18
     row.eachCell({ includeEmpty: true }, (cell, col) => {
       if (i % 2 === 1) cell.fill = fill('FFFAFAFA')
@@ -316,9 +346,6 @@ function addSummarySheet(wb: ExcelJS.Workbook, storeOrders: StoreOrder[], shipme
       cell.alignment = { horizontal: col === 1 ? 'left' : 'center', vertical: 'middle' }
     })
     // Highlight total + amount columns
-    const totalCol  = 3 + shortNames.length + 1
-    const amountCol = totalCol + 1
-    const rowNum = 2 + i + 1
     ws.getCell(rowNum, totalCol).fill  = fill(C_GRAY_LIGHT)
     ws.getCell(rowNum, totalCol).font  = { bold: true, name: 'Arial', size: 11 }
     ws.getCell(rowNum, amountCol).fill = fill(C_GRAY_LIGHT)
@@ -327,21 +354,22 @@ function addSummarySheet(wb: ExcelJS.Workbook, storeOrders: StoreOrder[], shipme
     ws.getCell(rowNum, amountCol).numFmt = '#,##0'
   }
 
-  // Total row
-  const storeSums = storeOrders.map(order =>
-    order.products.reduce((s, p) => s + p.quantity, 0)
-  )
-  const grandTotal = storeSums.reduce((a, b) => a + b, 0)
-  const grandAmt   = productKeys.reduce((sum, pName) => {
-    const info = productMap.get(pName)!
-    const qty = storeOrders.reduce((s, o) => {
-      const f = o.products.find(p => p.name === pName)
-      return s + (f?.quantity ?? 0)
-    }, 0)
-    return sum + qty * info.unitPrice
-  }, 0)
+  // Total row — 各店小計 SUM、總箱數 SUM、總金額 SUM 皆用公式
+  const totalRowNum = productRowEnd + 1
+  const storeSumFormulas = shortNames.map((_, idx) => {
+    const col = colLetter(firstStoreCol + idx)
+    return { formula: `SUM(${col}${productRowStart}:${col}${productRowEnd})` }
+  })
+  const grandTotalFormula = { formula: `SUM(${totalLetter}${productRowStart}:${totalLetter}${productRowEnd})` }
+  const amountColLetter = colLetter(amountCol)
+  const grandAmtFormula = { formula: `SUM(${amountColLetter}${productRowStart}:${amountColLetter}${productRowEnd})` }
 
-  const totalRow = ws.addRow(['合　計', '', '', ...storeSums, grandTotal, grandAmt])
+  const totalRow = ws.addRow([
+    '合　計', '', '',
+    ...storeSumFormulas,
+    grandTotalFormula,
+    grandAmtFormula,
+  ])
   totalRow.height = 20
   totalRow.eachCell({ includeEmpty: true }, (cell, col) => {
     cell.fill   = fill(C_GRAY)
@@ -349,13 +377,21 @@ function addSummarySheet(wb: ExcelJS.Workbook, storeOrders: StoreOrder[], shipme
     cell.border = border()
     cell.alignment = { horizontal: col <= 3 ? 'left' : 'center', vertical: 'middle' }
   })
-  const totalRowNum = 2 + productKeys.length + 1
-  const totalCol  = 3 + shortNames.length + 1
-  const amountCol = totalCol + 1
   ws.getCell(totalRowNum, amountCol).numFmt = '#,##0'
 
   // Merge 合計 A-C
   ws.mergeCells(totalRowNum, 1, totalRowNum, 3)
+}
+
+// 1-based column index → letters (supports A..ZZ)
+function colLetter(n: number): string {
+  let s = ''
+  while (n > 0) {
+    const m = (n - 1) % 26
+    s = String.fromCharCode(65 + m) + s
+    n = Math.floor((n - 1) / 26)
+  }
+  return s
 }
 
 // ── Main export ────────────────────────────────────────────────────────────────

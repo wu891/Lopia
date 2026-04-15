@@ -25,6 +25,7 @@ export const EXCEL_STORE_MAP: Record<string, string> = {
   '大巨蛋':     '台北大巨蛋店',
   '夢時代':     '高雄夢時代店',
   '小北門':     '台南小北門店',
+  'らら台中':   'LaLaport 台中店',
   // ── 一般縮寫 ──
   '台中':   'LaLaport 台中店',
   '桃園':   '桃園春日店',
@@ -184,21 +185,13 @@ export async function parseDeliveryExcel(
       if (!includeZero && cases <= 0) continue
       totalBoxes += cases
 
-      // Extract box spec from col[0] or col[3] (箱入數 e.g. "5房")
-      const boxSpecRaw = row[0] ?? row[3]
+      // Per SKILL spec: A 欄 = 入數（箱入數 e.g. "5房"）
+      const boxSpecRaw = row[0]
       const boxSpec = boxSpecRaw != null ? String(boxSpecRaw).trim() : ''
 
-      // Unit price from col[3] or col[4] (原価)
-      // In supplier format: col[0]=入数, col[1]=名, col[2]=ケース, col[3]=数量, col[4]=原価
-      // In output format: col[0]=日期, col[1]=類, col[2]=名, col[3]=箱入, col[4]=箱, col[5]=単価
-      let unitPrice = 0
-      for (let c = 3; c < (row.length ?? 0); c++) {
-        const v = row[c]
-        if (typeof v === 'number' && v >= 100) { // likely a unit price (>= 100 NTD)
-          unitPrice = v
-          break
-        }
-      }
+      // Per SKILL spec: E 欄 (index 4) = 原価（TWD 售價，不換算）
+      const priceRaw = row[4]
+      const unitPrice = typeof priceRaw === 'number' ? priceRaw : 0
 
       products.push({
         name: productName,

@@ -89,6 +89,93 @@ function PasswordGate({ onAuth }: { onAuth: () => void }) {
   )
 }
 
+// ── Shipment Report (依 skill：彙總清單 + 純數字列 + 格式 Checklist) ──────────────
+
+interface SummaryItem { name: string; boxSpec: string; total: number }
+type ChecklistRec = Record<string, boolean | number>
+
+function parseReportHeaders(res: Response): {
+  summary: SummaryItem[]
+  numbers: string
+  checklist: ChecklistRec | null
+} {
+  const summaryRaw = res.headers.get('X-Summary') ?? ''
+  const numbersRaw = res.headers.get('X-Numbers') ?? ''
+  const checklistRaw = res.headers.get('X-Checklist') ?? ''
+  let summary: SummaryItem[] = []
+  let checklist: ChecklistRec | null = null
+  try { if (summaryRaw) summary = JSON.parse(decodeURIComponent(summaryRaw)) } catch { /* noop */ }
+  try { if (checklistRaw) checklist = JSON.parse(decodeURIComponent(checklistRaw)) } catch { /* noop */ }
+  return { summary, numbers: numbersRaw ? decodeURIComponent(numbersRaw) : '', checklist }
+}
+
+function ShipmentReport({
+  summary, numbers, checklist,
+}: { summary: SummaryItem[]; numbers: string; checklist: ChecklistRec | null }) {
+  return (
+    <div className="space-y-2">
+      {summary.length > 0 && (
+        <div>
+          <p className="text-xs font-semibold text-emerald-700 mb-1.5">📦 本次出貨彙總</p>
+          <table className="w-full text-xs">
+            <thead>
+              <tr className="text-gray-500 border-b border-emerald-200">
+                <th className="text-left pb-1 font-medium">商品名稱</th>
+                <th className="text-right pb-1 font-medium pr-4">入數</th>
+                <th className="text-right pb-1 font-medium">總箱數</th>
+              </tr>
+            </thead>
+            <tbody>
+              {summary.map((item, i) => (
+                <tr key={i} className="border-b border-emerald-100">
+                  <td className="py-0.5 text-gray-700 truncate max-w-[220px]">{item.name}</td>
+                  <td className="py-0.5 text-gray-500 text-right pr-4">{item.boxSpec}</td>
+                  <td className={`py-0.5 text-right font-medium ${item.total === 0 ? 'text-gray-300' : 'text-gray-800'}`}>
+                    {item.total} 箱
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+            <tfoot>
+              <tr>
+                <td colSpan={2} className="pt-1.5 font-semibold text-emerald-700">總計</td>
+                <td className="pt-1.5 text-right font-bold text-emerald-700">
+                  {summary.reduce((s, i) => s + i.total, 0)} 箱
+                </td>
+              </tr>
+            </tfoot>
+          </table>
+        </div>
+      )}
+      {numbers && (
+        <details>
+          <summary className="text-xs text-gray-400 cursor-pointer hover:text-gray-600">
+            純數字列（庫存管理貼上用）
+          </summary>
+          <pre className="mt-1 text-xs bg-white border border-emerald-100 rounded p-2 text-gray-600 select-all whitespace-pre">
+{numbers}
+          </pre>
+        </details>
+      )}
+      {checklist && (
+        <details>
+          <summary className="text-xs text-gray-400 cursor-pointer hover:text-gray-600">
+            📋 格式確認
+          </summary>
+          <ul className="mt-1 text-xs bg-white border border-emerald-100 rounded p-2 space-y-0.5">
+            {Object.entries(checklist).map(([k, v]) => (
+              <li key={k} className="text-gray-600">
+                {typeof v === 'boolean' ? (v ? '☑' : '☒') : '•'} {k}
+                {typeof v === 'number' ? `：${v}` : ''}
+              </li>
+            ))}
+          </ul>
+        </details>
+      )}
+    </div>
+  )
+}
+
 // ── Round Row ──────────────────────────────────────────────────────────────────
 
 function RoundRow({
@@ -103,7 +190,10 @@ function RoundRow({
   supplierExcelId: string | null
 }) {
   const [generating, setGenerating] = useState(false)
-  const [result, setResult] = useState<{ driveUrl: string; shipmentNo: string } | null>(null)
+  const [result, setResult] = useState<{
+    driveUrl: string; shipmentNo: string
+    summary: SummaryItem[]; numbers: string; checklist: ChecklistRec | null
+  } | null>(null)
   const [error, setError] = useState<string | null>(null)
 
   async function handleGenerate() {
@@ -124,13 +214,16 @@ function RoundRow({
       const blob = await res.blob()
       const driveUrl = res.headers.get('X-Drive-Url') ?? ''
       const shipmentNo = res.headers.get('X-Shipment-No') ?? ''
+      const report = parseReportHeaders(res)
+      // skill 命名：檔名已由 API 決定（Content-Disposition），UI 端沿用下載時的標準命名
+      const productTag = batchName.replace(/[\\/:*?"<>|\s]/g, '').slice(0, 20)
       const url = URL.createObjectURL(blob)
       const a = document.createElement('a')
       a.href = url
-      a.download = `${shipmentNo} LOPIA_${batchName}_店鋪貨單.xlsx`
+      a.download = `${shipmentNo}_${productTag}_店鋪貨單.xlsx`
       a.click()
       URL.revokeObjectURL(url)
-      setResult({ driveUrl, shipmentNo })
+      setResult({ driveUrl, shipmentNo, ...report })
     } catch {
       setError('網路錯誤，請稍後再試')
     } finally {
@@ -155,14 +248,19 @@ function RoundRow({
           </span>
         </div>
         {result && (
-          <div className="flex items-center gap-2 mt-1">
-            <span className="text-xs text-emerald-600 font-medium">✓ {result.shipmentNo} 已產生</span>
-            {result.driveUrl && (
-              <a href={result.driveUrl} target="_blank" rel="noopener noreferrer"
-                className="text-xs text-blue-500 hover:underline">
-                Drive 連結 →
-              </a>
-            )}
+          <div className="mt-1 space-y-1.5">
+            <div className="flex items-center gap-2">
+              <span className="text-xs text-emerald-600 font-medium">✓ {result.shipmentNo} 已產生</span>
+              {result.driveUrl && (
+                <a href={result.driveUrl} target="_blank" rel="noopener noreferrer"
+                  className="text-xs text-blue-500 hover:underline">
+                  Drive 連結 →
+                </a>
+              )}
+            </div>
+            <div className="border border-emerald-200 bg-emerald-50 rounded-lg px-3 py-2">
+              <ShipmentReport summary={result.summary} numbers={result.numbers} checklist={result.checklist} />
+            </div>
           </div>
         )}
         {error && <p className="text-xs text-red-500 mt-0.5">{error}</p>}
@@ -372,6 +470,7 @@ function BatchCard({
 
 // ── Store codes from skill definition ─────────────────────────────────────────
 
+// 依 LOPIA 出貨單 SKILL 店鋪主檔（13 間）
 const SKILL_STORES: { code: string; label: string }[] = [
   { code: '台中',     label: '台中' },
   { code: '桃園',     label: '桃園' },
@@ -381,14 +480,14 @@ const SKILL_STORES: { code: string; label: string }[] = [
   { code: '南港',     label: '南港' },
   { code: 'IKEA',    label: 'IKEA' },
   { code: '夢時',     label: '夢時代' },
+  { code: '台南',     label: '台南' },
   { code: 'MOP',     label: 'MOP' },
-  { code: '漢神',     label: '漢神' },
+  { code: '漢神',     label: '台中漢神' },
   { code: '北門',     label: '北門' },
+  { code: 'らら台中', label: 'らら台中' },
 ]
 
 // ── Manual Generation Panel ────────────────────────────────────────────────────
-
-interface SummaryItem { name: string; boxSpec: string; total: number }
 
 function ManualGeneratePanel() {
   const [date, setDate] = useState('')
@@ -397,7 +496,10 @@ function ManualGeneratePanel() {
   const [selectedStores, setSelectedStores] = useState<string[]>(SKILL_STORES.map(s => s.code))
   const [file, setFile] = useState<File | null>(null)
   const [generating, setGenerating] = useState(false)
-  const [result, setResult] = useState<{ driveUrl: string; shipmentNo: string; summary: SummaryItem[] } | null>(null)
+  const [result, setResult] = useState<{
+    driveUrl: string; shipmentNo: string
+    summary: SummaryItem[]; numbers: string; checklist: ChecklistRec | null
+  } | null>(null)
   const [error, setError] = useState<string | null>(null)
   const fileRef = useRef<HTMLInputElement>(null)
 
@@ -434,18 +536,18 @@ function ManualGeneratePanel() {
       const blob = await res.blob()
       const driveUrl = res.headers.get('X-Drive-Url') ?? ''
       const shipmentNo = res.headers.get('X-Shipment-No') ?? ''
-      const summaryRaw = res.headers.get('X-Summary') ?? ''
-      const summary: SummaryItem[] = summaryRaw ? JSON.parse(decodeURIComponent(summaryRaw)) : []
+      const report = parseReportHeaders(res)
 
-      // Trigger download
+      // Trigger download — skill 命名格式
+      const productTag = (label || `第${roundNo}回`).replace(/[\\/:*?"<>|\s]/g, '').slice(0, 20)
       const url = URL.createObjectURL(blob)
       const a = document.createElement('a')
       a.href = url
-      a.download = `${shipmentNo}${label ? `_${label}` : ''}_店鋪貨單.xlsx`
+      a.download = `${shipmentNo}_${productTag}_店鋪貨單.xlsx`
       a.click()
       URL.revokeObjectURL(url)
 
-      setResult({ driveUrl, shipmentNo, summary })
+      setResult({ driveUrl, shipmentNo, ...report })
     } catch {
       setError('網路錯誤，請稍後再試')
     } finally {
@@ -591,48 +693,8 @@ function ManualGeneratePanel() {
               )}
             </div>
 
-            {/* Summary table */}
-            {result.summary.length > 0 && (
-              <div>
-                <p className="text-xs font-medium text-emerald-700 mb-1.5">📦 本次出貨彙總</p>
-                <table className="w-full text-xs">
-                  <thead>
-                    <tr className="text-gray-500 border-b border-emerald-200">
-                      <th className="text-left pb-1 font-medium">商品名稱</th>
-                      <th className="text-right pb-1 font-medium pr-4">入數</th>
-                      <th className="text-right pb-1 font-medium">總箱數</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {result.summary.map((item, i) => (
-                      <tr key={i} className="border-b border-emerald-100">
-                        <td className="py-0.5 text-gray-700 truncate max-w-[200px]">{item.name}</td>
-                        <td className="py-0.5 text-gray-500 text-right pr-4">{item.boxSpec}</td>
-                        <td className={`py-0.5 text-right font-medium ${item.total === 0 ? 'text-gray-300' : 'text-gray-800'}`}>
-                          {item.total} 箱
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                  <tfoot>
-                    <tr>
-                      <td colSpan={2} className="pt-1.5 font-semibold text-emerald-700">總計</td>
-                      <td className="pt-1.5 text-right font-bold text-emerald-700">
-                        {result.summary.reduce((s, i) => s + i.total, 0)} 箱
-                      </td>
-                    </tr>
-                  </tfoot>
-                </table>
+            <ShipmentReport summary={result.summary} numbers={result.numbers} checklist={result.checklist} />
 
-                {/* Plain numbers for clipboard */}
-                <details className="mt-2">
-                  <summary className="text-xs text-gray-400 cursor-pointer hover:text-gray-600">純數字（庫存貼上用）</summary>
-                  <pre className="mt-1 text-xs bg-white border border-emerald-100 rounded p-2 text-gray-600 select-all">
-                    {result.summary.map(i => i.total).join('\n')}
-                  </pre>
-                </details>
-              </div>
-            )}
           </div>
         )}
       </div>
