@@ -36,6 +36,7 @@ export default function StoreList({ lang, allRecords, shipments }: Props) {
 
   const today = new Date()
   today.setHours(0, 0, 0, 0)
+  const todayStr = `${today.getFullYear()}-${String(today.getMonth()+1).padStart(2,'0')}-${String(today.getDate()).padStart(2,'0')}`
 
   // Get future delivery records for a store name
   function getFutureDeliveries(storeName: string) {
@@ -225,7 +226,9 @@ export default function StoreList({ lang, allRecords, shipments }: Props) {
                   {deliveries.map((r, i) => {
                     const batchName = getBatchName(r.batchId)
                     const summary   = getProductSummary(r.batchId)
-                    const isPlan    = r.planStatus === '計畫中' || !r.planStatus
+                    const isDelivered  = !!r.date && r.date <= todayStr
+                    const isPlan       = !isDelivered && (r.planStatus === '計畫中' || !r.planStatus)
+                    const displayStatus = isDelivered ? '已出貨' : (r.planStatus ?? '計畫中')
                     return (
                       <div key={r.id ?? i}
                         className="border border-gray-100 rounded-xl p-3 bg-white hover:border-lopia-red/30 transition-colors">
@@ -246,7 +249,7 @@ export default function StoreList({ lang, allRecords, shipments }: Props) {
                               ? 'bg-blue-50 text-blue-600'
                               : 'bg-green-50 text-green-600'
                             }`}>
-                            {r.planStatus ?? '計畫中'}
+                            {displayStatus}
                           </span>
                         </div>
 
