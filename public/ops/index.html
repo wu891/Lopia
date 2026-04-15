@@ -204,6 +204,8 @@
         .form-grid input, .form-grid select { width: 100%; padding: 6px 9px; border: 1px solid var(--border); border-radius: 5px; font-size: 13px; }
         .delete-row { color: #ccc; cursor: pointer; font-size: 16px; border: none; background: none; padding: 2px 6px; }
         .delete-row:hover { color: var(--negative); }
+        .edit-row { background: none; border: none; cursor: pointer; color: var(--text-secondary); font-size: 15px; padding: 2px 6px; border-radius: 4px; transition: color 0.15s; margin-right: 2px; }
+        .edit-row:hover { color: var(--primary); }
 
         /* Notion source badge */
         .source-badge { display: inline-flex; align-items: center; gap: 4px; padding: 2px 7px; border-radius: 4px; font-size: 10px; font-weight: 600; background: #e8ecf8; color: #3d5a99; }
@@ -506,6 +508,36 @@
             <button class="btn btn-outline" onclick="document.getElementById('import-modal').classList.remove('active')">取消</button>
             <button class="btn btn-outline" onclick="previewCSV()">預覽</button>
             <button class="btn btn-success" id="btn-confirm-csv" onclick="confirmCSV()" disabled>確認匯入</button>
+        </div>
+    </div>
+</div>
+
+<!-- ===== Edit Row Modal ===== -->
+<div class="modal-overlay" id="edit-row-modal">
+    <div class="modal" style="max-width:700px">
+        <h2>編輯出貨記錄</h2>
+        <div class="modal-subtitle" id="edit-row-subtitle"></div>
+        <input type="hidden" id="edit-row-id">
+        <input type="hidden" id="edit-notion-id">
+        <input type="hidden" id="edit-row-source">
+        <div class="form-grid">
+            <div><label>出貨日期</label><input type="date" id="edit-date"></div>
+            <div><label>出貨單號</label><input type="text" id="edit-shipment-no" placeholder="S2026040101"></div>
+            <div><label>批次名稱</label><input type="text" id="edit-batch-name" placeholder="LOP-001"></div>
+            <div><label>門市</label><select id="edit-store"><option value="">選擇門市</option></select></div>
+            <div><label>商品名稱</label><input type="text" id="edit-product" placeholder="シャインマスカット"></div>
+            <div><label>入數</label><input type="text" id="edit-spec" placeholder="8房"></div>
+            <div><label>箱數</label><input type="number" id="edit-qty" min="0"></div>
+            <div><label>單價(TWD/箱)</label><input type="number" id="edit-price" min="0"></div>
+            <div><label>類別</label><select id="edit-category">
+                <option value="水果">水果（免稅）</option>
+                <option value="蔬菜">蔬菜（免稅）</option>
+                <option value="加工品">加工品（含稅5%）</option>
+            </select></div>
+        </div>
+        <div class="modal-actions">
+            <button class="btn btn-outline" onclick="closeEditModal()">取消</button>
+            <button class="btn btn-success" onclick="saveEditRow()">儲存</button>
         </div>
     </div>
 </div>
@@ -1430,7 +1462,7 @@ function renderDetailTable() {
             <td class="text-right"><strong>${sub===0?'-':fmtCurrency(sub)}</strong></td>
             <td class="text-center">${categoryTag(r.category)}</td>
             <td class="text-center">${sourceTag(r.source)}</td>
-            <td class="text-center no-print"><button class="delete-row" onclick="deleteRow('${r.id}')" title="刪除">&times;</button></td>
+            <td class="text-center no-print"><button class="edit-row" onclick="openEditModal('${r.id}')" title="編輯">✎</button><button class="delete-row" onclick="deleteRow('${r.id}')" title="刪除">&times;</button></td>
         </tr>`;
     }).join('');
 
@@ -1449,10 +1481,87 @@ function sortDetail(col) {
     else{detailSortCol=col;detailSortDir='desc';}
     renderDetailTable();
 }
-function deleteRow(id) {
+async function deleteRow(id) {
     if (!confirm('確定刪除？')) return;
-    allData = allData.filter(r => r.id !== id);
+    const r = allData.find(a => a.id === id);
+    if (r?.source === 'notion' && r.notionRecordId) {
+        try {
+            showLoading('正在從 Notion 刪除...');
+            const res = await fetch(`/api/records/${r.notionRecordId}`, { method: 'DELETE' });
+            hideLoading();
+            if (!res.ok) { showToast('Notion 刪除失敗', 'error'); return; }
+        } catch {
+            hideLoading();
+            showToast('網路錯誤，無法刪除', 'error');
+            return;
+        }
+    }
+    allData = allData.filter(a => a.id !== id);
     saveLocal(); refreshAll(); showToast('已刪除', 'success');
+}
+function openEditModal(id) {
+    if (sessionStorage.getItem('lopia_ops_authed') !== '1') {
+        document.getElementById('auth-overlay').style.display = '';
+        return;
+    }
+    const r = allData.find(a => a.id === id);
+    if (!r) return;
+    document.getElementById('edit-row-id').value = r.id;
+    document.getElementById('edit-notion-id').value = r.notionRecordId || '';
+    document.getElementById('edit-row-source').value = r.source || 'manual';
+    document.getElementById('edit-row-subtitle').textContent =
+        r.source === 'notion' ? '⚠ Notion 來源：儲存時將同步回 Notion（出貨單號/門市/日期/箱數/金額）' : '手動記錄';
+    document.getElementById('edit-date').value = r.date || '';
+    document.getElementById('edit-shipment-no').value = r.shipmentNo || '';
+    document.getElementById('edit-batch-name').value = r.batchName || '';
+    document.getElementById('edit-product').value = r.product || '';
+    document.getElementById('edit-spec').value = r.spec || '';
+    document.getElementById('edit-qty').value = r.quantity || 0;
+    document.getElementById('edit-price').value = r.unitPrice || 0;
+    document.getElementById('edit-category').value = r.category || '水果';
+    const sel = document.getElementById('edit-store');
+    sel.innerHTML = '<option value="">選擇門市</option>';
+    ALL_STORES.forEach(s => sel.innerHTML += `<option value="${s}"${r.store===s?' selected':''}>${s}</option>`);
+    document.getElementById('edit-row-modal').classList.add('active');
+}
+function closeEditModal() {
+    document.getElementById('edit-row-modal').classList.remove('active');
+}
+async function saveEditRow() {
+    const id = document.getElementById('edit-row-id').value;
+    const notionId = document.getElementById('edit-notion-id').value;
+    const source = document.getElementById('edit-row-source').value;
+    const r = allData.find(a => a.id === id);
+    if (!r) return;
+    const date = document.getElementById('edit-date').value;
+    const shipmentNo = document.getElementById('edit-shipment-no').value.trim();
+    const batchName = document.getElementById('edit-batch-name').value.trim();
+    const store = resolveStore(document.getElementById('edit-store').value);
+    const product = document.getElementById('edit-product').value.trim();
+    const spec = document.getElementById('edit-spec').value.trim();
+    const quantity = parseInt(document.getElementById('edit-qty').value) || 0;
+    const unitPrice = parseFloat(document.getElementById('edit-price').value) || 0;
+    const category = document.getElementById('edit-category').value;
+    if (!date || !product || quantity <= 0) { showToast('請填入必要欄位', 'error'); return; }
+    Object.assign(r, { date, shipmentNo, batchName, store, product, spec, quantity, unitPrice, amount: quantity * unitPrice, category });
+    if (source === 'notion' && notionId) {
+        try {
+            showLoading('正在更新 Notion...');
+            const res = await fetch(`/api/records/${notionId}`, {
+                method: 'PUT',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ shipmentNo, store, date, boxes: quantity, amount: quantity * unitPrice })
+            });
+            hideLoading();
+            if (!res.ok) { showToast('Notion 同步失敗，已儲存本地', 'error'); }
+        } catch {
+            hideLoading();
+            showToast('網路錯誤，已儲存本地', 'error');
+        }
+    }
+    saveLocal(); refreshAll();
+    closeEditModal();
+    showToast('已更新', 'success');
 }
 
 // ── Store Analysis ────────────────────────────────────────
