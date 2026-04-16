@@ -270,14 +270,16 @@ function addSummarySheet(wb: ExcelJS.Workbook, storeOrders: StoreOrder[], shipme
   const shortNames = storeOrders.map(o => STORE_SHORT_MAP[o.storeName] ?? o.storeName)
   const totalCols = 3 + shortNames.length + 2  // 商品名+入數+單價 + stores + 總箱+總金額
 
-  // Collect products (preserve order from first store)
+  // Collect products — key = "name||boxSpec" to keep each spec as a separate row
+  // and correctly handle sheets split into multiple sections (same product name, different section)
   const productKeys: string[] = []
-  const productMap = new Map<string, { boxSpec: string; unitPrice: number }>()
+  const productMap = new Map<string, { name: string; boxSpec: string; unitPrice: number }>()
   for (const order of storeOrders) {
     for (const p of order.products) {
-      if (!productMap.has(p.name)) {
-        productMap.set(p.name, { boxSpec: p.boxSpec, unitPrice: p.unitPrice })
-        productKeys.push(p.name)
+      const key = `${p.name}||${p.boxSpec}`
+      if (!productMap.has(key)) {
+        productMap.set(key, { name: p.name, boxSpec: p.boxSpec, unitPrice: p.unitPrice })
+        productKeys.push(key)
       }
     }
   }
@@ -322,16 +324,18 @@ function addSummarySheet(wb: ExcelJS.Workbook, storeOrders: StoreOrder[], shipme
 
   // R3+ product rows — 各店箱數、總箱數(SUM)、總金額(總箱數*單價) 皆用公式
   for (let i = 0; i < productKeys.length; i++) {
-    const pName = productKeys[i]
-    const info = productMap.get(pName)!
-    const storeCounts = storeOrders.map(order => {
-      const found = order.products.find(p => p.name === pName)
-      return found?.quantity ?? 0
-    })
+    const pKey = productKeys[i]
+    const info = productMap.get(pKey)!
+    const storeCounts = storeOrders.map(order =>
+      // Sum all matching entries (covers sheets split into multiple sections)
+      order.products
+        .filter(p => `${p.name}||${p.boxSpec}` === pKey)
+        .reduce((sum, p) => sum + p.quantity, 0)
+    )
     const rowNum = productRowStart + i
 
     const row = ws.addRow([
-      pName,
+      info.name,
       info.boxSpec || '—',
       info.unitPrice,
       ...storeCounts,
