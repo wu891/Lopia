@@ -6,6 +6,8 @@ import { useState, useEffect, useRef, useCallback } from 'react'
 interface SummaryItem { name: string; boxSpec: string; total: number }
 type ChecklistRec = Record<string, boolean | number>
 
+interface DetectedStore { code: string; displayName: string }
+
 interface GenerateResult {
   driveUrl: string
   shipmentNo: string
@@ -14,23 +16,61 @@ interface GenerateResult {
   checklist: ChecklistRec | null
 }
 
-// ── Constants ─────────────────────────────────────────────────────────────────
+// ── Store map (mirrors lib/parseDeliveryExcel.ts EXCEL_STORE_MAP) ─────────────
+// Longer / more specific keys first to avoid substring false-matches
 
-const SKILL_STORES: { code: string; label: string }[] = [
-  { code: '台中',      label: '台中' },
-  { code: '桃園',      label: '桃園' },
-  { code: '中和',      label: '中和' },
-  { code: '新荘',      label: '新荘' },
-  { code: '巨蛋',      label: '巨蛋' },
-  { code: '南港',      label: '南港' },
-  { code: 'IKEA',     label: 'IKEA' },
-  { code: '夢時',      label: '夢時代' },
-  { code: '台南',      label: '台南' },
-  { code: 'MOP',      label: 'MOP' },
-  { code: '漢神',      label: '台中漢神' },
-  { code: '北門',      label: '北門' },
-  { code: 'らら台中',  label: 'らら台中' },
-]
+const EXCEL_STORE_MAP: Record<string, string> = {
+  '台中漢神':    '台中漢神中港店',
+  '漢神台中':    '台中漢神中港店',
+  '漢神(台中)':  '台中漢神中港店',
+  '高雄巨蛋':    '高雄漢神巨蛋店',
+  '台北巨蛋':    '台北大巨蛋店',
+  '大巨蛋':      '台北大巨蛋店',
+  '夢時代':      '高雄夢時代店',
+  '小北門':      '台南小北門店',
+  'らら台中':    'LaLaport 台中店',
+  '台中':        'LaLaport 台中店',
+  '桃園':        '桃園春日店',
+  '中和':        '新北中和環球店',
+  '新荘':        '新莊宏匯店',
+  '新莊':        '新莊宏匯店',
+  '高雄':        '高雄漢神巨蛋店',
+  '巨蛋':        '高雄漢神巨蛋店',
+  '北蛋':        '台北大巨蛋店',
+  '南港':        '南港 LaLaport 店',
+  'IKEA':        'IKEA 台中南屯店',
+  'イケア':      'IKEA 台中南屯店',
+  '夢時':        '高雄夢時代店',
+  '北門':        '台南小北門店',
+  '台南':        '台南小北門店',
+  'MOP':         '台南三井 Outlet 店',
+  'mop':         '台南三井 Outlet 店',
+  'MO':          '台南三井 Outlet 店',
+  '漢神':        '台中漢神中港店',
+  '中漢':        '台中漢神中港店',
+}
+
+function resolveStoreName(code: string): string {
+  return EXCEL_STORE_MAP[code] ?? code
+}
+
+// ── Parse sheet names for a given round ───────────────────────────────────────
+
+function detectStoresForRound(sheetNames: string[], round: number): DetectedStore[] {
+  const seen = new Set<string>()
+  const stores: DetectedStore[] = []
+  for (const name of sheetNames) {
+    const m = name.match(/^(\d+)回目(.+)$/)
+    if (!m || parseInt(m[1]) !== round) continue
+    const code = m[2].trim()
+    const displayName = resolveStoreName(code)
+    if (!seen.has(displayName)) {
+      seen.add(displayName)
+      stores.push({ code, displayName })
+    }
+  }
+  return stores
+}
 
 // ── Password Gate ─────────────────────────────────────────────────────────────
 
@@ -274,56 +314,71 @@ function Spinner({ size = 16 }: { size?: number }) {
 // ── Main Generator Panel ──────────────────────────────────────────────────────
 
 function GeneratorPanel() {
+  // File + analysis state
+  const [file, setFile]               = useState<File | null>(null)
+  const [sheetNames, setSheetNames]   = useState<string[]>([])
+  const [detectedRounds, setRounds]   = useState<number[]>([])
+  const [analyzing, setAnalyzing]     = useState(false)
+
   // Form state
-  const [file, setFile]                 = useState<File | null>(null)
-  const [detectedRounds, setDetected]   = useState<number[]>([])
-  const [roundNo, setRoundNo]           = useState('')
-  const [date, setDate]                 = useState('')
-  const [label, setLabel]               = useState('')
-  const [selectedStores, setStores]     = useState<string[]>(SKILL_STORES.map(s => s.code))
+  const [roundNo, setRoundNo]         = useState('')
+  const [detectedStores, setStores]   = useState<DetectedStore[]>([])
+  const [date, setDate]               = useState('')
+  const [label, setLabel]             = useState('')
 
   // Process state
-  const [analyzing, setAnalyzing]       = useState(false)
-  const [generating, setGenerating]     = useState(false)
-  const [error, setError]               = useState<string | null>(null)
-  const [result, setResult]             = useState<GenerateResult | null>(null)
+  const [generating, setGenerating]   = useState(false)
+  const [error, setError]             = useState<string | null>(null)
+  const [result, setResult]           = useState<GenerateResult | null>(null)
 
-  // Auto-detect rounds when file changes
+  // ── File upload: detect rounds and store all sheet names ──────────────────
   const handleFile = useCallback(async (f: File) => {
     setFile(f)
-    setDetected([])
+    setSheetNames([])
+    setRounds([])
     setRoundNo('')
+    setStores([])
     setResult(null)
     setError(null)
     setAnalyzing(true)
     try {
       const XLSX = await import('xlsx')
-      const buf = await f.arrayBuffer()
-      const wb = XLSX.read(buf, { type: 'array' })
+      const buf  = await f.arrayBuffer()
+      const wb   = XLSX.read(buf, { type: 'array' })
+      setSheetNames(wb.SheetNames)
+
       const rounds = new Set<number>()
       wb.SheetNames.forEach(name => {
         const m = name.match(/^(\d+)回目/)
         if (m) rounds.add(parseInt(m[1]))
       })
       const sorted = Array.from(rounds).sort((a, b) => a - b)
-      setDetected(sorted)
-      if (sorted.length === 1) setRoundNo(String(sorted[0]))
+      setRounds(sorted)
+
+      // Auto-select if only one round
+      if (sorted.length === 1) {
+        const r = sorted[0]
+        setRoundNo(String(r))
+        setStores(detectStoresForRound(wb.SheetNames, r))
+      }
     } catch {
-      // silently ignore, user can type manually
+      // ignore — user can still proceed if server can parse
     } finally {
       setAnalyzing(false)
     }
   }, [])
 
-  function toggleStore(code: string) {
-    setStores(prev => prev.includes(code) ? prev.filter(c => c !== code) : [...prev, code])
-  }
-  function toggleAll() {
-    setStores(prev => prev.length === SKILL_STORES.length ? [] : SKILL_STORES.map(s => s.code))
+  // ── Round selection: instantly resolve stores ─────────────────────────────
+  function selectRound(r: number) {
+    setRoundNo(String(r))
+    setStores(detectStoresForRound(sheetNames, r))
+    setResult(null)
+    setError(null)
   }
 
+  // ── Generate ──────────────────────────────────────────────────────────────
   async function handleGenerate() {
-    if (!file || !date || !roundNo || selectedStores.length === 0) return
+    if (!file || !date || !roundNo || detectedStores.length === 0) return
     setGenerating(true)
     setError(null)
     setResult(null)
@@ -332,7 +387,7 @@ function GeneratorPanel() {
       form.append('file', file)
       form.append('date', date)
       form.append('roundNo', roundNo)
-      form.append('stores', JSON.stringify(selectedStores))
+      form.append('stores', JSON.stringify(detectedStores.map(s => s.code)))
       form.append('label', label)
 
       const res = await fetch('/api/generate-order-free', { method: 'POST', body: form })
@@ -342,11 +397,10 @@ function GeneratorPanel() {
         return
       }
 
-      const blob = await res.blob()
-      const driveUrl    = res.headers.get('X-Drive-Url') ?? ''
-      const shipmentNo  = res.headers.get('X-Shipment-No') ?? ''
+      const blob      = await res.blob()
+      const driveUrl  = res.headers.get('X-Drive-Url') ?? ''
+      const shipmentNo = res.headers.get('X-Shipment-No') ?? ''
 
-      // Parse response headers
       let summary: SummaryItem[] = []
       let numbers = ''
       let checklist: ChecklistRec | null = null
@@ -371,9 +425,8 @@ function GeneratorPanel() {
     }
   }
 
-  const canGenerate = !!file && !!date && !!roundNo && selectedStores.length > 0
+  const canGenerate = !!file && !!date && !!roundNo && detectedStores.length > 0
 
-  // Format date for display
   const displayDate = date ? date.replace(/-/g, '/') : ''
   const yyyymmdd    = date ? date.replace(/-/g, '') : ''
 
@@ -413,25 +466,22 @@ function GeneratorPanel() {
             </div>
 
             <div className="flex flex-col gap-1">
-              <label className="text-xs text-gray-500 font-medium">回目數</label>
-              <div className="flex items-center gap-2">
-                {/* Round pills (auto-detected) */}
+              <label className="text-xs text-gray-500 font-medium">回目</label>
+              <div className="flex items-center gap-1.5">
                 {detectedRounds.length > 0 ? (
-                  <div className="flex gap-1.5">
-                    {detectedRounds.map(r => (
-                      <button
-                        key={r}
-                        onClick={() => setRoundNo(String(r))}
-                        className={`px-3 py-2 rounded-lg text-sm font-medium transition-colors border ${
-                          roundNo === String(r)
-                            ? 'bg-lopia-red text-white border-lopia-red'
-                            : 'bg-white text-gray-600 border-gray-200 hover:border-lopia-red hover:text-lopia-red'
-                        }`}
-                      >
-                        第 {r} 回
-                      </button>
-                    ))}
-                  </div>
+                  detectedRounds.map(r => (
+                    <button
+                      key={r}
+                      onClick={() => selectRound(r)}
+                      className={`px-3 py-2 rounded-lg text-sm font-medium transition-colors border ${
+                        roundNo === String(r)
+                          ? 'bg-lopia-red text-white border-lopia-red'
+                          : 'bg-white text-gray-600 border-gray-200 hover:border-lopia-red hover:text-lopia-red'
+                      }`}
+                    >
+                      第 {r} 回
+                    </button>
+                  ))
                 ) : (
                   <input
                     type="number"
@@ -457,6 +507,29 @@ function GeneratorPanel() {
             </div>
           </div>
 
+          {/* Auto-detected stores */}
+          {detectedStores.length > 0 && (
+            <div>
+              <p className="text-xs text-gray-500 font-medium mb-2">
+                偵測到門市
+                <span className="ml-1.5 text-gray-400 font-normal">（{detectedStores.length} 間，依 Excel 自動帶入）</span>
+              </p>
+              <div className="flex flex-wrap gap-1.5">
+                {detectedStores.map(s => (
+                  <span
+                    key={s.code}
+                    className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-medium bg-lopia-red/8 text-lopia-red border border-lopia-red/20"
+                  >
+                    <svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
+                      <polyline points="20 6 9 17 4 12"/>
+                    </svg>
+                    {s.displayName}
+                  </span>
+                ))}
+              </div>
+            </div>
+          )}
+
           {/* Preview */}
           {date && roundNo && (
             <div className="bg-gray-50 rounded-lg px-3 py-2 text-xs text-gray-500">
@@ -465,34 +538,6 @@ function GeneratorPanel() {
               　第 <span className="font-semibold text-gray-700">{roundNo}</span> 回目
             </div>
           )}
-
-          {/* Store selection */}
-          <div>
-            <div className="flex items-center justify-between mb-2">
-              <label className="text-xs text-gray-500 font-medium">門市選擇</label>
-              <button onClick={toggleAll} className="text-xs text-lopia-red hover:underline font-medium">
-                {selectedStores.length === SKILL_STORES.length ? '全消' : '全選'}
-              </button>
-            </div>
-            <div className="flex flex-wrap gap-2">
-              {SKILL_STORES.map(s => (
-                <button
-                  key={s.code}
-                  onClick={() => toggleStore(s.code)}
-                  className={`px-3 py-1.5 rounded-full text-xs font-medium transition-colors border ${
-                    selectedStores.includes(s.code)
-                      ? 'bg-lopia-red text-white border-lopia-red'
-                      : 'bg-white text-gray-500 border-gray-200 hover:border-lopia-red hover:text-lopia-red'
-                  }`}
-                >
-                  {s.label}
-                </button>
-              ))}
-            </div>
-            {selectedStores.length > 0 && (
-              <p className="mt-1.5 text-xs text-gray-400">{selectedStores.length} 間門市已選擇</p>
-            )}
-          </div>
         </div>
       </div>
 
