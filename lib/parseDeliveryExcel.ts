@@ -105,6 +105,22 @@ export async function parseDeliveryExcel(
 
   for (const sn of sheets) {
     const ws = wb.Sheets[sn]
+
+    // Extend !ref to cover cells below any blank rows.
+    // Excel sometimes sets !ref to stop before a mid-sheet blank row,
+    // causing sheet_to_json to miss data in the section below the gap.
+    const wsRef = ws['!ref']
+    if (wsRef) {
+      const range = XLSX.utils.decode_range(wsRef)
+      for (const addr of Object.keys(ws)) {
+        if (addr.startsWith('!')) continue
+        const cell = XLSX.utils.decode_cell(addr)
+        if (cell.r > range.e.r) range.e.r = cell.r
+        if (cell.c > range.e.c) range.e.c = cell.c
+      }
+      ws['!ref'] = XLSX.utils.encode_range(range)
+    }
+
     const rows = XLSX.utils.sheet_to_json<(string | number | null)[]>(ws, {
       header: 1,
       defval: null,
