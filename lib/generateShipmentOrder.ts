@@ -270,13 +270,14 @@ function addSummarySheet(wb: ExcelJS.Workbook, storeOrders: StoreOrder[], shipme
   const shortNames = storeOrders.map(o => STORE_SHORT_MAP[o.storeName] ?? o.storeName)
   const totalCols = 3 + shortNames.length + 2  // 商品名+入數+單價 + stores + 總箱+總金額
 
-  // Collect products — key = "name||boxSpec" to keep each spec as a separate row
-  // and correctly handle sheets split into multiple sections (same product name, different section)
+  // Collect products — key = "name||boxSpec||unitPrice"
+  // Same product at different prices (e.g. discount for 北蛋) → separate rows, each with its own price.
+  // Same product at same price across multiple stores → merged into one row as before.
   const productKeys: string[] = []
   const productMap = new Map<string, { name: string; boxSpec: string; unitPrice: number }>()
   for (const order of storeOrders) {
     for (const p of order.products) {
-      const key = `${p.name}||${p.boxSpec}`
+      const key = `${p.name}||${p.boxSpec}||${p.unitPrice}`
       if (!productMap.has(key)) {
         productMap.set(key, { name: p.name, boxSpec: p.boxSpec, unitPrice: p.unitPrice })
         productKeys.push(key)
@@ -322,49 +323,41 @@ function addSummarySheet(wb: ExcelJS.Workbook, storeOrders: StoreOrder[], shipme
   const productRowStart  = 3
   const productRowEnd    = 2 + productKeys.length
 
-  // R3+ product rows — 各店箱數、總箱數(SUM)、總金額(各店箱數×各店單價加總)
-  for (let i = 0; i < productKeys.length; i++) {
-    const pKey = productKeys[i]
+  // R3+ product rows — each pKey is name||boxSpec||price, so different prices → separate rows.
+  // Skip rows where every store has 0 boxes (e.g. zero-only ghost entries from multi-section sheets).
+  const visibleKeys = productKeys.filter(pKey => {
+    return storeOrders.some(order =>
+      order.products
+        .filter(p => `${p.name}||${p.boxSpec}||${p.unitPrice}` === pKey)
+        .reduce((sum, p) => sum + p.quantity, 0) > 0
+    )
+  })
+
+  // Recalculate row bounds based on visible rows only
+  const visibleRowEnd = productRowStart + visibleKeys.length - 1
+
+  for (let i = 0; i < visibleKeys.length; i++) {
+    const pKey = visibleKeys[i]
     const info = productMap.get(pKey)!
 
-    // Per-store quantities (sum all matching entries, covers multi-section sheets)
+    // Per-store quantities — filter by exact name+boxSpec+price key.
+    // filter+reduce handles multi-section sheets where same product at same price
+    // may appear in multiple sections of one store's sheet.
     const storeCounts = storeOrders.map(order =>
       order.products
-        .filter(p => `${p.name}||${p.boxSpec}` === pKey)
+        .filter(p => `${p.name}||${p.boxSpec}||${p.unitPrice}` === pKey)
         .reduce((sum, p) => sum + p.quantity, 0)
     )
-
-    // Per-store amount = Σ(qty × unitPrice) across ALL matching entries per store.
-    // Using filter+reduce mirrors storeCounts, so multi-section sheets (blank-row splits)
-    // are handled correctly: each section's qty × its own price is summed.
-    const storeAmounts = storeOrders.map(order =>
-      order.products
-        .filter(p => `${p.name}||${p.boxSpec}` === pKey)
-        .reduce((sum, p) => sum + p.quantity * p.unitPrice, 0)
-    )
-
-    const totalAmount = storeAmounts.reduce((sum, amt) => sum + amt, 0)
-
-    // Effective price per store = storeAmount / storeCount (avoids find-first-section bias).
-    // Show a single price when all active stores share the same effective price.
-    const effectivePrices = storeOrders.map((_, idx) =>
-      storeCounts[idx] > 0 ? Math.round(storeAmounts[idx] / storeCounts[idx]) : null
-    )
-    const activeEffective = effectivePrices.filter((p): p is number => p !== null)
-    const allSamePrice = activeEffective.length > 0 &&
-      activeEffective.every(p => p === activeEffective[0])
-    const displayPrice: number | string =
-      allSamePrice ? activeEffective[0] : '各店不同'
 
     const rowNum = productRowStart + i
 
     const row = ws.addRow([
       info.name,
       info.boxSpec || '—',
-      displayPrice,
+      info.unitPrice,          // always a single price per row now
       ...storeCounts,
       { formula: `SUM(${firstStoreLetter}${rowNum}:${lastStoreLetter}${rowNum})` },
-      totalAmount,   // static value: correct even when per-store prices differ
+      { formula: `${totalLetter}${rowNum}*${priceLetter}${rowNum}` }, // totalBoxes × price
     ])
     row.height = 18
     row.eachCell({ includeEmpty: true }, (cell, col) => {
@@ -383,14 +376,14 @@ function addSummarySheet(wb: ExcelJS.Workbook, storeOrders: StoreOrder[], shipme
   }
 
   // Total row — 各店小計 SUM、總箱數 SUM、總金額 SUM 皆用公式
-  const totalRowNum = productRowEnd + 1
+  const totalRowNum = visibleRowEnd + 1
   const storeSumFormulas = shortNames.map((_, idx) => {
     const col = colLetter(firstStoreCol + idx)
-    return { formula: `SUM(${col}${productRowStart}:${col}${productRowEnd})` }
+    return { formula: `SUM(${col}${productRowStart}:${col}${visibleRowEnd})` }
   })
-  const grandTotalFormula = { formula: `SUM(${totalLetter}${productRowStart}:${totalLetter}${productRowEnd})` }
+  const grandTotalFormula = { formula: `SUM(${totalLetter}${productRowStart}:${totalLetter}${visibleRowEnd})` }
   const amountColLetter = colLetter(amountCol)
-  const grandAmtFormula = { formula: `SUM(${amountColLetter}${productRowStart}:${amountColLetter}${productRowEnd})` }
+  const grandAmtFormula = { formula: `SUM(${amountColLetter}${productRowStart}:${amountColLetter}${visibleRowEnd})` }
 
   const totalRow = ws.addRow([
     '合　計', '', '',
