@@ -21,25 +21,8 @@ const C_GRAY_LIGHT = 'FFF2F2F2'  // summary total columns
 const C_WHITE      = 'FFFFFFFF'
 const C_RED_STORE  = 'FFC0392B'  // store name accent
 
-// ── Store mappings ─────────────────────────────────────────────────────────────
-const STORE_SHORT_MAP: Record<string, string> = {
-  'LaLaport 台中店':      '台中',
-  '桃園春日店':            '桃園',
-  '新北中和環球店':        '中和',
-  '新莊宏匯店':            '新荘',
-  '高雄漢神巨蛋店':        '巨蛋',
-  '南港 LaLaport 店':     '南港',
-  'IKEA 台中南屯店':       'IKEA',
-  '高雄夢時代店':          '夢時代',
-  '台南小北門店':          '北門',
-  '台南三井 Outlet 店':   'MOP',
-  '台中漢神中港店':        '漢神',
-  '台北大巨蛋店':          '北蛋',
-  '台南 SOGO 新天店':     'SOGO',
-  '高雄漢神百貨店':        '高漢',
-}
-
-const STORE_SHEET_MAP: Record<string, string> = { ...STORE_SHORT_MAP }
+// 出貨單與總表一律使用完整店鋪名稱，與 lopia-status 門市列表一致。
+// Excel 工作表名稱上限 31 字，所有店名均在範圍內，直接用 storeName 即可。
 
 export interface StoreOrder {
   storeName: string      // Full store name
@@ -122,8 +105,8 @@ function styleCell(
 // ── Per-store sheet ────────────────────────────────────────────────────────────
 
 function addStoreSheet(wb: ExcelJS.Workbook, order: StoreOrder, shipmentNo: string) {
-  const sheetName = STORE_SHEET_MAP[order.storeName] ?? order.storeName.slice(0, 31)
-  const shortName = STORE_SHORT_MAP[order.storeName] ?? order.storeName
+  const sheetName = order.storeName.slice(0, 31)
+  const shortName = order.storeName
   const dateStr   = fmtDate(order.deliveryDate)
 
   const ws = wb.addWorksheet(sheetName, { views: [{ showGridLines: false }] })
@@ -267,7 +250,7 @@ function addStoreSheet(wb: ExcelJS.Workbook, order: StoreOrder, shipmentNo: stri
 function addSummarySheet(wb: ExcelJS.Workbook, storeOrders: StoreOrder[], shipmentNo: string) {
   const ws = wb.addWorksheet('總表', { views: [{ showGridLines: false }] })
   const dateStr = storeOrders.length > 0 ? fmtDate(storeOrders[0].deliveryDate) : ''
-  const shortNames = storeOrders.map(o => STORE_SHORT_MAP[o.storeName] ?? o.storeName)
+  const shortNames = storeOrders.map(o => o.storeName)
   const totalCols = 3 + shortNames.length + 2  // 商品名+入數+單價 + stores + 總箱+總金額
 
   // Collect products — key = "name||boxSpec||unitPrice"
