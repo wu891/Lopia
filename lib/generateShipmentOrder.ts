@@ -322,25 +322,44 @@ function addSummarySheet(wb: ExcelJS.Workbook, storeOrders: StoreOrder[], shipme
   const productRowStart  = 3
   const productRowEnd    = 2 + productKeys.length
 
-  // R3+ product rows — 各店箱數、總箱數(SUM)、總金額(總箱數*單價) 皆用公式
+  // R3+ product rows — 各店箱數、總箱數(SUM)、總金額(各店箱數×各店單價加總)
   for (let i = 0; i < productKeys.length; i++) {
     const pKey = productKeys[i]
     const info = productMap.get(pKey)!
+
+    // Per-store quantities (sum all matching entries, covers multi-section sheets)
     const storeCounts = storeOrders.map(order =>
-      // Sum all matching entries (covers sheets split into multiple sections)
       order.products
         .filter(p => `${p.name}||${p.boxSpec}` === pKey)
         .reduce((sum, p) => sum + p.quantity, 0)
     )
+
+    // Per-store prices (each store may charge a different price for the same product)
+    const storePrices = storeOrders.map(order => {
+      const match = order.products.find(p => `${p.name}||${p.boxSpec}` === pKey)
+      return match?.unitPrice ?? info.unitPrice
+    })
+
+    // Show a single price only when all *active* stores share the same price
+    const activePrices = new Set(storePrices.filter((_, idx) => storeCounts[idx] > 0))
+    const displayPrice: number | string =
+      activePrices.size <= 1 ? info.unitPrice : '各店不同'
+
+    // Correct total amount: Σ(count_i × price_i) — avoids wrong result from single-price × total-boxes
+    const totalAmount = storeCounts.reduce(
+      (sum, count, idx) => sum + count * storePrices[idx],
+      0
+    )
+
     const rowNum = productRowStart + i
 
     const row = ws.addRow([
       info.name,
       info.boxSpec || '—',
-      info.unitPrice,
+      displayPrice,
       ...storeCounts,
       { formula: `SUM(${firstStoreLetter}${rowNum}:${lastStoreLetter}${rowNum})` },
-      { formula: `${totalLetter}${rowNum}*${priceLetter}${rowNum}` },
+      totalAmount,   // static value: correct even when per-store prices differ
     ])
     row.height = 18
     row.eachCell({ includeEmpty: true }, (cell, col) => {
