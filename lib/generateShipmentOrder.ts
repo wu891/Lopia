@@ -334,22 +334,27 @@ function addSummarySheet(wb: ExcelJS.Workbook, storeOrders: StoreOrder[], shipme
         .reduce((sum, p) => sum + p.quantity, 0)
     )
 
-    // Per-store prices (each store may charge a different price for the same product)
-    const storePrices = storeOrders.map(order => {
-      const match = order.products.find(p => `${p.name}||${p.boxSpec}` === pKey)
-      return match?.unitPrice ?? info.unitPrice
-    })
-
-    // Show a single price only when all *active* stores share the same price
-    const activePrices = new Set(storePrices.filter((_, idx) => storeCounts[idx] > 0))
-    const displayPrice: number | string =
-      activePrices.size <= 1 ? info.unitPrice : '各店不同'
-
-    // Correct total amount: Σ(count_i × price_i) — avoids wrong result from single-price × total-boxes
-    const totalAmount = storeCounts.reduce(
-      (sum, count, idx) => sum + count * storePrices[idx],
-      0
+    // Per-store amount = Σ(qty × unitPrice) across ALL matching entries per store.
+    // Using filter+reduce mirrors storeCounts, so multi-section sheets (blank-row splits)
+    // are handled correctly: each section's qty × its own price is summed.
+    const storeAmounts = storeOrders.map(order =>
+      order.products
+        .filter(p => `${p.name}||${p.boxSpec}` === pKey)
+        .reduce((sum, p) => sum + p.quantity * p.unitPrice, 0)
     )
+
+    const totalAmount = storeAmounts.reduce((sum, amt) => sum + amt, 0)
+
+    // Effective price per store = storeAmount / storeCount (avoids find-first-section bias).
+    // Show a single price when all active stores share the same effective price.
+    const effectivePrices = storeOrders.map((_, idx) =>
+      storeCounts[idx] > 0 ? Math.round(storeAmounts[idx] / storeCounts[idx]) : null
+    )
+    const activeEffective = effectivePrices.filter((p): p is number => p !== null)
+    const allSamePrice = activeEffective.length > 0 &&
+      activeEffective.every(p => p === activeEffective[0])
+    const displayPrice: number | string =
+      allSamePrice ? activeEffective[0] : '各店不同'
 
     const rowNum = productRowStart + i
 
