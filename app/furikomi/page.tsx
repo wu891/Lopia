@@ -331,7 +331,7 @@ export default function FurikomiPage() {
             setShowPassword(false)
             if (pendingAction) { pendingAction(); setPendingAction(null) }
           }}
-          onClose={() => { setShowPassword(false); setPendingAction(null) }}
+          onCancel={() => { setShowPassword(false); setPendingAction(null) }}
         />
       )}
 
