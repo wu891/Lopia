@@ -11,6 +11,7 @@ function requireEnv(name: string): string {
 const IMPORT_STATUS_DB = requireEnv('NOTION_IMPORT_STATUS_DB')
 const SHIPMENT_RECORDS_DB = requireEnv('NOTION_SHIPMENT_RECORDS_DB')
 const LOGISTICS_DB = requireEnv('NOTION_LOGISTICS_DB')
+const FURIKOMI_DB = requireEnv('NOTION_FURIKOMI_DB')
 
 export interface Shipment {
   id: string
@@ -59,6 +60,7 @@ export interface ShipmentRecord {
   remarks: string | null
   round: number | null
   planStatus: string | null
+  locked: boolean
 }
 
 // ── Property helpers ──────────────────────────────────────────────────────────
@@ -146,6 +148,7 @@ function pageToRecord(page: any): ShipmentRecord {
     remarks: getText(p['備註']),
     round: getNumber(p['出貨輪次']),
     planStatus: getSelect(p['計畫狀態']),
+    locked: getCheckbox(p['已鎖定']),
   }
 }
 
@@ -186,6 +189,11 @@ export async function getShipmentRecords(): Promise<ShipmentRecord[]> {
   return results
 }
 
+export async function getShipmentRecordById(id: string): Promise<ShipmentRecord> {
+  const page = await notion.pages.retrieve({ page_id: id })
+  return pageToRecord(page)
+}
+
 // ── Create ────────────────────────────────────────────────────────────────────
 
 export async function createShipmentRecord(data: {
@@ -198,6 +206,7 @@ export async function createShipmentRecord(data: {
   round?: number
   planStatus?: string
   remarks?: string
+  locked?: boolean
 }) {
   const page = await notion.pages.create({
     parent: { database_id: SHIPMENT_RECORDS_DB },
@@ -211,6 +220,7 @@ export async function createShipmentRecord(data: {
       ...(data.round != null ? { '出貨輪次': { number: data.round } } : {}),
       ...(data.planStatus ? { '計畫狀態': { select: { name: data.planStatus } } } : { '計畫狀態': { select: { name: '計畫中' } } }),
       ...(data.remarks ? { '備註': { rich_text: [{ text: { content: data.remarks } }] } } : {}),
+      ...(data.locked != null ? { '已鎖定': { checkbox: data.locked } } : {}),
     },
   })
   return pageToRecord(page)
@@ -226,6 +236,7 @@ export async function updateShipmentRecord(id: string, data: Partial<{
   planStatus: string
   remarks: string
   shipmentNo: string
+  locked: boolean
 }>) {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const props: any = {}
@@ -236,6 +247,7 @@ export async function updateShipmentRecord(id: string, data: Partial<{
   if (data.round != null) props['出貨輪次'] = { number: data.round }
   if (data.planStatus) props['計畫狀態'] = { select: { name: data.planStatus } }
   if (data.remarks != null) props['備註'] = { rich_text: [{ text: { content: data.remarks } }] }
+  if (data.locked != null) props['已鎖定'] = { checkbox: data.locked }
 
   const page = await notion.pages.update({ page_id: id, properties: props })
   return pageToRecord(page)
@@ -426,4 +438,91 @@ export async function updateShipmentDeliveryStatus(id: string, deliveryStatus: s
     page_id: id,
     properties: { '配送狀態': { select: { name: deliveryStatus } } },
   })
+}
+
+// ── Furikomi (振込明細) ────────────────────────────────────────────────────────
+
+export interface FurikomiRecord {
+  id: string
+  name: string
+  batchId: string | null
+  targetMonth: string | null
+  originalCost: number | null
+  fumigationFee: number | null
+  pesticideFee: number | null
+}
+
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+function pageToFurikomi(page: any): FurikomiRecord {
+  const p = page.properties
+  return {
+    id: page.id,
+    name: getText(p['名称']) ?? '',
+    batchId: getText(p['BatchID']),
+    targetMonth: getSelect(p['対象月']),
+    originalCost: getNumber(p['原価合計']),
+    fumigationFee: getNumber(p['燻煙費']),
+    pesticideFee: getNumber(p['農薬検査費']),
+  }
+}
+
+export async function getFurikomiRecords(month?: string): Promise<FurikomiRecord[]> {
+  const results: FurikomiRecord[] = []
+  let cursor: string | undefined
+  do {
+    const response = await notion.databases.query({
+      database_id: FURIKOMI_DB,
+      ...(month ? { filter: { property: '対象月', select: { equals: month } } } : {}),
+      sorts: [{ property: '名称', direction: 'ascending' }],
+      page_size: 100,
+      ...(cursor ? { start_cursor: cursor } : {}),
+    })
+    results.push(...response.results.map(pageToFurikomi))
+    cursor = response.has_more ? (response.next_cursor ?? undefined) : undefined
+  } while (cursor)
+  return results
+}
+
+export async function createFurikomiRecord(data: {
+  name: string
+  batchId: string
+  targetMonth: string
+  originalCost: number
+  fumigationFee?: number
+  pesticideFee?: number
+}): Promise<FurikomiRecord> {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const props: any = {
+    '名称': { title: [{ text: { content: data.name } }] },
+    'BatchID': { rich_text: [{ text: { content: data.batchId } }] },
+    '対象月': { select: { name: data.targetMonth } },
+    '原価合計': { number: data.originalCost },
+  }
+  if (data.fumigationFee != null) props['燻煙費'] = { number: data.fumigationFee }
+  if (data.pesticideFee != null) props['農薬検査費'] = { number: data.pesticideFee }
+
+  const page = await notion.pages.create({
+    parent: { database_id: FURIKOMI_DB },
+    properties: props,
+  })
+  return pageToFurikomi(page)
+}
+
+export async function updateFurikomiRecord(id: string, data: Partial<{
+  originalCost: number
+  fumigationFee: number | null
+  pesticideFee: number | null
+}>): Promise<FurikomiRecord> {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const props: any = {}
+  if (data.originalCost != null) props['原価合計'] = { number: data.originalCost }
+  if ('fumigationFee' in data) props['燻煙費'] = { number: data.fumigationFee }
+  if ('pesticideFee' in data) props['農薬検査費'] = { number: data.pesticideFee }
+
+  const page = await notion.pages.update({ page_id: id, properties: props })
+  return pageToFurikomi(page)
+}
+
+export async function deleteFurikomiRecord(id: string): Promise<void> {
+  await notion.pages.update({ page_id: id, archived: true })
 }

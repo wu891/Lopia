@@ -51,6 +51,16 @@ const TOOLS = [
       </svg>
     ),
   },
+  {
+    label: '振込明細',
+    href: '/furikomi',
+    icon: (
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+        <rect x="2" y="5" width="20" height="14" rx="2"/><line x1="2" y1="10" x2="22" y2="10"/>
+      </svg>
+    ),
+    sameTab: true,
+  },
 ]
 
 export default function Header({ lang, setLang, lastUpdated }: HeaderProps) {
@@ -122,8 +132,7 @@ export default function Header({ lang, setLang, lastUpdated }: HeaderProps) {
                   <a
                     key={tool.href}
                     href={tool.href}
-                    target="_blank"
-                    rel="noopener noreferrer"
+                    {...(!('sameTab' in tool && tool.sameTab) ? { target: '_blank', rel: 'noopener noreferrer' } : {})}
                     onClick={() => setOpen(false)}
                     className="flex items-center gap-2.5 px-3.5 py-2.5 text-xs font-medium text-gray-600 hover:text-lopia-red hover:bg-lopia-red-light transition-colors"
                   >
