@@ -1,5 +1,33 @@
 import { NextRequest, NextResponse } from 'next/server'
 import nodemailer from 'nodemailer'
+import { google } from 'googleapis'
+
+function getDriveClient() {
+  const auth = new google.auth.GoogleAuth({
+    credentials: {
+      client_email: process.env.GOOGLE_CLIENT_EMAIL,
+      private_key: process.env.GOOGLE_PRIVATE_KEY?.replace(/\\n/g, '\n'),
+    },
+    scopes: ['https://www.googleapis.com/auth/drive'],
+  })
+  return google.drive({ version: 'v3', auth })
+}
+
+async function grantDriveAccess(emails: string[]) {
+  const folderId = process.env.GOOGLE_DRIVE_FOLDER_ID
+  if (!folderId || !process.env.GOOGLE_CLIENT_EMAIL || !process.env.GOOGLE_PRIVATE_KEY) return
+  const drive = getDriveClient()
+  await Promise.allSettled(
+    emails.map(email =>
+      drive.permissions.create({
+        fileId: folderId,
+        supportsAllDrives: true,
+        sendNotificationEmail: false,
+        requestBody: { role: 'reader', type: 'user', emailAddress: email },
+      })
+    )
+  )
+}
 
 export async function POST(req: NextRequest) {
   try {
@@ -52,12 +80,17 @@ export async function POST(req: NextRequest) {
   </div>
 </div>`
 
-    await transporter.sendMail({
-      from: `"LOPIA 進口系統" <${process.env.GMAIL_USER}>`,
-      to: recipients,
-      subject: `📦 LOPIA 新批次登錄：${batchName}`,
-      html,
-    })
+    const emailList = recipients.split(',').map((e: string) => e.trim()).filter(Boolean)
+
+    await Promise.all([
+      transporter.sendMail({
+        from: `"LOPIA 進口系統" <${process.env.GMAIL_USER}>`,
+        to: recipients,
+        subject: `📦 LOPIA 新批次登錄：${batchName}`,
+        html,
+      }),
+      grantDriveAccess(emailList),
+    ])
 
     return NextResponse.json({ ok: true })
   } catch (err) {
