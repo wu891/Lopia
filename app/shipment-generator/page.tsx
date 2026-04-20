@@ -404,9 +404,9 @@ function GeneratorPanel() {
       let summary: SummaryItem[] = []
       let numbers = ''
       let checklist: ChecklistRec | null = null
-      try { summary   = JSON.parse(decodeURIComponent(res.headers.get('X-Summary') ?? '[]')) } catch { /* noop */ }
-      try { numbers   = decodeURIComponent(res.headers.get('X-Numbers') ?? '') } catch { /* noop */ }
-      try { checklist = JSON.parse(decodeURIComponent(res.headers.get('X-Checklist') ?? 'null')) } catch { /* noop */ }
+      try { summary   = JSON.parse(atob(res.headers.get('X-Summary') ?? 'W10=')) } catch { /* noop */ }
+      try { numbers   = atob(res.headers.get('X-Numbers') ?? '') } catch { /* noop */ }
+      try { checklist = JSON.parse(atob(res.headers.get('X-Checklist') ?? 'bnVsbA==')) } catch { /* noop */ }
 
       // Auto-download
       const productTag = (label || `第${roundNo}回`).replace(/[\\/:*?"<>|\s]/g, '').slice(0, 20)

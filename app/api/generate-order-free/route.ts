@@ -144,9 +144,9 @@ export async function POST(req: NextRequest) {
         'Content-Disposition': `attachment; filename="${encodeURIComponent(fileName)}"`,
         'X-Drive-Url': driveUrl,
         'X-Shipment-No': shipmentNo,
-        'X-Summary': encodeURIComponent(JSON.stringify(summary)),
-        'X-Numbers': encodeURIComponent(numbersBlock),
-        'X-Checklist': encodeURIComponent(JSON.stringify(checklist)),
+        'X-Summary': Buffer.from(JSON.stringify(summary)).toString('base64'),
+        'X-Numbers': Buffer.from(numbersBlock).toString('base64'),
+        'X-Checklist': Buffer.from(JSON.stringify(checklist)).toString('base64'),
       },
     })
   } catch (err) {
