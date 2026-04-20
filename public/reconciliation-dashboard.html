@@ -1557,26 +1557,47 @@ async function handleExcelFiles(files) {
     showLoading('正在解析 Excel 出貨單...');
     excelPreviewRows = [];
 
-    const EXCLUDE = new Set(['彙整_商品總數','請款単','総数','総量','総計','summary']);
+    const EXCLUDE = new Set(['彙整_商品總數','請款単','総数','総量','総計','summary','總表','総表']);
     const ROUND_RE = /^(\d+)[回か]目/;
     const ROUND_PAREN_RE = /^(.+?)\((\d+)\)$/;
 
     for (const file of files) {
         try {
-            // Parse shipment no and date from filename e.g. S2026040401.xlsx
-            const fname = file.name.replace(/\.[^.]+$/, ''); // strip extension
-            let shipmentNo = fname;
+            const fname = file.name.replace(/\.[^.]+$/, '');
+            const snMatch = fname.match(/S(\d{8,10})/i);
+            let shipmentNo = snMatch ? `S${snMatch[1]}` : fname;
             let fileDate = '';
-            // Filename pattern: S + YYYYMMDD + NN  or  YYYYMMDD...
             const dm = fname.match(/[Ss]?(\d{4})(\d{2})(\d{2})/);
             if (dm) fileDate = `${dm[1]}-${dm[2]}-${dm[3]}`;
 
             const buf = await file.arrayBuffer();
             const wb = XLSX.read(buf, { type: 'array', cellFormula: false, cellDates: true });
 
+            // Try to read shipmentNo from file content (rows 3–7 of first sheet)
+            for (const sn of wb.SheetNames.slice(0, 3)) {
+                const ws = wb.Sheets[sn];
+                const topRows = XLSX.utils.sheet_to_json(ws, { header: 1, defval: null, raw: true });
+                let found = false;
+                for (let i = 2; i < Math.min(8, topRows.length); i++) {
+                    const row = topRows[i];
+                    if (!row) continue;
+                    for (let ci = 0; ci < row.length; ci++) {
+                        const v = String(row[ci] ?? '').trim();
+                        if (/^S\d{8,10}$/i.test(v)) { shipmentNo = v.toUpperCase(); found = true; break; }
+                        if (String(row[ci] ?? '').includes('出貨單') && ci + 1 < row.length) {
+                            const next = String(row[ci + 1] ?? '').trim();
+                            if (/^S\d{8,10}$/i.test(next)) { shipmentNo = next.toUpperCase(); found = true; break; }
+                        }
+                    }
+                    if (found) break;
+                }
+                if (found) break;
+            }
+
             const sheets = wb.SheetNames.filter(n => {
                 const b = n.trim();
-                return !EXCLUDE.has(b) && !b.startsWith('出貨単_') && !b.startsWith('彙整');
+                return !EXCLUDE.has(b) && !b.startsWith('出貨単_') && !b.startsWith('彙整') &&
+                       !b.includes('總表') && !b.includes('総表');
             });
 
             const hasKaime = sheets.some(s => ROUND_RE.test(s.trim()));
@@ -1607,21 +1628,53 @@ async function handleExcelFiles(files) {
                 for (let i = 0; i < rows.length; i++) {
                     if (rows[i]?.some(c => c != null && (
                         String(c).includes('ケース') || String(c).includes('数量') ||
-                        String(c).includes('箱數') || String(c).includes('商品名')
+                        String(c).includes('箱數') || String(c).includes('件數') ||
+                        String(c).includes('件数') || String(c).includes('商品名')
                     ))) { hdrIdx = i; break; }
                 }
                 if (hdrIdx === -1) continue;
 
+                // Dynamic column detection from header row
+                const hdr = rows[hdrIdx].map(c => String(c ?? '').trim());
+                const nameColIdx = (() => {
+                    const i = hdr.findIndex(c => c.includes('商品名') || c.includes('品名'));
+                    return i !== -1 ? i : 0;
+                })();
+                const specColIdx = (() => {
+                    const i = hdr.findIndex(c =>
+                        c.includes('入箱') || c.includes('入数') || c.includes('入數') ||
+                        c.includes('箱入') || c.includes('入り')
+                    );
+                    return i !== -1 ? i : -1;
+                })();
+                const boxesColIdx = (() => {
+                    const i = hdr.findIndex(c =>
+                        c.includes('件數') || c.includes('件数') || c.includes('箱數') ||
+                        c.includes('箱数') || c.includes('ケース') || c.includes('数量')
+                    );
+                    return i !== -1 ? i : 2;
+                })();
+                const priceStartIdx = Math.max(nameColIdx, specColIdx !== -1 ? specColIdx : 0, boxesColIdx) + 1;
+
                 for (let r = hdrIdx + 1; r < rows.length; r++) {
                     const row = rows[r];
                     if (!row) continue;
-                    const product = String(row[1] ?? '').trim();
-                    const boxes = typeof row[2] === 'number' ? row[2] : 0;
+
+                    // Combine 商品名稱 + 入箱 as full product name
+                    const namePart = String(row[nameColIdx] ?? '').trim();
+                    const specPart = specColIdx !== -1 ? String(row[specColIdx] ?? '').trim() : '';
+                    const product = specPart ? `${namePart} ${specPart}`.trim() : namePart;
+
+                    const boxes = typeof row[boxesColIdx] === 'number' ? row[boxesColIdx] : 0;
                     if (!product || boxes <= 0) continue;
 
-                    const boxSpec = row[0] != null ? String(row[0]).trim() : '';
+                    // Skip totals/summary rows
+                    if (namePart.includes('合計') || namePart.includes('小計') ||
+                        namePart.includes('出　計') || namePart.includes('出計') ||
+                        namePart.includes('總數') || namePart.includes('総数')) continue;
+
                     let unitPrice = 0;
-                    for (let c = 3; c < (row.length ?? 0); c++) {
+                    for (let c = priceStartIdx; c < (row.length ?? 0); c++) {
                         if (typeof row[c] === 'number' && row[c] >= 100) { unitPrice = row[c]; break; }
                     }
 
@@ -1631,7 +1684,7 @@ async function handleExcelFiles(files) {
                         date: fileDate,
                         store: storeName,
                         product,
-                        spec: boxSpec ? `${boxSpec}`.replace(/房房$/,'房') : '',
+                        spec: '',
                         quantity: boxes,
                         unitPrice,
                         category: classifyProduct(product),
