@@ -1,7 +1,7 @@
 'use client'
 import { useState } from 'react'
 import { Lang, t } from '@/lib/i18n'
-import { STORES } from '@/lib/stores'
+import { STORES, sortedStores } from '@/lib/stores'
 import { Shipment, ShipmentRecord } from '@/lib/notion'
 
 interface Props {
@@ -25,8 +25,8 @@ export default function StoreList({ lang, allRecords, shipments }: Props) {
   const isJa = lang === 'ja'
   const [selectedStore, setSelectedStore] = useState<StoreType | null>(null)
 
-  const open   = STORES.filter(s => s.status === 'open')
-  const coming = STORES.filter(s => s.status === 'coming_soon')
+  const open   = sortedStores(STORES.filter(s => s.status === 'open'))
+  const coming = sortedStores(STORES.filter(s => s.status === 'coming_soon'))
 
   const REGION_CITIES: { label: string; cities: string[] }[] = [
     { label: '北區', cities: ['台北', '新北', '基隆', '桃園'] },
