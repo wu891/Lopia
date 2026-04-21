@@ -28,12 +28,6 @@ export default function StoreList({ lang, allRecords, shipments }: Props) {
   const open   = sortedStores(STORES.filter(s => s.status === 'open'))
   const coming = sortedStores(STORES.filter(s => s.status === 'coming_soon'))
 
-  const REGION_CITIES: { label: string; cities: string[] }[] = [
-    { label: '北區', cities: ['台北', '新北', '基隆', '桃園'] },
-    { label: '中區', cities: ['台中'] },
-    { label: '南區', cities: ['台南', '高雄'] },
-  ]
-
   const today = new Date()
   today.setHours(0, 0, 0, 0)
   const todayStr = `${today.getFullYear()}-${String(today.getMonth()+1).padStart(2,'0')}-${String(today.getDate()).padStart(2,'0')}`
@@ -84,106 +78,112 @@ export default function StoreList({ lang, allRecords, shipments }: Props) {
           </span>
         </div>
 
-        <div className="p-4 space-y-4">
-          {REGION_CITIES.map(region => {
-            const regionStores = STORES.filter(s => region.cities.includes(s.city_zh))
-            if (regionStores.length === 0) return null
-            const citiesInRegion = [...new Set(regionStores.map(s => s.city_zh))]
+        <div className="p-4 space-y-3">
+          {/* 開幕中門市：按城市分組 */}
+          {[...new Set(open.map(s => s.city_zh))].map(city => {
+            const cityStores = open.filter(s => s.city_zh === city)
             return (
-              <div key={region.label}>
-                {/* Region header */}
-                <p className="text-xs font-bold text-gray-700 mb-2 px-1 border-b border-gray-200 pb-1">
-                  {region.label}
-                </p>
-                <div className="space-y-3">
-                  {citiesInRegion.map(city => {
-                    const cityStores = regionStores.filter(s => s.city_zh === city)
+              <div key={city}>
+                <p className="text-xs text-lopia-red font-medium mb-1 px-1">{city}</p>
+                <div className="space-y-1">
+                  {cityStores.map(store => {
+                    const sName = isJa ? store.name_ja : store.name_zh
+                    const futureCount = getFutureDeliveries(sName).length
+                    const isActive = selectedStore?.id === store.id
                     return (
-                      <div key={city}>
-                        <p className="text-xs text-lopia-red font-medium mb-1 px-1">{city}</p>
-                        <div className="space-y-1">
-                          {cityStores.map(store => {
-                            const sName = isJa ? store.name_ja : store.name_zh
-                            const futureCount = getFutureDeliveries(sName).length
-                            const isActive = selectedStore?.id === store.id
-                            const isOpen = store.status === 'open'
-                            if (isOpen) {
-                              return (
-                                <button
-                                  key={store.id}
-                                  type="button"
-                                  onClick={() => setSelectedStore(isActive ? null : store)}
-                                  className={`w-full text-left flex items-center gap-2 rounded-lg px-3 py-2 transition-all
-                                    ${isActive
-                                      ? 'bg-lopia-red text-white'
-                                      : 'bg-gray-50 hover:bg-red-50 hover:text-lopia-red'
-                                    }`}
-                                >
-                                  <div className="flex-1 min-w-0">
-                                    <p className={`text-sm font-medium ${isActive ? 'text-white' : 'text-gray-800'}`}>
-                                      {sName}
-                                    </p>
-                                    <p className={`text-xs truncate ${isActive ? 'text-red-100' : 'text-gray-400'}`}>
-                                      {store.address_zh}
-                                    </p>
-                                  </div>
-                                  <div className="flex items-center gap-2 shrink-0">
-                                    {futureCount > 0 && (
-                                      <span className={`text-xs px-1.5 py-0.5 rounded-full font-medium
-                                        ${isActive ? 'bg-white text-lopia-red' : 'bg-lopia-red text-white'}`}>
-                                        {futureCount}
-                                      </span>
-                                    )}
-                                    <span className={`text-xs ${isActive ? 'text-red-200' : 'text-gray-300'}`}>›</span>
-                                  </div>
-                                </button>
-                              )
-                            } else {
-                              return (
-                                <button
-                                  key={store.id}
-                                  type="button"
-                                  onClick={() => setSelectedStore(isActive ? null : store)}
-                                  className={`w-full text-left flex items-center gap-2 border border-dashed rounded-lg px-3 py-2 transition-all
-                                    ${isActive
-                                      ? 'bg-yellow-500 border-yellow-500'
-                                      : 'border-gray-200 hover:border-yellow-300 hover:bg-yellow-50'
-                                    }`}
-                                >
-                                  <div className="flex-1 min-w-0">
-                                    <p className={`text-sm font-medium ${isActive ? 'text-white' : 'text-gray-600'}`}>
-                                      {sName}
-                                    </p>
-                                    <p className={`text-xs truncate ${isActive ? 'text-yellow-100' : 'text-gray-400'}`}>
-                                      {store.address_zh}
-                                    </p>
-                                  </div>
-                                  <div className="flex items-center gap-2 shrink-0">
-                                    {futureCount > 0 ? (
-                                      <span className={`text-xs px-1.5 py-0.5 rounded-full font-medium
-                                        ${isActive ? 'bg-white text-yellow-600' : 'bg-yellow-400 text-white'}`}>
-                                        {futureCount}
-                                      </span>
-                                    ) : (
-                                      <span className={`text-xs px-1.5 py-0.5 rounded-full
-                                        ${isActive ? 'bg-yellow-300 text-white' : 'bg-yellow-100 text-yellow-700'}`}>
-                                        {isJa ? 'まもなく' : '即將'}
-                                      </span>
-                                    )}
-                                    <span className={`text-xs ${isActive ? 'text-yellow-200' : 'text-gray-300'}`}>›</span>
-                                  </div>
-                                </button>
-                              )
-                            }
-                          })}
+                      <button
+                        key={store.id}
+                        type="button"
+                        onClick={() => setSelectedStore(isActive ? null : store)}
+                        className={`w-full text-left flex items-center gap-2 rounded-lg px-3 py-2 transition-all
+                          ${isActive
+                            ? 'bg-lopia-red text-white'
+                            : 'bg-gray-50 hover:bg-red-50 hover:text-lopia-red'
+                          }`}
+                      >
+                        <div className="flex-1 min-w-0">
+                          <p className={`text-sm font-medium ${isActive ? 'text-white' : 'text-gray-800'}`}>
+                            {sName}
+                          </p>
+                          <p className={`text-xs truncate ${isActive ? 'text-red-100' : 'text-gray-400'}`}>
+                            {store.address_zh}
+                          </p>
                         </div>
-                      </div>
+                        <div className="flex items-center gap-2 shrink-0">
+                          {futureCount > 0 && (
+                            <span className={`text-xs px-1.5 py-0.5 rounded-full font-medium
+                              ${isActive ? 'bg-white text-lopia-red' : 'bg-lopia-red text-white'}`}>
+                              {futureCount}
+                            </span>
+                          )}
+                          <span className={`text-xs ${isActive ? 'text-red-200' : 'text-gray-300'}`}>›</span>
+                        </div>
+                      </button>
                     )
                   })}
                 </div>
               </div>
             )
           })}
+
+          {/* 即將開幕門市：按城市分組 */}
+          {coming.length > 0 && (
+            <div className="pt-2 border-t border-gray-100">
+              <p className="text-xs font-bold text-gray-500 mb-2 px-1">
+                {isJa ? 'まもなくオープン' : '即將開幕'}
+              </p>
+              {[...new Set(coming.map(s => s.city_zh))].map(city => {
+                const cityStores = coming.filter(s => s.city_zh === city)
+                return (
+                  <div key={city} className="mb-3">
+                    <p className="text-xs text-yellow-600 font-medium mb-1 px-1">{city}</p>
+                    <div className="space-y-1">
+                      {cityStores.map(store => {
+                        const sName = isJa ? store.name_ja : store.name_zh
+                        const futureCount = getFutureDeliveries(sName).length
+                        const isActive = selectedStore?.id === store.id
+                        return (
+                          <button
+                            key={store.id}
+                            type="button"
+                            onClick={() => setSelectedStore(isActive ? null : store)}
+                            className={`w-full text-left flex items-center gap-2 border border-dashed rounded-lg px-3 py-2 transition-all
+                              ${isActive
+                                ? 'bg-yellow-500 border-yellow-500'
+                                : 'border-gray-200 hover:border-yellow-300 hover:bg-yellow-50'
+                              }`}
+                          >
+                            <div className="flex-1 min-w-0">
+                              <p className={`text-sm font-medium ${isActive ? 'text-white' : 'text-gray-600'}`}>
+                                {sName}
+                              </p>
+                              <p className={`text-xs truncate ${isActive ? 'text-yellow-100' : 'text-gray-400'}`}>
+                                {store.address_zh}
+                              </p>
+                            </div>
+                            <div className="flex items-center gap-2 shrink-0">
+                              {futureCount > 0 ? (
+                                <span className={`text-xs px-1.5 py-0.5 rounded-full font-medium
+                                  ${isActive ? 'bg-white text-yellow-600' : 'bg-yellow-400 text-white'}`}>
+                                  {futureCount}
+                                </span>
+                              ) : (
+                                <span className={`text-xs px-1.5 py-0.5 rounded-full
+                                  ${isActive ? 'bg-yellow-300 text-white' : 'bg-yellow-100 text-yellow-700'}`}>
+                                  {isJa ? 'まもなく' : '即將'}
+                                </span>
+                              )}
+                              <span className={`text-xs ${isActive ? 'text-yellow-200' : 'text-gray-300'}`}>›</span>
+                            </div>
+                          </button>
+                        )
+                      })}
+                    </div>
+                  </div>
+                )
+              })}
+            </div>
+          )}
         </div>
       </div>
 
