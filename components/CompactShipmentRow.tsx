@@ -126,13 +126,8 @@ export default function CompactShipmentRow({ shipment, lang, allRecords, onRecor
   const [open, setOpen] = useState(false)
   const T = t[lang]
 
-  const batchRecords = allRecords.filter(r => r.batchId === shipment.id)
-  const shippedBoxes = batchRecords
-    .filter(r => r.planStatus === '已完成')
-    .reduce((s, r) => s + (r.boxes ?? 0), 0)
-  const plannedBoxes = batchRecords
-    .filter(r => r.planStatus !== '已取消')
-    .reduce((s, r) => s + (r.boxes ?? 0), 0)
+  const shippedBoxes = shipment.shippedBoxes ?? 0
+  const plannedBoxes = shipment.plannedBoxes ?? 0
 
   const arrivalStr = shipment.arrivalTW?.slice(5).replace('-', '/') ?? '—'
   const clearanceStr = shipment.actualClearance?.slice(5).replace('-', '/') ?? '—'
