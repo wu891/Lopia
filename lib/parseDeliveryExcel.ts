@@ -76,15 +76,106 @@ export interface ParsedDeliveryRound {
  * Call this in a client component after obtaining the file's ArrayBuffer.
  * Dynamically imports 'xlsx' so the heavy library only loads on demand.
  * @param includeZero - if true, include products with 0 boxes (default false)
+ * @param manualSheets - if provided, skip round detection and treat each sheet as a store in round 1
  */
 export async function parseDeliveryExcel(
   buffer: ArrayBuffer,
-  includeZero = false
+  includeZero = false,
+  manualSheets?: string[]
 ): Promise<ParsedDeliveryRound[]> {
   // Dynamic import keeps the xlsx bundle out of the main JS chunk
   const XLSX = await import('xlsx')
 
   const wb = XLSX.read(buffer, { type: 'array', cellFormula: false, cellDates: true })
+
+  // Manual mode: user explicitly selected which sheets to parse
+  if (manualSheets && manualSheets.length > 0) {
+    const validSheets = manualSheets.filter(sn => wb.SheetNames.includes(sn))
+    const storeMap = new Map<string, { totalBoxes: number; products: ParsedProduct[] }>()
+
+    for (const sn of validSheets) {
+      const ws = wb.Sheets[sn]
+      const wsRef = ws['!ref']
+      if (wsRef) {
+        const range = XLSX.utils.decode_range(wsRef)
+        for (const addr of Object.keys(ws)) {
+          if (addr.startsWith('!')) continue
+          const cell = XLSX.utils.decode_cell(addr)
+          if (cell.r > range.e.r) range.e.r = cell.r
+          if (cell.c > range.e.c) range.e.c = cell.c
+        }
+        ws['!ref'] = XLSX.utils.encode_range(range)
+      }
+
+      const rows = XLSX.utils.sheet_to_json<(string | number | null)[]>(ws, {
+        header: 1, defval: null, raw: true,
+      })
+
+      // Resolve store name via map, fallback to raw sheet name
+      const storeRaw = sn.trim()
+      let storeName = EXCEL_STORE_MAP[storeRaw]
+      if (!storeName) {
+        const lower = storeRaw.toLowerCase()
+        let bestKey = ''
+        for (const key of Object.keys(EXCEL_STORE_MAP)) {
+          if (lower.includes(key.toLowerCase()) && key.length > bestKey.length) bestKey = key
+        }
+        storeName = bestKey ? EXCEL_STORE_MAP[bestKey] : storeRaw
+      }
+
+      // Find header row
+      let hdrIdx = -1
+      for (let i = 0; i < rows.length; i++) {
+        const row = rows[i]
+        if (row?.some(c => c != null && (
+          String(c).includes('ケース') || String(c).includes('数量') ||
+          String(c).includes('箱數') || String(c).includes('商品名')
+        ))) { hdrIdx = i; break }
+      }
+      if (hdrIdx === -1) continue
+
+      let totalBoxes = 0
+      const products: ParsedProduct[] = []
+      for (let r = hdrIdx + 1; r < rows.length; r++) {
+        const row = rows[r]
+        if (!row) continue
+        const productName = String(row[1] ?? '').trim()
+        const casesRaw = row[2]
+        const cases = typeof casesRaw === 'number' ? casesRaw : 0
+        if (!productName) continue
+        if (!includeZero && cases <= 0) continue
+        totalBoxes += cases
+        const boxSpecRaw = row[0]
+        const boxSpec = boxSpecRaw != null ? String(boxSpecRaw).trim() : ''
+        const priceRaw = row[4]
+        const unitPrice = typeof priceRaw === 'number' ? priceRaw : 0
+        products.push({
+          name: productName,
+          boxSpec: boxSpec ? `${boxSpec}房`.replace(/房房$/, '房') : '',
+          quantity: cases,
+          unitPrice,
+          category: '水果',
+        })
+      }
+
+      if (totalBoxes === 0 && !includeZero) continue
+
+      const existing = storeMap.get(storeName)
+      if (existing) {
+        existing.totalBoxes += totalBoxes
+        existing.products.push(...products)
+      } else {
+        storeMap.set(storeName, { totalBoxes, products })
+      }
+    }
+
+    return [{
+      roundNo: 1,
+      stores: Array.from(storeMap.entries()).map(([name, data]) => ({
+        name, boxes: data.totalBoxes, products: data.products,
+      })),
+    }]
+  }
 
   const sheets = wb.SheetNames.filter(n => {
     const b = n.trim()

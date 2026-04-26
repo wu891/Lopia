@@ -6,43 +6,62 @@ export async function POST(req: NextRequest) {
     try {
           const form = await req.formData()
           const date = form.get('date') as string
-          const roundNo = parseInt(form.get('roundNo') as string, 10)
-          const storesJson = form.get('stores') as string
           const file = form.get('file') as File | null
           const label = (form.get('label') as string) || ''
 
-      if (!date || isNaN(roundNo) || !storesJson || !file) {
-              return NextResponse.json({ error: '缺少必要欄位 (date, roundNo, stores, file)' }, { status: 400 })
+          const manualSheetsRaw = form.get('manualSheets') as string | null
+          const manualSheets: string[] | undefined = manualSheetsRaw ? JSON.parse(manualSheetsRaw) : undefined
+          const isManualMode = !!(manualSheets && manualSheets.length > 0)
+
+      if (!date || !file) {
+              return NextResponse.json({ error: '缺少必要欄位 (date, file)' }, { status: 400 })
       }
 
-      const selectedStoreCodes: string[] = JSON.parse(storesJson)
-          if (!selectedStoreCodes.length) {
-                  return NextResponse.json({ error: '請至少選擇一間門市' }, { status: 400 })
-          }
+      let selectedStoreCodes: string[] = []
+      let roundNo = 1
+      if (!isManualMode) {
+        const roundRaw = form.get('roundNo') as string
+        roundNo = parseInt(roundRaw, 10)
+        const storesJson = form.get('stores') as string
+        if (isNaN(roundNo) || !storesJson) {
+          return NextResponse.json({ error: '缺少必要欄位 (roundNo, stores)' }, { status: 400 })
+        }
+        selectedStoreCodes = JSON.parse(storesJson)
+        if (!selectedStoreCodes.length) {
+          return NextResponse.json({ error: '請至少選擇一間門市' }, { status: 400 })
+        }
+      }
 
       const buffer = await file.arrayBuffer()
-          const parsed = await parseDeliveryExcel(buffer, true)
+          const parsed = await parseDeliveryExcel(buffer, true, manualSheets)
 
-      const roundData = parsed.find(r => r.roundNo === roundNo)
-          if (!roundData) {
-                  return NextResponse.json({ error: `找不到第 ${roundNo} 回目的資料，請確認 Excel 格式` }, { status: 404 })
-          }
+      let storeOrders: StoreOrder[]
+      if (isManualMode) {
+        const roundData = parsed[0]
+        if (!roundData) {
+          return NextResponse.json({ error: '無法從選定分頁中解析出任何資料，請確認分頁內容格式' }, { status: 404 })
+        }
+        storeOrders = roundData.stores.map(s => ({
+          storeName: s.name,
+          products: s.products,
+          deliveryDate: date,
+        }))
+      } else {
+        const roundData = parsed.find(r => r.roundNo === roundNo)
+        if (!roundData) {
+          return NextResponse.json({ error: `找不到第 ${roundNo} 回目的資料，請確認 Excel 格式` }, { status: 404 })
+        }
+        storeOrders = []
+        for (const code of selectedStoreCodes) {
+          const fullName = EXCEL_STORE_MAP[code] ?? code
+          const storeData = roundData.stores.find(s => s.name === code || s.name === fullName)
+          storeOrders.push({ storeName: fullName, products: storeData?.products ?? [], deliveryDate: date })
+        }
+      }
 
-      const storeOrders: StoreOrder[] = []
-            for (const code of selectedStoreCodes) {
-                    const fullName = EXCEL_STORE_MAP[code] ?? code
-                    const storeData = roundData.stores.find(
-                              s => s.name === code || s.name === fullName
-                            )
-                    storeOrders.push({
-                              storeName: fullName,
-                              products: storeData?.products ?? [],
-                              deliveryDate: date,
-                    })
-            }
-
+      const batchName = label || (isManualMode ? '手動選頁' : `第${roundNo}回`)
       const shipmentNo = generateShipmentNo(date)
-          const excelBuffer = await generateShipmentOrder(storeOrders, shipmentNo, label || `第${roundNo}回`)
+          const excelBuffer = await generateShipmentOrder(storeOrders, shipmentNo, batchName)
 
       const summaryMap = new Map<string, { boxSpec: string; total: number }>()
           for (const order of storeOrders) {
@@ -69,7 +88,7 @@ export async function POST(req: NextRequest) {
           }
 
       // Return Excel as download (不上傳到 Drive)
-      const productTag = (label || `第${roundNo}回`).replace(/[\\/:*?"<>|\s]/g, '').slice(0, 20)
+      const productTag = batchName.replace(/[\\/:*?"<>|\s]/g, '').slice(0, 20)
           const fileName = `${shipmentNo}_${productTag}_店鋪貨單.xlsx`
           const buf = Buffer.from(excelBuffer)
 

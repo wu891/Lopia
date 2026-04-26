@@ -320,6 +320,11 @@ function GeneratorPanel() {
   const [detectedRounds, setRounds]   = useState<number[]>([])
   const [analyzing, setAnalyzing]     = useState(false)
 
+  // Manual mode (when no 回目 pattern detected)
+  const [manualMode, setManualMode]               = useState(false)
+  const [allSheets, setAllSheets]                 = useState<string[]>([])
+  const [selectedManualSheets, setManualSheets]   = useState<string[]>([])
+
   // Form state
   const [roundNo, setRoundNo]         = useState('')
   const [detectedStores, setStores]   = useState<DetectedStore[]>([])
@@ -331,6 +336,8 @@ function GeneratorPanel() {
   const [error, setError]             = useState<string | null>(null)
   const [result, setResult]           = useState<GenerateResult | null>(null)
 
+  const EXCLUDED_SHEETS = new Set(['彙整_商品總數', '請款単', '総数', '総量', '総計', 'summary'])
+
   // ── File upload: detect rounds and store all sheet names ──────────────────
   const handleFile = useCallback(async (f: File) => {
     setFile(f)
@@ -338,6 +345,9 @@ function GeneratorPanel() {
     setRounds([])
     setRoundNo('')
     setStores([])
+    setManualMode(false)
+    setAllSheets([])
+    setManualSheets([])
     setResult(null)
     setError(null)
     setAnalyzing(true)
@@ -349,14 +359,22 @@ function GeneratorPanel() {
 
       const rounds = new Set<number>()
       wb.SheetNames.forEach(name => {
-        const m = name.match(/^(\d+)回目/)
+        const m = name.match(/^(\d+)[回か]目/)
         if (m) rounds.add(parseInt(m[1]))
       })
       const sorted = Array.from(rounds).sort((a, b) => a - b)
       setRounds(sorted)
 
-      // Auto-select if only one round
-      if (sorted.length === 1) {
+      if (sorted.length === 0) {
+        // No round pattern detected — switch to manual sheet selection
+        const filtered = wb.SheetNames.filter(n => {
+          const b = n.trim()
+          return !EXCLUDED_SHEETS.has(b) && !b.startsWith('出貨単_') && !b.startsWith('彙整')
+        })
+        setManualMode(true)
+        setAllSheets(filtered)
+      } else if (sorted.length === 1) {
+        // Auto-select if only one round
         const r = sorted[0]
         setRoundNo(String(r))
         setStores(detectStoresForRound(wb.SheetNames, r))
@@ -366,6 +384,7 @@ function GeneratorPanel() {
     } finally {
       setAnalyzing(false)
     }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
   // ── Round selection: instantly resolve stores ─────────────────────────────
@@ -378,7 +397,10 @@ function GeneratorPanel() {
 
   // ── Generate ──────────────────────────────────────────────────────────────
   async function handleGenerate() {
-    if (!file || !date || !roundNo || detectedStores.length === 0) return
+    if (!file || !date) return
+    if (manualMode && selectedManualSheets.length === 0) return
+    if (!manualMode && (!roundNo || detectedStores.length === 0)) return
+
     setGenerating(true)
     setError(null)
     setResult(null)
@@ -386,14 +408,19 @@ function GeneratorPanel() {
       const form = new FormData()
       form.append('file', file)
       form.append('date', date)
-      form.append('roundNo', roundNo)
-      form.append('stores', JSON.stringify(detectedStores.map(s => s.code)))
       form.append('label', label)
+
+      if (manualMode) {
+        form.append('manualSheets', JSON.stringify(selectedManualSheets))
+      } else {
+        form.append('roundNo', roundNo)
+        form.append('stores', JSON.stringify(detectedStores.map(s => s.code)))
+      }
 
       const res = await fetch('/api/generate-order-free', { method: 'POST', body: form })
       if (!res.ok) {
         const d = await res.json().catch(() => ({}))
-        setError(d.error ?? '產生失敗，請確認回目數與 Excel 格式')
+        setError(d.error ?? '產生失敗，請確認 Excel 格式')
         return
       }
 
@@ -409,7 +436,8 @@ function GeneratorPanel() {
       try { checklist = JSON.parse(atob(res.headers.get('X-Checklist') ?? 'bnVsbA==')) } catch { /* noop */ }
 
       // Auto-download
-      const productTag = (label || `第${roundNo}回`).replace(/[\\/:*?"<>|\s]/g, '').slice(0, 20)
+      const batchName = label || (manualMode ? '手動選頁' : `第${roundNo}回`)
+      const productTag = batchName.replace(/[\\/:*?"<>|\s]/g, '').slice(0, 20)
       const url = URL.createObjectURL(blob)
       const a   = document.createElement('a')
       a.href    = url
@@ -425,7 +453,9 @@ function GeneratorPanel() {
     }
   }
 
-  const canGenerate = !!file && !!date && !!roundNo && detectedStores.length > 0
+  const canGenerate = manualMode
+    ? !!file && !!date && selectedManualSheets.length > 0
+    : !!file && !!date && !!roundNo && detectedStores.length > 0
 
   const displayDate = date ? date.replace(/-/g, '/') : ''
   const yyyymmdd    = date ? date.replace(/-/g, '') : ''
@@ -465,35 +495,37 @@ function GeneratorPanel() {
               />
             </div>
 
-            <div className="flex flex-col gap-1">
-              <label className="text-xs text-gray-500 font-medium">回目</label>
-              <div className="flex items-center gap-1.5">
-                {detectedRounds.length > 0 ? (
-                  detectedRounds.map(r => (
-                    <button
-                      key={r}
-                      onClick={() => selectRound(r)}
-                      className={`px-3 py-2 rounded-lg text-sm font-medium transition-colors border ${
-                        roundNo === String(r)
-                          ? 'bg-lopia-red text-white border-lopia-red'
-                          : 'bg-white text-gray-600 border-gray-200 hover:border-lopia-red hover:text-lopia-red'
-                      }`}
-                    >
-                      第 {r} 回
-                    </button>
-                  ))
-                ) : (
-                  <input
-                    type="number"
-                    min="1"
-                    value={roundNo}
-                    onChange={e => setRoundNo(e.target.value)}
-                    placeholder="例：5"
-                    className="w-24 border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-lopia-red"
-                  />
-                )}
+            {!manualMode && (
+              <div className="flex flex-col gap-1">
+                <label className="text-xs text-gray-500 font-medium">回目</label>
+                <div className="flex items-center gap-1.5">
+                  {detectedRounds.length > 0 ? (
+                    detectedRounds.map(r => (
+                      <button
+                        key={r}
+                        onClick={() => selectRound(r)}
+                        className={`px-3 py-2 rounded-lg text-sm font-medium transition-colors border ${
+                          roundNo === String(r)
+                            ? 'bg-lopia-red text-white border-lopia-red'
+                            : 'bg-white text-gray-600 border-gray-200 hover:border-lopia-red hover:text-lopia-red'
+                        }`}
+                      >
+                        第 {r} 回
+                      </button>
+                    ))
+                  ) : (
+                    <input
+                      type="number"
+                      min="1"
+                      value={roundNo}
+                      onChange={e => setRoundNo(e.target.value)}
+                      placeholder="例：5"
+                      className="w-24 border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-lopia-red"
+                    />
+                  )}
+                </div>
               </div>
-            </div>
+            )}
 
             <div className="flex flex-col gap-1 flex-1 min-w-[160px]">
               <label className="text-xs text-gray-500 font-medium">批次名稱（選填，用於檔名）</label>
@@ -507,8 +539,8 @@ function GeneratorPanel() {
             </div>
           </div>
 
-          {/* Auto-detected stores */}
-          {detectedStores.length > 0 && (
+          {/* Auto-detected stores (normal mode) */}
+          {!manualMode && detectedStores.length > 0 && (
             <div>
               <p className="text-xs text-gray-500 font-medium mb-2">
                 偵測到門市
@@ -530,12 +562,62 @@ function GeneratorPanel() {
             </div>
           )}
 
+          {/* Manual sheet selection (when no 回目 pattern detected) */}
+          {manualMode && allSheets.length > 0 && (
+            <div className="bg-amber-50 border border-amber-200 rounded-xl px-4 py-3 space-y-2.5">
+              <p className="text-xs font-semibold text-amber-700">
+                此檔案未包含回目資訊，請勾選要抽取的分頁：
+                <span className="ml-1.5 font-normal text-amber-600">（已選 {selectedManualSheets.length} / {allSheets.length} 頁）</span>
+              </p>
+              <div className="grid grid-cols-2 gap-1.5 sm:grid-cols-3">
+                {allSheets.map(sn => {
+                  const checked = selectedManualSheets.includes(sn)
+                  return (
+                    <label
+                      key={sn}
+                      className={`flex items-center gap-2 px-2.5 py-1.5 rounded-lg text-xs cursor-pointer border transition-colors ${
+                        checked
+                          ? 'bg-lopia-red/8 border-lopia-red/30 text-lopia-red font-medium'
+                          : 'bg-white border-gray-200 text-gray-600 hover:border-gray-300'
+                      }`}
+                    >
+                      <input
+                        type="checkbox"
+                        checked={checked}
+                        onChange={e => {
+                          setManualSheets(prev =>
+                            e.target.checked ? [...prev, sn] : prev.filter(s => s !== sn)
+                          )
+                        }}
+                        className="w-3.5 h-3.5 accent-lopia-red shrink-0"
+                      />
+                      <span className="truncate">{sn}</span>
+                    </label>
+                  )
+                })}
+              </div>
+              {allSheets.length > 1 && (
+                <button
+                  onClick={() =>
+                    setManualSheets(
+                      selectedManualSheets.length === allSheets.length ? [] : [...allSheets]
+                    )
+                  }
+                  className="text-xs text-amber-600 hover:text-amber-800 font-medium hover:underline"
+                >
+                  {selectedManualSheets.length === allSheets.length ? '取消全選' : '全選'}
+                </button>
+              )}
+            </div>
+          )}
+
           {/* Preview */}
-          {date && roundNo && (
+          {date && (manualMode || roundNo) && (
             <div className="bg-gray-50 rounded-lg px-3 py-2 text-xs text-gray-500">
               預覽單號：<span className="font-mono font-semibold text-gray-700">S{yyyymmdd}XX</span>
               　配送日期：<span className="font-semibold text-gray-700">{displayDate}</span>
-              　第 <span className="font-semibold text-gray-700">{roundNo}</span> 回目
+              {!manualMode && roundNo && <>　第 <span className="font-semibold text-gray-700">{roundNo}</span> 回目</>}
+              {manualMode && <span className="ml-1 text-amber-600 font-medium">（手動選頁模式）</span>}
             </div>
           )}
         </div>
