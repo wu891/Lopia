@@ -143,7 +143,7 @@ export default function Home() {
 
   useEffect(() => {
     fetchData()
-    const interval = setInterval(fetchData, 60 * 60 * 1000)
+    const interval = setInterval(fetchData, 5 * 60 * 1000)
     return () => clearInterval(interval)
   }, [fetchData])
 
@@ -341,7 +341,7 @@ export default function Home() {
                 shipments={filtered}
                 lang={lang}
                 allRecords={allRecords}
-                onRecordChange={refreshRecords}
+                onRecordChange={fetchData}
                 compact={viewMode === 'compact'}
               />
             )}
