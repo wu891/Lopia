@@ -26,7 +26,7 @@ export async function POST(req: NextRequest) {
     const data = await req.json()
     const { batchId, store, date, boxes, round, planStatus, remarks, amount, shipmentNo: customNo } = data
 
-    if (!batchId || !store || !date || boxes == null) {
+    if (!batchId || !store || boxes == null) {
       return NextResponse.json({ error: 'Missing required fields' }, { status: 400 })
     }
 
@@ -37,7 +37,7 @@ export async function POST(req: NextRequest) {
       shipmentNo,
       batchId,
       store,
-      date,
+      date: date || null,
       boxes: Number(boxes),
       amount: amount != null ? Number(amount) : undefined,
       round: roundNum,

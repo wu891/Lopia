@@ -17,10 +17,10 @@ interface Props {
 }
 
 interface StoreEntry { name: string; boxes: string }
-interface RoundEntry { date: string; stores: StoreEntry[] }
+interface RoundEntry { date: string; stores: StoreEntry[]; dateTbd?: boolean }
 interface EditRound  { roundNo: number; date: string; stores: StoreEntry[]; existingIds: string[] }
 
-function emptyRound(): RoundEntry { return { date: '', stores: [] } }
+function emptyRound(): RoundEntry { return { date: '', stores: [], dateTbd: false } }
 
 interface RoundGroup {
   roundNo: number
@@ -29,6 +29,7 @@ interface RoundGroup {
   totalBoxes: number
   ids: string[]
   isDone: boolean   // date <= today and not cancelled
+  locked: boolean   // all records in this round are locked
 }
 
 interface DiffRound {
@@ -48,18 +49,24 @@ interface DiffRound {
 
 function groupByRound(records: ShipmentRecord[]): RoundGroup[] {
   const today = new Date().toISOString().slice(0, 10)
-  const map = new Map<number, RoundGroup>()
+  const map = new Map<number, RoundGroup & { _lockedCount: number }>()
   for (const r of records) {
     const key = r.round ?? 0
-    if (!map.has(key)) map.set(key, { roundNo: key, date: r.date ?? null, stores: [], totalBoxes: 0, ids: [], isDone: false })
+    if (!map.has(key)) map.set(key, { roundNo: key, date: r.date ?? null, stores: [], totalBoxes: 0, ids: [], isDone: false, locked: false, _lockedCount: 0 })
     const g = map.get(key)!
     g.stores.push({ name: r.store ?? '', boxes: r.boxes ?? 0 })
     g.totalBoxes += r.boxes ?? 0
     g.ids.push(r.id)
+    if (r.locked) g._lockedCount++
   }
   return Array.from(map.values()).map(g => ({
-    ...g,
+    roundNo: g.roundNo,
+    date: g.date,
+    stores: g.stores,
+    totalBoxes: g.totalBoxes,
+    ids: g.ids,
     isDone: !!g.date && g.date <= today,
+    locked: g._lockedCount > 0 && g._lockedCount === g.ids.length,
   })).sort((a, b) => a.roundNo - b.roundNo)
 }
 
@@ -129,7 +136,9 @@ export default function DeliveryPlan({ batchId, batchName, totalBoxes, records, 
   const formMatchOk  = totalBoxes != null && formTotal === totalBoxes
   const formMatchWarn= totalBoxes != null && formTotal > 0 && formTotal !== totalBoxes
   // Warn user about rounds with boxes but no date (they will NOT be saved)
-  const undatedRoundsCount = rounds.filter(r => !r.date && r.stores.some(s => Number(s.boxes) > 0)).length
+  const undatedRoundsCount = rounds.filter(r => !r.date && !r.dateTbd && r.stores.some(s => Number(s.boxes) > 0)).length
+  // Count locked rounds for display
+  const lockedCount = roundGroups.filter(g => g.locked).length
 
   // ── Excel ────────────────────────────────────────────
   async function handleExcelFile(e: React.ChangeEvent<HTMLInputElement>) {
@@ -149,6 +158,7 @@ export default function DeliveryPlan({ batchId, batchName, totalBoxes, records, 
   // ── Add form helpers ─────────────────────────────────
   function startAdd() { setCollapsed(false); setEditRound(null); clearExcel(); setShowForm(true) }
   function addRoundRow() { setRounds(prev => [...prev, emptyRound()]) }
+  function toggleRoundTbd(idx: number) { setRounds(rs => rs.map((r, i) => i === idx ? { ...r, dateTbd: !r.dateTbd, date: '' } : r)) }
   function updateRoundDate(idx: number, date: string) { setRounds(prev => prev.map((r, i) => i === idx ? { ...r, date } : r)) }
   function toggleRoundStore(idx: number, name: string) {
     setRounds(prev => prev.map((r, i) => {
@@ -182,6 +192,29 @@ export default function DeliveryPlan({ batchId, batchName, totalBoxes, records, 
       setPendingAction(() => fn)
       setShowPassword(true)
     }
+  }
+
+  // ── Lock / Unlock ────────────────────────────────────
+  const [lockingRound, setLockingRound] = useState<number | null>(null)
+
+  async function doToggleLock(group: RoundGroup) {
+    const newLocked = !group.locked
+    setLockingRound(group.roundNo)
+    try {
+      await Promise.all(group.ids.map(id =>
+        fetch(`/api/records/${id}`, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ locked: newLocked }),
+        })
+      ))
+      await logChange(
+        newLocked ? '鎖定出貨計畫' : '解鎖出貨計畫',
+        batchId,
+        `第 ${group.roundNo} 次 / 日期: ${group.date ?? '—'} / ${group.totalBoxes} 箱`,
+      )
+      onRecordChange()
+    } finally { setLockingRound(null) }
   }
 
   // ── XLS Update ───────────────────────────────────────
@@ -276,7 +309,10 @@ export default function DeliveryPlan({ batchId, batchName, totalBoxes, records, 
     setApplyingUpdate(true); setApplyError('')
     try {
       const changedRounds = diffRounds.filter(d => d.hasChanges)
-      for (const d of changedRounds) {
+      // Skip locked rounds — they are protected from Excel updates
+      const skippedLocked = changedRounds.filter(d => d.existingGroup?.locked)
+      const updatableRounds = changedRounds.filter(d => !d.existingGroup?.locked)
+      for (const d of updatableRounds) {
         // Stale round (exists in Notion but not in new Excel) — delete only, no date needed
         if (d.newStores.length === 0 && d.existingGroup) {
           await Promise.all(d.existingGroup.ids.map(id => fetch(`/api/records/${id}`, { method: 'DELETE' })))
@@ -304,7 +340,7 @@ export default function DeliveryPlan({ batchId, batchName, totalBoxes, records, 
       await logChange(
         '更新出貨時程表',
         batchId,
-        `Excel 更新 ${changedRounds.length} 個輪次 / 檔案: ${xlsUpdateFileName}`,
+        `Excel 更新 ${updatableRounds.length} 個輪次${skippedLocked.length > 0 ? ` / 跳過 ${skippedLocked.length} 個已鎖定輪次` : ''} / 檔案: ${xlsUpdateFileName}`,
       )
 
       // Upload updated supplier Excel to Drive (overwrite reference)
@@ -363,14 +399,14 @@ export default function DeliveryPlan({ batchId, batchName, totalBoxes, records, 
           `第 ${editRound.roundNo} 次 / 日期: ${editRound.date} / 店數: ${editRound.stores.length}`,
         )
       } else {
-        const valid = rounds.filter(r => r.date && r.stores.some(s => s.boxes && Number(s.boxes) > 0))
+        const valid = rounds.filter(r => (r.date || r.dateTbd) && r.stores.some(s => s.boxes && Number(s.boxes) > 0))
         if (!valid.length) return
         let offset = 0
         for (const r of valid) {
           const res = await Promise.all(
             r.stores.filter(s => s.boxes && Number(s.boxes) > 0).map(s =>
               fetch('/api/records', { method: 'POST', headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ batchId, store: s.name, date: r.date, boxes: Number(s.boxes), round: nextRoundNo + offset }) })
+                body: JSON.stringify({ batchId, store: s.name, date: r.dateTbd ? null : r.date, boxes: Number(s.boxes), round: nextRoundNo + offset }) })
             )
           )
           const err = (await Promise.all(res.map(async r => r.ok ? null : (await r.json().catch(() => ({}))).error ?? `HTTP ${r.status}`))).find(Boolean)
@@ -623,7 +659,12 @@ export default function DeliveryPlan({ batchId, batchName, totalBoxes, records, 
           roundGroups.length === 0 ? 'bg-gray-50 text-gray-400' : validationOk ? 'bg-green-50 text-green-700' : 'bg-yellow-50 text-yellow-700'
         }`}>
           <span>{roundGroups.length === 0 ? T.planValidEmpty : validationOk ? T.planValidOk : T.planValidWarn}</span>
-          {roundGroups.length > 0 && <span className="ml-auto text-xs opacity-70">{T.plannedBoxes}: {plannedTotal} / {totalBoxes} {T.boxes}</span>}
+          {roundGroups.length > 0 && (
+            <span className="ml-auto text-xs opacity-70">
+              {T.plannedBoxes}: {plannedTotal} / {totalBoxes} {T.boxes}
+              {lockedCount > 0 && <span className="ml-1.5 text-amber-600">🔒{lockedCount}</span>}
+            </span>
+          )}
         </div>
       )}
 
@@ -645,10 +686,11 @@ export default function DeliveryPlan({ batchId, batchName, totalBoxes, records, 
                   <span className={`text-gray-400 text-xs transition-transform duration-150 flex-shrink-0 ${isExpanded ? 'rotate-90' : ''}`}>▶</span>
 
                   <span className="text-gray-500 font-medium text-xs whitespace-nowrap flex-shrink-0">
+                    {g.locked && <span className="text-amber-500 mr-0.5">🔒</span>}
                     {T.roundNo}{g.roundNo}{T.roundSuffix}
                   </span>
                   <span className="text-gray-700 font-medium text-xs whitespace-nowrap flex-shrink-0">
-                    {g.date ? new Date(g.date).toLocaleDateString(lang === 'ja' ? 'ja-JP' : 'zh-TW', { month: 'numeric', day: 'numeric' }) : '—'}
+                    {g.date ? new Date(g.date).toLocaleDateString(lang === 'ja' ? 'ja-JP' : 'zh-TW', { month: 'numeric', day: 'numeric' }) : T.dateTbd}
                   </span>
 
                   {/* Store chips (collapsed preview) */}
@@ -680,8 +722,20 @@ export default function DeliveryPlan({ batchId, batchName, totalBoxes, records, 
                         {generatingRound === g.roundNo ? '⟳' : '📄'}
                       </button>
                     )}
-                    <button onClick={() => startEdit(g)} className="text-gray-400 hover:text-lopia-red transition-colors text-xs">✏</button>
-                    <button onClick={() => handleDeleteRound(g)} disabled={deletingRound === g.roundNo} className="text-gray-400 hover:text-red-500 transition-colors text-xs">
+                    <button
+                      onClick={() => requireAuth(() => doToggleLock(g))}
+                      disabled={lockingRound === g.roundNo}
+                      title={g.locked
+                        ? (lang === 'ja' ? 'ロック解除（編集可能にする）' : '解鎖（允許編輯）')
+                        : (lang === 'ja' ? 'ロック（Excel更新から保護）' : '鎖定（防止Excel更新覆蓋）')}
+                      className={`transition-colors text-xs disabled:opacity-40 ${
+                        g.locked ? 'text-amber-500 hover:text-amber-600' : 'text-gray-400 hover:text-amber-500'
+                      }`}
+                    >
+                      {lockingRound === g.roundNo ? '⟳' : g.locked ? '🔒' : '🔓'}
+                    </button>
+                    <button onClick={() => startEdit(g)} disabled={g.locked} className={`transition-colors text-xs ${g.locked ? 'text-gray-300 cursor-not-allowed' : 'text-gray-400 hover:text-lopia-red'}`}>✏</button>
+                    <button onClick={() => handleDeleteRound(g)} disabled={deletingRound === g.roundNo || g.locked} className={`transition-colors text-xs ${g.locked ? 'text-gray-300 cursor-not-allowed' : 'text-gray-400 hover:text-red-500'}`}>
                       {deletingRound === g.roundNo ? '…' : '✕'}
                     </button>
                   </div>
@@ -754,8 +808,9 @@ export default function DeliveryPlan({ batchId, batchName, totalBoxes, records, 
           {/* Summary badges */}
           <div className="flex gap-2 flex-wrap">
             {(() => {
-              const changed = diffRounds.filter(d => d.hasChanges).length
+              const changed = diffRounds.filter(d => d.hasChanges && !d.existingGroup?.locked).length
               const unchanged = diffRounds.filter(d => !d.hasChanges).length
+              const lockedSkipped = diffRounds.filter(d => d.hasChanges && d.existingGroup?.locked).length
               return <>
                 {changed > 0 && (
                   <span className="px-2 py-0.5 bg-orange-100 text-orange-700 text-xs rounded-full font-medium border border-orange-200">
@@ -767,7 +822,12 @@ export default function DeliveryPlan({ batchId, batchName, totalBoxes, records, 
                     ✓ {unchanged} {T.diffUnchanged}
                   </span>
                 )}
-                {changed === 0 && (
+                {lockedSkipped > 0 && (
+                  <span className="px-2 py-0.5 bg-amber-100 text-amber-700 text-xs rounded-full font-medium border border-amber-200">
+                    🔒 {lockedSkipped} {lang === 'ja' ? 'ロック済み（スキップ）' : '已鎖定（跳過）'}
+                  </span>
+                )}
+                {changed === 0 && lockedSkipped === 0 && (
                   <span className="px-2 py-0.5 bg-green-100 text-green-700 text-xs rounded-full font-medium border border-green-200">
                     ✓ {T.diffNone}
                   </span>
@@ -798,12 +858,16 @@ export default function DeliveryPlan({ batchId, batchName, totalBoxes, records, 
                             {new Date(d.existingGroup.date).toLocaleDateString('zh-TW', { month: 'numeric', day: 'numeric' })}
                           </span>
                         )}
-                        <span className={`ml-auto text-xs font-medium ${isStale ? 'text-red-600' : d.hasChanges ? 'text-orange-600' : 'text-gray-400'}`}>
-                          {isStale
-                            ? `🗑 ${T.deletedRound}`
-                            : d.hasChanges
-                              ? (d.existingGroup ? `⚡ ${T.changedRound}` : `🆕 ${T.newRound}`)
-                              : `✓ ${T.unchangedRound}`}
+                        <span className={`ml-auto text-xs font-medium ${
+                          d.existingGroup?.locked ? 'text-amber-600' : isStale ? 'text-red-600' : d.hasChanges ? 'text-orange-600' : 'text-gray-400'
+                        }`}>
+                          {d.existingGroup?.locked
+                            ? `🔒 ${lang === 'ja' ? 'ロック済み（変更不可）' : '已鎖定（不會更動）'}`
+                            : isStale
+                              ? `🗑 ${T.deletedRound}`
+                              : d.hasChanges
+                                ? (d.existingGroup ? `⚡ ${T.changedRound}` : `🆕 ${T.newRound}`)
+                                : `✓ ${T.unchangedRound}`}
                         </span>
                       </div>
 
@@ -993,8 +1057,21 @@ export default function DeliveryPlan({ batchId, batchName, totalBoxes, records, 
                     <p className="text-xs font-semibold text-lopia-red">{T.roundNo}{nextRoundNo + idx}{T.roundSuffix}</p>
                     <div>
                       <label className="text-xs text-gray-400 block mb-0.5">{T.deliveryDate}</label>
-                      <input type="date" value={round.date} onChange={e => updateRoundDate(idx, e.target.value)}
-                        className="w-full border border-gray-200 rounded-lg px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-lopia-red" />
+                      {!round.dateTbd && (
+                        <input type="date" value={round.date} onChange={e => updateRoundDate(idx, e.target.value)}
+                          className="w-full border border-gray-200 rounded-lg px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-lopia-red" />
+                      )}
+                      <button
+                        type="button"
+                        onClick={() => toggleRoundTbd(idx)}
+                        className={`mt-1 text-xs px-2 py-1 rounded-lg border transition-colors ${
+                          round.dateTbd
+                            ? 'bg-amber-50 text-amber-700 border-amber-300 hover:bg-amber-100'
+                            : 'bg-gray-50 text-gray-400 border-gray-200 hover:border-amber-300 hover:text-amber-600'
+                        }`}
+                      >
+                        {round.dateTbd ? `✕ ${T.dateTbd}` : T.dateTbd}
+                      </button>
                     </div>
                     <StoreChecklist selectedStores={round.stores}
                       onToggle={name => toggleRoundStore(idx, name)}

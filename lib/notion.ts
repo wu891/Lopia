@@ -200,7 +200,7 @@ export async function createShipmentRecord(data: {
   shipmentNo: string
   batchId: string
   store: string
-  date: string
+  date: string | null
   boxes: number
   amount?: number
   round?: number
@@ -214,7 +214,7 @@ export async function createShipmentRecord(data: {
       '出貨單號': { title: [{ text: { content: data.shipmentNo } }] },
       '關聯批次': { relation: [{ id: data.batchId }] },
       '出貨門市': { select: { name: data.store } },
-      '出貨日期': { date: { start: data.date } },
+      ...(data.date ? { '出貨日期': { date: { start: data.date } } } : {}),
       '出貨箱數': { number: data.boxes },
       ...(data.amount != null ? { '金額': { number: data.amount } } : {}),
       ...(data.round != null ? { '出貨輪次': { number: data.round } } : {}),
