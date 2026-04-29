@@ -244,10 +244,9 @@
                 <span class="sync-dot"></span>
                 <span id="sync-status-text">未連線</span>
             </div>
-            <!-- Notion sync hidden — CSV is source of truth -->
-            <!-- <button class="btn btn-secondary" id="btn-sync" onclick="syncFromNotion()">
+            <button class="btn btn-secondary" id="btn-sync" onclick="syncFromNotion()">
                 &#8635; 從 Notion 同步
-            </button> -->
+            </button>
             <button class="btn btn-secondary" onclick="openManualImport()">匯入 CSV</button>
             <button class="btn btn-primary" onclick="switchTab('invoice')">&#128196; 生成請款單</button>
         </div>
@@ -586,7 +585,7 @@ function formatDisplayDate(d) {
 async function syncFromNotion() {
     showLoading('正在連線 lopia-status.vercel.app...');
     const btn = document.getElementById('btn-sync');
-    btn.disabled = true;
+    if (btn) btn.disabled = true;
 
     try {
         // Fetch both endpoints in parallel
@@ -691,7 +690,7 @@ async function syncFromNotion() {
         showToast('同步失敗：' + err.message, 'error');
         console.error(err);
     } finally {
-        btn.disabled = false;
+        if (btn) btn.disabled = false;
     }
 }
 
@@ -1943,25 +1942,18 @@ function showToast(msg,type=''){
 function refreshAll(){populateFilters();applyFilters();renderDetailTable();renderStoreAnalysis();}
 
 // ── Init ──────────────────────────────────────────────────
-loadLocal();
+// 只載入單價設定（各人自設，保留本地）
+try { batchPrices = JSON.parse(localStorage.getItem('lopia_batch_prices') || '{}'); } catch { batchPrices = {}; }
+// 載入暫存資料先顯示，避免等待時空白
+try { allData = JSON.parse(localStorage.getItem('lopia_recon_data') || '[]'); } catch { allData = []; }
+try { lastSync = localStorage.getItem('lopia_last_sync') || null; } catch { lastSync = null; }
 
-const DATA_VERSION = 'v20260414';
-if (localStorage.getItem('lopia_data_version') !== DATA_VERSION) {
-    // New data version: completely replace with embedded CSV data
-    allData = initDefaultData();
-    saveLocal();
-    localStorage.setItem('lopia_data_version', DATA_VERSION);
-    document.getElementById('notion-banner').style.display = 'none';
-    updateSyncStatus('', '已載入 2026年4月出貨資料（141筆）');
-} else if (allData.length === 0) {
-    document.getElementById('notion-banner').style.display = 'flex';
-} else {
-    document.getElementById('notion-banner').style.display = 'none';
-    if (lastSync) updateSyncStatus('synced', `上次同步：${formatTime(lastSync)}`);
-    else updateSyncStatus('', '本地資料');
-}
+document.getElementById('notion-banner').style.display = 'none';
+if (allData.length > 0) refreshAll();
+updateSyncStatus('', '連線中...');
 
-refreshAll();
+// 自動從 Notion 同步（主要資料來源，確保所有人看到一致數字）
+syncFromNotion();
 </script>
 </body>
 </html>
