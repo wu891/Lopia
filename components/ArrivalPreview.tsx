@@ -16,12 +16,13 @@ function daysFromNow(dateStr: string): number {
 
 interface StoreBox { store: string; boxes: number }
 
-function buildStoreBoxes(shipmentId: string, allRecords: ShipmentRecord[]): StoreBox[] {
+function buildStoreBoxes(shipmentId: string, allRecords: ShipmentRecord[], dateFrom?: string, dateTo?: string): StoreBox[] {
   const map = new Map<string, number>()
   for (const r of allRecords) {
     if (r.batchId !== shipmentId) continue
     if (r.planStatus === '已取消') continue
     if (!r.store) continue
+    if (dateFrom && dateTo && r.date && (r.date < dateFrom || r.date > dateTo)) continue
     map.set(r.store, (map.get(r.store) ?? 0) + (r.boxes ?? 0))
   }
   return Array.from(map.entries())
@@ -29,8 +30,8 @@ function buildStoreBoxes(shipmentId: string, allRecords: ShipmentRecord[]): Stor
     .sort((a, b) => b.boxes - a.boxes)
 }
 
-function buildLineText(shipment: Shipment, storeBoxes: StoreBox[], lang: Lang): string {
-  const dateStr = shipment.arrivalTW ? formatDate(shipment.arrivalTW, lang) : '—'
+function buildLineText(shipment: Shipment, storeBoxes: StoreBox[], lang: Lang, deliveryDate?: string | null): string {
+  const dateStr = (deliveryDate ?? shipment.arrivalTW) ? formatDate((deliveryDate ?? shipment.arrivalTW)!, lang) : '—'
   const prefix = lang === 'ja' ? '【入荷予定】' : '【進貨預告】'
   const suffix = lang === 'ja' ? '到着予定' : '預計到貨'
   const totalBoxes = storeBoxes.reduce((s, sb) => s + sb.boxes, 0)
@@ -49,16 +50,20 @@ export default function ArrivalPreview({
   shipments,
   allRecords,
   lang,
+  dateFrom,
+  dateTo,
 }: {
   shipments: Shipment[]
   allRecords: ShipmentRecord[]
   lang: Lang
+  dateFrom?: string
+  dateTo?: string
 }) {
   const T = t[lang]
   const [copiedId, setCopiedId] = useState<string | null>(null)
 
-  function handleCopy(shipment: Shipment, storeBoxes: StoreBox[]) {
-    const text = buildLineText(shipment, storeBoxes, lang)
+  function handleCopy(shipment: Shipment, storeBoxes: StoreBox[], deliveryDate: string | null) {
+    const text = buildLineText(shipment, storeBoxes, lang, deliveryDate)
     navigator.clipboard.writeText(text).then(() => {
       setCopiedId(shipment.id)
       setTimeout(() => setCopiedId(null), 2000)
@@ -76,9 +81,15 @@ export default function ArrivalPreview({
   return (
     <div className="space-y-3">
       {shipments.map(s => {
-        const storeBoxes = buildStoreBoxes(s.id, allRecords)
+        const storeBoxes = buildStoreBoxes(s.id, allRecords, dateFrom, dateTo)
         const totalBoxes = storeBoxes.reduce((sum, sb) => sum + sb.boxes, 0)
-        const days = s.arrivalTW ? daysFromNow(s.arrivalTW) : null
+        // Use earliest upcoming delivery date from records; fall back to arrivalTW
+        const earliestDelivery = allRecords
+          .filter(r => r.batchId === s.id && r.date && r.planStatus !== '已取消' && (!dateFrom || r.date >= dateFrom) && (!dateTo || r.date <= dateTo))
+          .map(r => r.date as string)
+          .sort()[0] ?? null
+        const displayDate = earliestDelivery ?? s.arrivalTW
+        const days = displayDate ? daysFromNow(displayDate) : null
         const isCopied = copiedId === s.id
 
         return (
@@ -89,7 +100,7 @@ export default function ArrivalPreview({
                 <div className="flex flex-col">
                   <span className="text-[10px] font-medium text-lopia-red uppercase tracking-wide">{T.previewArrival}</span>
                   <span className="text-sm font-bold text-lopia-red-dark font-mono">
-                    {s.arrivalTW ? formatDate(s.arrivalTW, lang) : '—'}
+                    {displayDate ? formatDate(displayDate, lang) : '—'}
                   </span>
                 </div>
                 {days !== null && (
@@ -137,7 +148,7 @@ export default function ArrivalPreview({
                 {lang === 'ja' ? 'LINE送信用テキスト' : 'LINE 分享格式'}
               </span>
               <button
-                onClick={() => handleCopy(s, storeBoxes)}
+                onClick={() => handleCopy(s, storeBoxes, displayDate)}
                 className={`inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-lg border transition-colors cursor-pointer ${
                   isCopied
                     ? 'bg-emerald-50 border-emerald-200 text-emerald-700'

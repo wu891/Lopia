@@ -376,14 +376,25 @@ export default function Home() {
         {tab === 'preview' && (() => {
           const today = new Date().toISOString().slice(0, 10)
           const in14Days = new Date(Date.now() + 14 * 86400000).toISOString().slice(0, 10)
+          const batchIdsWithUpcoming = new Set(
+            allRecords
+              .filter(r => r.batchId && r.date && r.date >= today && r.date <= in14Days && r.planStatus !== '已取消')
+              .map(r => r.batchId as string)
+          )
           const upcoming = (data?.shipments ?? [])
-            .filter(s => s.arrivalTW && s.arrivalTW >= today && s.arrivalTW <= in14Days)
-            .sort((a, b) => (a.arrivalTW ?? '').localeCompare(b.arrivalTW ?? ''))
+            .filter(s => batchIdsWithUpcoming.has(s.id))
+            .sort((a, b) => {
+              const aMin = allRecords.filter(r => r.batchId === a.id && r.date && r.date >= today && r.planStatus !== '已取消').map(r => r.date as string).sort()[0] ?? ''
+              const bMin = allRecords.filter(r => r.batchId === b.id && r.date && r.date >= today && r.planStatus !== '已取消').map(r => r.date as string).sort()[0] ?? ''
+              return aMin.localeCompare(bMin)
+            })
           return (
             <ArrivalPreview
               shipments={upcoming}
               allRecords={allRecords}
               lang={lang}
+              dateFrom={today}
+              dateTo={in14Days}
             />
           )
         })()}
