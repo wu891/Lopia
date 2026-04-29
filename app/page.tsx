@@ -8,8 +8,9 @@ import CompactShipmentRow from '@/components/CompactShipmentRow'
 import StoreList from '@/components/StoreList'
 import AddBatchForm from '@/components/AddBatchForm'
 import CalendarView from '@/components/CalendarView'
+import ArrivalPreview from '@/components/ArrivalPreview'
 
-type Tab = 'shipments' | 'stores'
+type Tab = 'shipments' | 'stores' | 'preview'
 
 // ── Month-grouped list ──────────────────────────────────────
 function MonthGroupedList({
@@ -205,6 +206,20 @@ export default function Home() {
             </svg>
             {T.stores}
           </button>
+          <button
+            onClick={() => setTab('preview')}
+            className={`flex items-center gap-2 px-4 py-2.5 text-sm font-medium border-b-2 -mb-px transition-colors cursor-pointer ${
+              tab === 'preview'
+                ? 'border-lopia-red text-lopia-red'
+                : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+            }`}
+          >
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/>
+              <line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/>
+            </svg>
+            {T.previewTab}
+          </button>
         </nav>
 
         {/* Shipments tab */}
@@ -356,6 +371,22 @@ export default function Home() {
             shipments={data?.shipments ?? []}
           />
         )}
+
+        {/* Preview tab */}
+        {tab === 'preview' && (() => {
+          const today = new Date().toISOString().slice(0, 10)
+          const in14Days = new Date(Date.now() + 14 * 86400000).toISOString().slice(0, 10)
+          const upcoming = (data?.shipments ?? [])
+            .filter(s => s.arrivalTW && s.arrivalTW >= today && s.arrivalTW <= in14Days)
+            .sort((a, b) => (a.arrivalTW ?? '').localeCompare(b.arrivalTW ?? ''))
+          return (
+            <ArrivalPreview
+              shipments={upcoming}
+              allRecords={allRecords}
+              lang={lang}
+            />
+          )
+        })()}
       </div>
 
       <footer className="mt-8 py-4 border-t border-gray-200 text-center">

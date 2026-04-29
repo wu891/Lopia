@@ -108,6 +108,9 @@ export default function DeliveryPlan({ batchId, batchName, totalBoxes, records, 
   const [generatingRound, setGeneratingRound] = useState<number | null>(null)
   const [generateMsg, setGenerateMsg] = useState<{ roundNo: number; type: 'ok' | 'err'; text: string } | null>(null)
 
+  // Three-way verification modal
+  const [pendingGenerateRound, setPendingGenerateRound] = useState<number | null>(null)
+
   const batchRecords = records.filter(r => r.batchId === batchId).sort((a, b) => (a.round ?? 99) - (b.round ?? 99))
   const roundGroups  = groupByRound(batchRecords)
   const plannedTotal = batchRecords.reduce((s, r) => s + (r.boxes ?? 0), 0)
@@ -464,6 +467,35 @@ export default function DeliveryPlan({ batchId, batchName, totalBoxes, records, 
 
   function cancelForm() { setShowForm(false); setEditRound(null); setSaveError(''); clearExcel() }
 
+  type VerifyRow = { store: string; excelBoxes: number | null; notionBoxes: number | null; status: 'ok' | 'mismatch' | 'missing' }
+
+  function buildVerificationRows(roundNo: number): VerifyRow[] {
+    const excelStores = xlsResult?.find(r => r.roundNo === roundNo)?.stores ?? null
+    const notionGroup = roundGroups.find(g => g.roundNo === roundNo)
+    if (!excelStores) return []
+    const excelMap = new Map(excelStores.map(s => [s.name, s.boxes]))
+    const notionMap = new Map((notionGroup?.stores ?? []).map(s => [s.name, s.boxes]))
+    const allNames = new Set([...excelMap.keys(), ...notionMap.keys()])
+    return Array.from(allNames).map(store => {
+      const e = excelMap.has(store) ? excelMap.get(store)! : null
+      const n = notionMap.has(store) ? notionMap.get(store)! : null
+      const status: VerifyRow['status'] = e !== null && n !== null && e === n ? 'ok' : e === null || n === null ? 'missing' : 'mismatch'
+      return { store, excelBoxes: e, notionBoxes: n, status }
+    }).sort((a, b) => {
+      const o: Record<VerifyRow['status'], number> = { mismatch: 0, missing: 1, ok: 2 }
+      return o[a.status] - o[b.status]
+    })
+  }
+
+  function handleGenerateClick(roundNo: number) {
+    const hasExcel = !!(xlsResult?.find(r => r.roundNo === roundNo))
+    if (hasExcel) {
+      setPendingGenerateRound(roundNo)
+    } else {
+      doGenerateOrder(roundNo)
+    }
+  }
+
   async function doGenerateOrder(roundNo: number) {
     setGeneratingRound(roundNo); setGenerateMsg(null)
     try {
@@ -593,6 +625,94 @@ export default function DeliveryPlan({ batchId, batchName, totalBoxes, records, 
 
   return (
     <div className="space-y-2">
+      {/* Three-way verification modal */}
+      {pendingGenerateRound !== null && (() => {
+        const rows = buildVerificationRows(pendingGenerateRound)
+        const hasMismatch = rows.some(r => r.status !== 'ok')
+        const excelTotal = rows.reduce((s, r) => s + (r.excelBoxes ?? 0), 0)
+        const notionTotal = rows.reduce((s, r) => s + (r.notionBoxes ?? 0), 0)
+        return (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-gray-900/50">
+            <div className="bg-white rounded-xl shadow-2xl w-full max-w-lg overflow-hidden">
+              <div className={`px-5 py-4 border-b border-gray-200 ${hasMismatch ? 'bg-orange-50' : 'bg-white'}`}>
+                <div className="flex items-start justify-between">
+                  <div>
+                    <p className="text-sm font-bold text-gray-900">{T.verifyModalTitle}</p>
+                    <p className="text-xs text-gray-500 mt-0.5">{batchName} · {T.roundNo}{pendingGenerateRound}{T.roundSuffix}</p>
+                  </div>
+                  <button onClick={() => setPendingGenerateRound(null)} className="text-gray-400 hover:text-gray-600 text-lg leading-none cursor-pointer">✕</button>
+                </div>
+              </div>
+              <div className="px-5 py-4">
+                {hasMismatch ? (
+                  <div className="flex items-center gap-2 mb-3 px-3 py-2 bg-orange-50 border border-orange-200 rounded-lg text-xs text-orange-800">
+                    <span>⚠️</span>
+                    <span>{rows.filter(r => r.status !== 'ok').length} {T.verifyHasMismatch}</span>
+                  </div>
+                ) : (
+                  <div className="flex items-center gap-2 mb-3 px-3 py-2 bg-emerald-50 border border-emerald-200 rounded-lg text-xs text-emerald-800">
+                    <span>✅</span>
+                    <span>{T.verifyAllMatch}</span>
+                  </div>
+                )}
+                <table className="w-full text-xs border-collapse">
+                  <thead>
+                    <tr className="bg-gray-50">
+                      <th className="text-left py-1.5 px-2 text-[10px] font-semibold text-gray-400 uppercase tracking-wide border-b border-gray-200">門市</th>
+                      <th className="text-right py-1.5 px-2 text-[10px] font-semibold text-gray-400 uppercase tracking-wide border-b border-gray-200">{T.verifyExcel}</th>
+                      <th className="text-right py-1.5 px-2 text-[10px] font-semibold text-gray-400 uppercase tracking-wide border-b border-gray-200">{T.verifyNotion}</th>
+                      <th className="text-center py-1.5 px-2 text-[10px] font-semibold text-gray-400 uppercase tracking-wide border-b border-gray-200">{T.verifyDiff}</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {rows.map(row => (
+                      <tr key={row.store} className={row.status !== 'ok' ? 'bg-orange-50' : ''}>
+                        <td className="py-1.5 px-2 border-b border-gray-100 text-gray-700">{row.store}</td>
+                        <td className={`py-1.5 px-2 border-b border-gray-100 text-right font-medium ${row.status === 'mismatch' ? 'text-orange-600 font-bold' : row.excelBoxes === null ? 'text-gray-300' : 'text-gray-700'}`}>
+                          {row.excelBoxes !== null ? `${row.excelBoxes}` : '—'}
+                        </td>
+                        <td className={`py-1.5 px-2 border-b border-gray-100 text-right font-medium ${row.status === 'mismatch' ? 'text-orange-600 font-bold' : row.notionBoxes === null ? 'text-gray-300' : 'text-gray-700'}`}>
+                          {row.notionBoxes !== null ? `${row.notionBoxes}` : '—'}
+                        </td>
+                        <td className={`py-1.5 px-2 border-b border-gray-100 text-center font-semibold ${row.status === 'ok' ? 'text-emerald-600' : row.status === 'mismatch' ? 'text-orange-500' : 'text-gray-400'}`}>
+                          {row.status === 'ok' ? '✓' : row.status === 'mismatch' ? `⚠ ${(row.excelBoxes ?? 0) - (row.notionBoxes ?? 0) > 0 ? '+' : ''}${(row.excelBoxes ?? 0) - (row.notionBoxes ?? 0)}` : '❓'}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+                <div className="flex gap-4 mt-3 px-3 py-2 bg-gray-50 rounded-lg text-xs text-gray-600">
+                  <span>Excel: <strong className="text-gray-900">{excelTotal} 箱</strong></span>
+                  <span>Notion: <strong className="text-gray-900">{notionTotal} 箱</strong></span>
+                  {excelTotal !== notionTotal && (
+                    <span className="ml-auto font-semibold text-orange-500">差異 {excelTotal - notionTotal > 0 ? '+' : ''}{excelTotal - notionTotal} 箱 ⚠</span>
+                  )}
+                  {excelTotal === notionTotal && (
+                    <span className="ml-auto font-semibold text-emerald-600">差異 0 箱 ✓</span>
+                  )}
+                </div>
+              </div>
+              <div className="px-5 py-3 border-t border-gray-200 bg-gray-50 flex justify-end gap-2">
+                <button
+                  onClick={() => setPendingGenerateRound(null)}
+                  className="px-4 py-1.5 text-xs font-semibold text-gray-600 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors cursor-pointer"
+                >
+                  {T.verifyBack}
+                </button>
+                <button
+                  onClick={() => { setPendingGenerateRound(null); doGenerateOrder(pendingGenerateRound!) }}
+                  className={`px-4 py-1.5 text-xs font-semibold text-white rounded-lg transition-colors cursor-pointer ${
+                    hasMismatch ? 'bg-orange-500 hover:bg-orange-600' : 'bg-emerald-500 hover:bg-emerald-600'
+                  }`}
+                >
+                  {hasMismatch ? `⚠ ${T.verifyConfirm}` : `✓ ${T.verifyConfirm}`}
+                </button>
+              </div>
+            </div>
+          </div>
+        )
+      })()}
+
       {/* Password modal */}
       {showPassword && (
         <PasswordModal
@@ -714,7 +834,7 @@ export default function DeliveryPlan({ batchId, batchName, totalBoxes, records, 
                   <div className="flex gap-1 flex-shrink-0" onClick={e => e.stopPropagation()}>
                     {supplierExcelId && (
                       <button
-                        onClick={() => doGenerateOrder(g.roundNo)}
+                        onClick={() => handleGenerateClick(g.roundNo)}
                         disabled={generatingRound === g.roundNo}
                         title={lang === 'ja' ? '出荷伝票を生成' : '產生出貨單'}
                         className="text-blue-400 hover:text-blue-600 transition-colors text-xs disabled:opacity-40"
@@ -758,7 +878,7 @@ export default function DeliveryPlan({ batchId, batchName, totalBoxes, records, 
                     <div className="pt-1.5 border-t border-gray-100">
                       {supplierExcelId ? (
                         <button
-                          onClick={() => doGenerateOrder(g.roundNo)}
+                          onClick={() => handleGenerateClick(g.roundNo)}
                           disabled={generatingRound === g.roundNo}
                           className="w-full py-1.5 bg-blue-50 text-blue-600 text-xs font-medium rounded-lg hover:bg-blue-100 disabled:opacity-40 transition-colors flex items-center justify-center gap-1"
                         >

@@ -31,7 +31,44 @@ async function grantDriveAccess(emails: string[]) {
 
 export async function POST(req: NextRequest) {
   try {
-    const { batchName, supplier, flightNo, awbNo, departJP, arrivalTW, totalBoxes, fileNames } = await req.json()
+    const body = await req.json()
+
+    // ── Chase doc reminder ────────────────────────────────────────────────────
+    if (body.type === 'chase') {
+      const { batchName, missingDocs, departJP } = body
+      if (!process.env.GMAIL_USER || !process.env.GMAIL_APP_PASSWORD)
+        return NextResponse.json({ ok: true, skipped: 'gmail not configured' })
+
+      const transporter = nodemailer.createTransport({
+        service: 'gmail',
+        auth: { user: process.env.GMAIL_USER, pass: process.env.GMAIL_APP_PASSWORD },
+      })
+      const missingList = (missingDocs as string[]).map(d => `<li>${d}</li>`).join('')
+      const html = `
+<div style="font-family:sans-serif;max-width:480px;margin:0 auto">
+  <div style="background:#f97316;padding:16px 24px;border-radius:8px 8px 0 0">
+    <p style="color:white;font-size:18px;font-weight:700;margin:0">📨 LOPIA — 書類催促</p>
+  </div>
+  <div style="border:1px solid #eee;border-top:none;border-radius:0 0 8px 8px;padding:20px 24px">
+    <p style="margin:0 0 12px;color:#333">以下の書類が未提出です。至急ご確認ください。</p>
+    <p style="margin:0 0 6px;font-weight:600;color:#444">バッチ：${batchName}</p>
+    <p style="margin:0 0 6px;color:#444">出発日：${departJP ?? '—'}</p>
+    <p style="margin:8px 0 4px;color:#444">未提出書類：</p>
+    <ul style="margin:0;padding-left:20px;color:#d32f2f;font-weight:600">${missingList}</ul>
+    <p style="margin-top:16px;font-size:12px;color:#aaa">此信件由 LOPIA 進口追蹤系統自動發送</p>
+  </div>
+</div>`
+      await transporter.sendMail({
+        from: `"LOPIA 進口系統" <${process.env.GMAIL_USER}>`,
+        to: process.env.GMAIL_USER,
+        subject: `【催件】${batchName} - 文件未齊`,
+        html,
+      })
+      return NextResponse.json({ ok: true })
+    }
+
+    // ── New batch notification ────────────────────────────────────────────────
+    const { batchName, supplier, flightNo, awbNo, departJP, arrivalTW, totalBoxes, fileNames } = body
 
     const recipients = process.env.NOTIFY_EMAILS ?? ''
     if (!recipients) return NextResponse.json({ ok: true, skipped: 'no recipients' })

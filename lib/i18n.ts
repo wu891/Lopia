@@ -164,6 +164,27 @@ export const t = {
     // Month view
     listView: '列表',
     calendarView: '月曆',
+    // Feature 2: Document urgency
+    chaseBtn: '催件送信',
+    chaseSending: '傳送中...',
+    chaseOk: '催件已送出',
+    chaseError: '傳送失敗',
+    // Feature 3: Arrival preview
+    previewTab: '進貨預告',
+    previewEmpty: '14天內無預計到貨批次',
+    previewCopy: '複製 LINE 格式',
+    previewCopied: '複製完成',
+    previewArrival: '抵台日',
+    previewTotalBoxes: '合計',
+    // Feature 1: 3-way verification
+    verifyModalTitle: '出貨前三對照確認',
+    verifyExcel: 'Excel 振分け',
+    verifyNotion: 'Notion 計畫',
+    verifyDiff: '狀態',
+    verifyConfirm: '確認無誤，生成出貨單',
+    verifyBack: '返回修正',
+    verifyAllMatch: 'Excel 與 Notion 計畫完全一致，可直接生成。',
+    verifyHasMismatch: '件差異，請確認後再生成。',
   },
   ja: {
     title: 'LOPIA 商品ステータス',
@@ -328,5 +349,26 @@ export const t = {
     // Month view
     listView: 'リスト',
     calendarView: 'カレンダー',
+    // Feature 2: Document urgency
+    chaseBtn: '催促メール送信',
+    chaseSending: '送信中...',
+    chaseOk: '催促メール送信済み',
+    chaseError: '送信失敗',
+    // Feature 3: Arrival preview
+    previewTab: '入荷予定',
+    previewEmpty: '14日以内に到着予定の便はありません',
+    previewCopy: 'LINEテキストをコピー',
+    previewCopied: 'コピー完了',
+    previewArrival: '台湾着',
+    previewTotalBoxes: '合計',
+    // Feature 1: 3-way verification
+    verifyModalTitle: '出荷前三点照合確認',
+    verifyExcel: 'Excel 振分け',
+    verifyNotion: 'Notion 計画',
+    verifyDiff: '状態',
+    verifyConfirm: '確認済み、出荷伝票を生成',
+    verifyBack: '修正に戻る',
+    verifyAllMatch: 'ExcelとNotionの計画が完全に一致しています。',
+    verifyHasMismatch: '件の差異があります。確認後に生成してください。',
   }
 }
