@@ -612,8 +612,8 @@ async function syncFromNotion() {
         const batchIds = [...new Set(completed.map(r => r.batchId).filter(Boolean))];
         const batchesNeedingPrices = batchIds.filter(id => !batchPrices[id] || batchPrices[id].length === 0);
 
-        // Remove old Notion-sourced rows and rebuild
-        allData = allData.filter(r => r.source !== 'notion');
+        // Replace all data with Notion as sole source of truth
+        allData = [];
 
         // Create rows from Notion records
         completed.forEach(rec => {
