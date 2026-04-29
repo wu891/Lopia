@@ -526,3 +526,77 @@ export async function updateFurikomiRecord(id: string, data: Partial<{
 export async function deleteFurikomiRecord(id: string): Promise<void> {
   await notion.pages.update({ page_id: id, archived: true })
 }
+
+// ── Batch Prices ──────────────────────────────────────────────────────────────
+
+export interface BatchPriceEntry {
+  product: string
+  spec: string
+  unitPrice: number
+  category: string
+  sortOrder?: number
+}
+
+export async function getBatchPrices(): Promise<Record<string, BatchPriceEntry[]>> {
+  const BATCH_PRICES_DB = process.env.NOTION_BATCH_PRICES_DB
+  if (!BATCH_PRICES_DB) return {}
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const results: any[] = []
+  let cursor: string | undefined
+  do {
+    const res = await notion.databases.query({
+      database_id: BATCH_PRICES_DB,
+      sorts: [{ property: 'SortOrder', direction: 'ascending' }],
+      page_size: 100,
+      ...(cursor ? { start_cursor: cursor } : {}),
+    })
+    results.push(...res.results)
+    cursor = res.has_more ? (res.next_cursor ?? undefined) : undefined
+  } while (cursor)
+
+  const map: Record<string, BatchPriceEntry[]> = {}
+  results.forEach(page => {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const p = (page as any).properties
+    const batchId = getText(p['BatchId'])
+    if (!batchId) return
+    if (!map[batchId]) map[batchId] = []
+    map[batchId].push({
+      product: getText(p['Product']) ?? '',
+      spec: getText(p['Spec']) ?? '',
+      unitPrice: getNumber(p['UnitPrice']) ?? 0,
+      category: getSelect(p['Category']) ?? '水果',
+      sortOrder: getNumber(p['SortOrder']) ?? 0,
+    })
+  })
+  return map
+}
+
+export async function saveBatchPrices(prices: Record<string, BatchPriceEntry[]>): Promise<void> {
+  const BATCH_PRICES_DB = process.env.NOTION_BATCH_PRICES_DB
+  if (!BATCH_PRICES_DB) return
+
+  for (const batchId of Object.keys(prices)) {
+    const existing = await notion.databases.query({
+      database_id: BATCH_PRICES_DB,
+      filter: { property: 'BatchId', rich_text: { equals: batchId } },
+    })
+    await Promise.all(existing.results.map(page =>
+      notion.pages.update({ page_id: page.id, archived: true })
+    ))
+    await Promise.all((prices[batchId] || []).map((e, i) =>
+      notion.pages.create({
+        parent: { database_id: BATCH_PRICES_DB },
+        properties: {
+          '名稱': { title: [{ text: { content: `${batchId}_${e.product}` } }] },
+          'BatchId': { rich_text: [{ text: { content: batchId } }] },
+          'Product': { rich_text: [{ text: { content: e.product } }] },
+          'Spec': { rich_text: [{ text: { content: e.spec || '' } }] },
+          'UnitPrice': { number: e.unitPrice },
+          'Category': { select: { name: e.category } },
+          'SortOrder': { number: i },
+        },
+      })
+    ))
+  }
+}

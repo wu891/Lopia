@@ -588,17 +588,26 @@ async function syncFromNotion() {
     if (btn) btn.disabled = true;
 
     try {
-        // Fetch both endpoints in parallel
+        // Fetch all endpoints in parallel
         setLoadingText('正在拉取出貨記錄與批次資料...');
-        const [shipRes, recRes] = await Promise.all([
+        const [shipRes, recRes, priceRes] = await Promise.all([
             fetch(`${API_BASE}/api/shipments`),
-            fetch(`${API_BASE}/api/records`)
+            fetch(`${API_BASE}/api/records`),
+            fetch(`${API_BASE}/api/batch-prices`),
         ]);
 
         if (!shipRes.ok || !recRes.ok) throw new Error('API 回應異常');
 
         const { shipments } = await shipRes.json();
         const { records } = await recRes.json();
+
+        // 載入共用單價（Notion 覆蓋本地，讓所有人看到一致金額）
+        if (priceRes.ok) {
+            const { prices } = await priceRes.json();
+            if (prices && typeof prices === 'object') {
+                batchPrices = { ...batchPrices, ...prices };
+            }
+        }
 
         setLoadingText('正在比對與建立資料...');
 
@@ -993,6 +1002,12 @@ function savePricesAndClose() {
     });
 
     saveLocal();
+    // 背景儲存單價到 Notion（讓所有人下次同步時取得相同單價）
+    fetch(`${API_BASE}/api/batch-prices`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ prices: batchPrices }),
+    }).catch(err => console.warn('單價同步至 Notion 失敗：', err));
     closePriceModal();
 
     // Re-sync Notion data with new prices
