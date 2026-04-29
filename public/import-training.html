@@ -3,979 +3,1641 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>LOPIA 日本進口流程｜教育訓練</title>
-<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;700&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet">
+<title>LOPIA 台灣進口業務 SOP</title>
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@300;400;500;700;900&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet">
 <style>
-  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+:root {
+  --navy: #1a2744;
+  --navy2: #243059;
+  --blue: #2563a8;
+  --blue-light: #3b82c4;
+  --accent: #e8a020;
+  --red: #d93025;
+  --green: #1a8a4a;
+  --bg: #f4f6f9;
+  --card: #ffffff;
+  --text: #1c2333;
+  --muted: #6b7a99;
+  --border: #dde3ee;
+  --warn-bg: #fffbeb;
+  --warn-border: #f59e0b;
+  --danger-bg: #fef2f2;
+  --danger-border: #dc2626;
+  --ok-bg: #f0fdf4;
+  --ok-border: #22c55e;
+  --info-bg: #eff6ff;
+  --info-border: #3b82f6;
+  --sidebar-w: 260px;
+  --header-h: 60px;
+}
 
-  :root {
-    --blue-50: #EFF6FF; --blue-200: #BFDBFE; --blue-500: #3B82F6; --blue-700: #1D4ED8; --blue-900: #1E3A8A;
-    --green-50: #F0FDF4; --green-200: #BBF7D0; --green-500: #22C55E; --green-700: #15803D; --green-900: #14532D;
-    --amber-50: #FFFBEB; --amber-200: #FDE68A; --amber-500: #F59E0B; --amber-700: #B45309; --amber-900: #78350F;
-    --rose-50: #FFF1F2; --rose-200: #FECDD3; --rose-500: #F43F5E; --rose-700: #BE123C; --rose-900: #881337;
-    --purple-50: #FAF5FF; --purple-200: #E9D5FF; --purple-500: #A855F7; --purple-700: #7E22CE; --purple-900: #581C87;
-    --gray-50: #F9FAFB; --gray-100: #F3F4F6; --gray-200: #E5E7EB; --gray-400: #9CA3AF; --gray-600: #4B5563; --gray-800: #1F2937; --gray-900: #111827;
-    --red-100: #FEE2E2; --red-600: #DC2626;
-    --bg: #F8F9FB;
-    --panel-w: 380px;
-    --font: 'Noto Sans TC', sans-serif;
-    --mono: 'DM Mono', monospace;
-  }
+* { margin: 0; padding: 0; box-sizing: border-box; }
 
-  body {
-    font-family: var(--font);
-    background: var(--bg);
-    color: var(--gray-800);
-    min-height: 100vh;
-    display: flex;
-    flex-direction: column;
-  }
+body {
+  font-family: 'Noto Sans TC', sans-serif;
+  background: var(--bg);
+  color: var(--text);
+  display: flex;
+  min-height: 100vh;
+}
 
-  /* ─── HEADER ─── */
-  header {
-    background: var(--gray-900);
-    color: #fff;
-    padding: 16px 32px;
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    position: sticky;
-    top: 0;
-    z-index: 100;
-    border-bottom: 1px solid #374151;
-  }
-  header h1 { font-size: 15px; font-weight: 700; letter-spacing: 0.03em; }
-  header p { font-size: 12px; color: var(--gray-400); margin-top: 2px; font-family: var(--mono); }
-  .badge {
-    font-size: 11px; font-weight: 500; font-family: var(--mono);
-    background: #1F2937; border: 1px solid #374151;
-    color: var(--gray-400); padding: 4px 10px; border-radius: 20px;
-  }
+/* ── Sidebar ─────────────────────────────────────────── */
+.sidebar {
+  width: var(--sidebar-w);
+  background: var(--navy);
+  min-height: 100vh;
+  position: fixed;
+  top: 0; left: 0;
+  display: flex;
+  flex-direction: column;
+  z-index: 100;
+  overflow-y: auto;
+}
 
-  /* ─── LAYOUT ─── */
-  .layout {
-    display: flex;
-    flex: 1;
-    min-height: calc(100vh - 57px);
-  }
+.sidebar-logo {
+  padding: 24px 20px 16px;
+  border-bottom: 1px solid rgba(255,255,255,0.08);
+}
+.sidebar-logo .brand {
+  font-size: 11px;
+  font-weight: 500;
+  letter-spacing: 0.15em;
+  color: rgba(255,255,255,0.4);
+  text-transform: uppercase;
+  margin-bottom: 6px;
+}
+.sidebar-logo .title {
+  font-size: 17px;
+  font-weight: 700;
+  color: #fff;
+  line-height: 1.3;
+}
+.sidebar-logo .subtitle {
+  font-size: 11px;
+  color: rgba(255,255,255,0.45);
+  margin-top: 4px;
+}
 
-  /* ─── FLOW COLUMN ─── */
-  .flow-col {
-    flex: 1;
-    padding: 32px 24px 64px;
-    overflow-y: auto;
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    gap: 0;
-    transition: margin-right 0.35s cubic-bezier(.4,0,.2,1);
-  }
+.sidebar-search {
+  padding: 12px 14px;
+  border-bottom: 1px solid rgba(255,255,255,0.06);
+}
+.sidebar-search input {
+  width: 100%;
+  background: rgba(255,255,255,0.07);
+  border: 1px solid rgba(255,255,255,0.12);
+  border-radius: 6px;
+  padding: 7px 10px 7px 32px;
+  color: #fff;
+  font-size: 13px;
+  font-family: 'Noto Sans TC', sans-serif;
+  outline: none;
+  transition: border-color .2s;
+}
+.sidebar-search input::placeholder { color: rgba(255,255,255,0.3); }
+.sidebar-search input:focus { border-color: var(--blue-light); }
+.sidebar-search .search-icon {
+  position: absolute;
+  left: 24px;
+  top: 50%;
+  transform: translateY(-50%);
+  color: rgba(255,255,255,0.3);
+  font-size: 14px;
+  pointer-events: none;
+}
+.sidebar-search { position: relative; }
 
-  /* ─── PHASE ─── */
-  .phase {
-    width: 100%;
-    max-width: 560px;
-    margin-bottom: 8px;
-  }
-  .phase-label {
-    display: flex;
-    align-items: center;
-    gap: 10px;
-    padding: 6px 14px 6px 10px;
-    border-radius: 8px 8px 0 0;
-    font-size: 11px;
-    font-weight: 700;
-    letter-spacing: 0.08em;
-    text-transform: uppercase;
-    margin-bottom: 0;
-  }
-  .phase-label .dot { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; }
-  .phase-label .who { margin-left: auto; font-weight: 400; font-size: 10.5px; opacity: 0.75; font-family: var(--mono); }
+.nav-section {
+  padding: 6px 0;
+}
+.nav-section-label {
+  font-size: 9.5px;
+  font-weight: 700;
+  letter-spacing: 0.18em;
+  color: rgba(255,255,255,0.28);
+  text-transform: uppercase;
+  padding: 10px 18px 4px;
+}
+.nav-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 18px;
+  cursor: pointer;
+  transition: background .15s;
+  border-left: 3px solid transparent;
+  color: rgba(255,255,255,0.6);
+  font-size: 13px;
+  font-weight: 400;
+  text-decoration: none;
+}
+.nav-item:hover {
+  background: rgba(255,255,255,0.07);
+  color: rgba(255,255,255,0.9);
+}
+.nav-item.active {
+  background: rgba(37,99,168,0.25);
+  border-left-color: var(--blue-light);
+  color: #fff;
+  font-weight: 600;
+}
+.nav-item .num {
+  font-size: 10px;
+  font-weight: 700;
+  font-family: 'JetBrains Mono', monospace;
+  background: rgba(255,255,255,0.1);
+  color: rgba(255,255,255,0.5);
+  border-radius: 3px;
+  padding: 1px 5px;
+  min-width: 22px;
+  text-align: center;
+}
+.nav-item.active .num {
+  background: var(--blue);
+  color: #fff;
+}
 
-  .ph-blue  .phase-label { background: var(--blue-900);  color: #fff; }
-  .ph-blue  .phase-label .dot { background: var(--blue-200); }
-  .ph-green .phase-label { background: var(--green-900); color: #fff; }
-  .ph-green .phase-label .dot { background: var(--green-200); }
-  .ph-amber .phase-label { background: var(--amber-900); color: #fff; }
-  .ph-amber .phase-label .dot { background: var(--amber-200); }
-  .ph-rose  .phase-label { background: var(--rose-900);  color: #fff; }
-  .ph-rose  .phase-label .dot { background: var(--rose-200); }
-  .ph-purple .phase-label { background: var(--purple-900); color: #fff; }
-  .ph-purple .phase-label .dot { background: var(--purple-200); }
+.sidebar-footer {
+  margin-top: auto;
+  padding: 14px 18px;
+  border-top: 1px solid rgba(255,255,255,0.07);
+  font-size: 11px;
+  color: rgba(255,255,255,0.25);
+}
 
-  .phase-body {
-    border: 1.5px solid;
-    border-top: none;
-    border-radius: 0 0 12px 12px;
-    padding: 14px 14px 18px;
-    display: flex;
-    flex-direction: column;
-    gap: 0;
-  }
-  .ph-blue  .phase-body { border-color: var(--blue-200);  background: var(--blue-50); }
-  .ph-green .phase-body { border-color: var(--green-200); background: var(--green-50); }
-  .ph-amber .phase-body { border-color: var(--amber-200); background: var(--amber-50); }
-  .ph-rose  .phase-body { border-color: var(--rose-200);  background: var(--rose-50); }
-  .ph-purple .phase-body { border-color: var(--purple-200); background: var(--purple-50); }
+/* ── Main content ─────────────────────────────────────── */
+.main {
+  margin-left: var(--sidebar-w);
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  min-height: 100vh;
+}
 
-  /* ─── STEP CARD ─── */
-  .step {
-    display: flex;
-    align-items: center;
-    gap: 12px;
-    padding: 12px 14px;
-    border-radius: 8px;
-    cursor: pointer;
-    transition: background 0.15s, box-shadow 0.15s, transform 0.12s;
-    position: relative;
-    border: 1.5px solid transparent;
-    background: #fff;
-    margin-top: 6px;
-  }
-  .step:hover { transform: translateX(3px); box-shadow: 0 2px 12px rgba(0,0,0,0.08); }
-  .step.active {
-    border-color: currentColor;
-    box-shadow: 0 0 0 3px rgba(59,130,246,0.12);
-  }
-  .ph-blue  .step.active { border-color: var(--blue-500); }
-  .ph-green .step.active { border-color: var(--green-500); }
-  .ph-amber .step.active { border-color: var(--amber-500); }
-  .ph-rose  .step.active { border-color: var(--rose-500); }
-  .ph-purple .step.active { border-color: var(--purple-500); }
+.topbar {
+  height: var(--header-h);
+  background: var(--card);
+  border-bottom: 1px solid var(--border);
+  display: flex;
+  align-items: center;
+  padding: 0 32px;
+  gap: 16px;
+  position: sticky;
+  top: 0;
+  z-index: 50;
+}
+.topbar-breadcrumb {
+  font-size: 13px;
+  color: var(--muted);
+}
+.topbar-breadcrumb .current {
+  color: var(--text);
+  font-weight: 600;
+}
+.topbar-actions {
+  margin-left: auto;
+  display: flex;
+  gap: 8px;
+}
+.btn {
+  padding: 6px 14px;
+  border-radius: 6px;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  border: none;
+  transition: all .15s;
+  font-family: 'Noto Sans TC', sans-serif;
+}
+.btn-outline {
+  background: transparent;
+  border: 1px solid var(--border);
+  color: var(--muted);
+}
+.btn-outline:hover { border-color: var(--blue); color: var(--blue); }
+.btn-primary { background: var(--blue); color: #fff; }
+.btn-primary:hover { background: var(--navy2); }
 
-  .step-num {
-    width: 28px; height: 28px;
-    border-radius: 50%;
-    font-size: 12px; font-weight: 700; font-family: var(--mono);
-    display: flex; align-items: center; justify-content: center;
-    flex-shrink: 0;
-  }
-  .ph-blue  .step-num { background: var(--blue-700);  color: #fff; }
-  .ph-green .step-num { background: var(--green-700); color: #fff; }
-  .ph-amber .step-num { background: var(--amber-700); color: #fff; }
-  .ph-rose  .step-num { background: var(--rose-700);  color: #fff; }
-  .ph-purple .step-num { background: var(--purple-700); color: #fff; }
+.content {
+  padding: 32px;
+  max-width: 900px;
+}
 
-  .step-text { flex: 1; }
-  .step-title { font-size: 13.5px; font-weight: 700; }
-  .step-sub   { font-size: 11.5px; color: var(--gray-600); margin-top: 2px; }
-  .step-warn  { font-size: 11px; color: var(--red-600); font-weight: 600; margin-top: 3px; display: flex; align-items: center; gap: 4px; }
-  .step-arrow { font-size: 14px; color: var(--gray-400); flex-shrink: 0; transition: transform 0.2s; }
-  .step.active .step-arrow { transform: rotate(90deg); color: var(--gray-600); }
+/* ── Section ─────────────────────────────────────────── */
+.section {
+  display: none;
+  animation: fadeIn .25s ease;
+}
+.section.active { display: block; }
+@keyframes fadeIn { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
 
-  /* connector between steps */
-  .connector {
-    width: 2px; height: 18px;
-    background: var(--gray-200);
-    margin: 0 auto;
-    border-radius: 2px;
-  }
+.section-header {
+  margin-bottom: 28px;
+}
+.section-num {
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.15em;
+  color: var(--blue);
+  text-transform: uppercase;
+  margin-bottom: 6px;
+}
+.section-title {
+  font-size: 28px;
+  font-weight: 900;
+  color: var(--navy);
+  line-height: 1.2;
+}
+.section-desc {
+  margin-top: 8px;
+  font-size: 14px;
+  color: var(--muted);
+  line-height: 1.7;
+}
 
-  /* decision diamond */
-  .decision-wrap {
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    margin-top: 6px;
-  }
-  .diamond {
-    width: 120px; height: 52px;
-    position: relative;
-    display: flex; align-items: center; justify-content: center;
-    cursor: default;
-  }
-  .diamond::before {
-    content: '';
-    position: absolute; inset: 0;
-    background: var(--green-200);
-    clip-path: polygon(50% 0%, 100% 50%, 50% 100%, 0% 50%);
-    border-radius: 2px;
-  }
-  .diamond span { font-size: 11px; font-weight: 700; color: var(--green-900); position: relative; z-index: 1; }
-  .branches {
-    display: flex;
-    gap: 16px;
-    margin-top: 6px;
-    width: 100%;
-  }
-  .branch {
-    flex: 1;
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    gap: 0;
-  }
-  .branch-label {
-    font-size: 10px; font-weight: 700;
-    padding: 2px 10px; border-radius: 12px;
-    margin-bottom: 4px;
-  }
-  .branch-yes .branch-label { background: var(--red-100); color: var(--red-600); }
-  .branch-no  .branch-label { background: var(--green-200); color: var(--green-900); }
-  .branch-box {
-    padding: 8px 12px;
-    border-radius: 8px;
-    font-size: 11.5px; font-weight: 600; text-align: center;
-    width: 100%;
-    border: 1.5px solid;
-  }
-  .branch-yes .branch-box { background: var(--red-100); border-color: var(--red-600); color: var(--red-600); }
-  .branch-no  .branch-box { background: var(--green-50); border-color: var(--green-500); color: var(--green-700); }
-  .loop-note {
-    width: 100%;
-    margin-top: 8px;
-    padding: 7px 12px;
-    background: var(--rose-50);
-    border: 1.5px dashed var(--rose-500);
-    border-radius: 8px;
-    font-size: 11px;
-    color: var(--rose-700);
-    display: flex;
-    align-items: center;
-    gap: 6px;
-  }
+/* ── Cards ─────────────────────────────────────────── */
+.card {
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 20px 24px;
+  margin-bottom: 16px;
+}
+.card-title {
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--navy);
+  margin-bottom: 14px;
+  padding-bottom: 10px;
+  border-bottom: 2px solid var(--bg);
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.card-title .icon { font-size: 16px; }
 
-  /* ─── DETAIL PANEL ─── */
-  .panel {
-    width: var(--panel-w);
-    flex-shrink: 0;
-    background: #fff;
-    border-left: 1px solid var(--gray-200);
-    position: sticky;
-    top: 57px;
-    height: calc(100vh - 57px);
-    overflow-y: auto;
-    transform: translateX(100%);
-    transition: transform 0.35s cubic-bezier(.4,0,.2,1);
-    padding: 0;
-    display: flex;
-    flex-direction: column;
-  }
-  .panel.open { transform: translateX(0); }
+/* ── Table ─────────────────────────────────────────── */
+table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+}
+th {
+  background: var(--navy);
+  color: #fff;
+  padding: 9px 14px;
+  text-align: left;
+  font-weight: 600;
+  font-size: 12px;
+  letter-spacing: 0.04em;
+}
+th:first-child { border-radius: 6px 0 0 0; }
+th:last-child { border-radius: 0 6px 0 0; }
+td {
+  padding: 9px 14px;
+  border-bottom: 1px solid var(--border);
+  vertical-align: top;
+  line-height: 1.55;
+}
+tr:nth-child(even) td { background: #fafbfd; }
+tr:last-child td { border-bottom: none; }
+tr:hover td { background: #f0f4ff; }
 
-  .panel-header {
-    padding: 20px 24px 16px;
-    border-bottom: 1px solid var(--gray-100);
-    position: sticky;
-    top: 0;
-    background: #fff;
-    z-index: 10;
-  }
-  .panel-phase-tag {
-    font-size: 10px; font-weight: 700; letter-spacing: 0.08em;
-    text-transform: uppercase; font-family: var(--mono);
-    padding: 2px 8px; border-radius: 12px;
-    display: inline-block; margin-bottom: 8px;
-  }
-  .panel-title { font-size: 18px; font-weight: 700; line-height: 1.3; }
-  .panel-close {
-    position: absolute; top: 16px; right: 20px;
-    width: 28px; height: 28px;
-    background: var(--gray-100); border: none; border-radius: 50%;
-    cursor: pointer; font-size: 16px; color: var(--gray-600);
-    display: flex; align-items: center; justify-content: center;
-    transition: background 0.15s;
-  }
-  .panel-close:hover { background: var(--gray-200); }
+/* ── Callouts ─────────────────────────────────────────── */
+.callout {
+  display: flex;
+  gap: 12px;
+  padding: 12px 16px;
+  border-radius: 8px;
+  margin-bottom: 10px;
+  font-size: 13.5px;
+  line-height: 1.6;
+}
+.callout-icon { font-size: 16px; flex-shrink: 0; margin-top: 1px; }
+.callout-text { flex: 1; }
+.callout-text strong { display: block; margin-bottom: 2px; font-size: 13px; }
+.callout.warn { background: var(--warn-bg); border-left: 4px solid var(--warn-border); }
+.callout.danger { background: var(--danger-bg); border-left: 4px solid var(--danger-border); }
+.callout.ok { background: var(--ok-bg); border-left: 4px solid var(--ok-border); }
+.callout.info { background: var(--info-bg); border-left: 4px solid var(--info-border); }
 
-  .panel-body { padding: 20px 24px 40px; flex: 1; }
+/* ── Steps ─────────────────────────────────────────── */
+.steps { display: flex; flex-direction: column; gap: 0; }
+.step {
+  display: flex;
+  gap: 16px;
+  position: relative;
+}
+.step:not(:last-child)::before {
+  content: '';
+  position: absolute;
+  left: 16px;
+  top: 36px;
+  bottom: 0;
+  width: 2px;
+  background: var(--border);
+}
+.step-num {
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  background: var(--blue);
+  color: #fff;
+  font-size: 13px;
+  font-weight: 700;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  position: relative;
+  z-index: 1;
+}
+.step-body { padding: 4px 0 20px; flex: 1; }
+.step-body strong { font-size: 14px; color: var(--navy); }
+.step-body p { font-size: 13px; color: var(--muted); margin-top: 4px; line-height: 1.6; }
+.step-body ul { margin-top: 6px; padding-left: 16px; }
+.step-body li { font-size: 13px; color: var(--muted); line-height: 1.7; }
 
-  .panel-section { margin-bottom: 20px; }
-  .panel-section-title {
-    font-size: 10px; font-weight: 700; letter-spacing: 0.1em;
-    text-transform: uppercase; color: var(--gray-400);
-    font-family: var(--mono);
-    margin-bottom: 8px;
-    display: flex; align-items: center; gap: 6px;
-  }
-  .panel-section-title::after {
-    content: ''; flex: 1; height: 1px; background: var(--gray-100);
-  }
+/* ── Timeline / doc schedule ─────────────────────────── */
+.timeline { display: flex; flex-direction: column; gap: 0; }
+.tl-item {
+  display: grid;
+  grid-template-columns: 140px 1fr;
+  gap: 0;
+  position: relative;
+}
+.tl-item:not(:last-child)::after {
+  content: '';
+  position: absolute;
+  left: 139px;
+  top: 36px;
+  bottom: 0;
+  width: 2px;
+  background: linear-gradient(to bottom, var(--blue), var(--border));
+}
+.tl-time {
+  padding: 12px 16px 24px 0;
+  text-align: right;
+}
+.tl-time .label {
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--blue);
+  line-height: 1.3;
+}
+.tl-time .sub {
+  font-size: 11px;
+  color: var(--muted);
+  margin-top: 2px;
+}
+.tl-dot {
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  background: var(--blue);
+  border: 3px solid var(--bg);
+  box-shadow: 0 0 0 2px var(--blue);
+  flex-shrink: 0;
+  margin-top: 14px;
+  margin-left: -6px;
+  margin-right: 16px;
+  position: relative;
+  z-index: 1;
+}
+.tl-content { padding: 8px 0 24px 20px; }
+.tl-content .title { font-size: 14px; font-weight: 700; color: var(--navy); }
+.tl-content .docs { margin-top: 6px; display: flex; flex-direction: column; gap: 4px; }
+.doc-tag {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  background: var(--info-bg);
+  border: 1px solid var(--info-border);
+  color: var(--blue);
+  font-size: 12px;
+  font-weight: 600;
+  padding: 3px 8px;
+  border-radius: 4px;
+  width: fit-content;
+}
 
-  .person-chips { display: flex; flex-wrap: wrap; gap: 6px; }
-  .chip {
-    font-size: 11.5px; font-weight: 600; padding: 4px 10px;
-    border-radius: 20px; border: 1px solid;
-    font-family: var(--mono);
-  }
+/* ── Store grid ─────────────────────────────────────── */
+.store-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(130px, 1fr));
+  gap: 8px;
+}
+.store-card {
+  background: var(--navy);
+  color: #fff;
+  border-radius: 8px;
+  padding: 12px 14px;
+  cursor: pointer;
+  transition: all .15s;
+  position: relative;
+  overflow: hidden;
+}
+.store-card::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: rgba(255,255,255,0);
+  transition: background .15s;
+}
+.store-card:hover { background: var(--blue); transform: translateY(-1px); box-shadow: 0 4px 12px rgba(37,99,168,0.3); }
+.store-code {
+  font-size: 10px;
+  font-family: 'JetBrains Mono', monospace;
+  color: rgba(255,255,255,0.4);
+  margin-bottom: 4px;
+}
+.store-name { font-size: 14px; font-weight: 700; }
+.store-region { font-size: 11px; color: rgba(255,255,255,0.5); margin-top: 2px; }
 
-  .doc-list { list-style: none; display: flex; flex-direction: column; gap: 6px; }
-  .doc-list li {
-    font-size: 12.5px; padding: 7px 12px;
-    background: var(--gray-50); border-radius: 6px;
-    border: 1px solid var(--gray-200);
-    display: flex; align-items: flex-start; gap: 8px;
-  }
-  .doc-list li .icon { flex-shrink: 0; font-size: 14px; }
+/* ── Contact cards ─────────────────────────────────── */
+.contact-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+.contact-card {
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 16px 18px;
+  position: relative;
+  overflow: hidden;
+}
+.contact-card::before {
+  content: '';
+  position: absolute;
+  top: 0; left: 0; right: 0;
+  height: 3px;
+  background: var(--blue);
+}
+.contact-role { font-size: 10.5px; font-weight: 700; letter-spacing: 0.1em; color: var(--blue); text-transform: uppercase; margin-bottom: 6px; }
+.contact-name { font-size: 16px; font-weight: 700; color: var(--navy); }
+.contact-org { font-size: 12px; color: var(--muted); margin-top: 2px; }
+.contact-detail { margin-top: 10px; font-size: 12px; color: var(--muted); line-height: 1.7; }
+.contact-detail .line { display: flex; gap: 6px; align-items: flex-start; }
+.contact-detail .line span:first-child { color: var(--blue); font-weight: 600; min-width: 14px; }
 
-  .warn-list { list-style: none; display: flex; flex-direction: column; gap: 6px; }
-  .warn-list li {
-    font-size: 12.5px; padding: 8px 12px;
-    background: #FFF5F5; border-radius: 6px;
-    border-left: 3px solid var(--red-600);
-    color: var(--gray-800);
-    line-height: 1.5;
-  }
-  .warn-list li strong { color: var(--red-600); }
+/* ── Checklist ─────────────────────────────────────── */
+.checklist { display: flex; flex-direction: column; gap: 6px; }
+.check-item {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 10px 14px;
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  cursor: pointer;
+  transition: all .15s;
+  user-select: none;
+}
+.check-item:hover { border-color: var(--blue); }
+.check-item.checked {
+  background: var(--ok-bg);
+  border-color: var(--ok-border);
+}
+.check-item.checked .check-text { color: var(--muted); text-decoration: line-through; }
+.check-box {
+  width: 18px;
+  height: 18px;
+  border-radius: 4px;
+  border: 2px solid var(--border);
+  flex-shrink: 0;
+  margin-top: 1px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 11px;
+  color: var(--green);
+  background: transparent;
+  transition: all .15s;
+}
+.check-item.checked .check-box { background: var(--green); border-color: var(--green); color: #fff; }
+.check-text { font-size: 13.5px; line-height: 1.5; }
 
-  .tip-box {
-    background: #FFFBEB; border: 1px solid var(--amber-200);
-    border-radius: 8px; padding: 12px 14px;
-    font-size: 12.5px; line-height: 1.6; color: var(--amber-900);
-  }
-  .tip-box .tip-title { font-weight: 700; margin-bottom: 4px; font-size: 11px; text-transform: uppercase; letter-spacing: 0.06em; }
+/* ── Accordion ─────────────────────────────────────── */
+.accordion-item {
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  margin-bottom: 6px;
+  overflow: hidden;
+}
+.accordion-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 13px 16px;
+  cursor: pointer;
+  background: var(--card);
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--navy);
+  transition: background .15s;
+  gap: 12px;
+}
+.accordion-header:hover { background: #f8faff; }
+.accordion-header.open { background: #f0f4ff; border-bottom: 1px solid var(--border); }
+.accordion-chevron {
+  font-size: 12px;
+  color: var(--muted);
+  transition: transform .2s;
+  flex-shrink: 0;
+}
+.accordion-header.open .accordion-chevron { transform: rotate(180deg); }
+.accordion-body {
+  display: none;
+  padding: 16px;
+  background: var(--card);
+}
+.accordion-body.open { display: block; }
+.accordion-tag {
+  font-size: 11px;
+  padding: 2px 8px;
+  border-radius: 10px;
+  font-weight: 600;
+  flex-shrink: 0;
+}
+.tag-danger { background: #fee2e2; color: #dc2626; }
+.tag-warn { background: #fef3c7; color: #d97706; }
+.tag-ok { background: #dcfce7; color: #16a34a; }
 
-  .flow-mini {
-    background: var(--gray-50); border: 1px solid var(--gray-200);
-    border-radius: 8px; padding: 12px 14px;
-    font-size: 12px; color: var(--gray-800);
-    line-height: 2;
-    font-family: var(--mono);
-  }
-  .flow-mini .arrow { color: var(--gray-400); margin: 0 4px; }
+/* ── Quick ref ─────────────────────────────────────── */
+.quick-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.quick-card {
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 14px 16px;
+  cursor: pointer;
+  transition: all .15s;
+}
+.quick-card:hover { border-color: var(--blue); box-shadow: 0 2px 8px rgba(37,99,168,0.1); }
+.quick-card .situation { font-size: 12px; color: var(--muted); margin-bottom: 6px; font-weight: 600; }
+.quick-card .action { font-size: 14px; font-weight: 700; color: var(--navy); }
+.quick-card .contact { margin-top: 6px; font-size: 12px; color: var(--blue); font-weight: 600; }
 
-  /* color theming for panel */
-  .theme-blue  .panel-phase-tag { background: var(--blue-50);   color: var(--blue-700);   border: 1px solid var(--blue-200); }
-  .theme-blue  .chip            { background: var(--blue-50);   color: var(--blue-700);   border-color: var(--blue-200); }
-  .theme-green .panel-phase-tag { background: var(--green-50);  color: var(--green-700);  border: 1px solid var(--green-200); }
-  .theme-green .chip            { background: var(--green-50);  color: var(--green-700);  border-color: var(--green-200); }
-  .theme-amber .panel-phase-tag { background: var(--amber-50);  color: var(--amber-700);  border: 1px solid var(--amber-200); }
-  .theme-amber .chip            { background: var(--amber-50);  color: var(--amber-700);  border-color: var(--amber-200); }
-  .theme-rose  .panel-phase-tag { background: var(--rose-50);   color: var(--rose-700);   border: 1px solid var(--rose-200); }
-  .theme-rose  .chip            { background: var(--rose-50);   color: var(--rose-700);   border-color: var(--rose-200); }
-  .theme-purple .panel-phase-tag { background: var(--purple-50); color: var(--purple-700); border: 1px solid var(--purple-200); }
-  .theme-purple .chip            { background: var(--purple-50); color: var(--purple-700); border-color: var(--purple-200); }
+/* ── Progress bar ─────────────────────────────────── */
+.progress-bar {
+  height: 4px;
+  background: var(--border);
+  border-radius: 2px;
+  margin-bottom: 24px;
+  overflow: hidden;
+}
+.progress-fill {
+  height: 100%;
+  background: linear-gradient(90deg, var(--blue), var(--blue-light));
+  border-radius: 2px;
+  transition: width .3s ease;
+}
 
-  /* ─── EMPTY STATE ─── */
-  .empty-state {
-    flex: 1; display: flex; flex-direction: column;
-    align-items: center; justify-content: center;
-    padding: 40px 32px; text-align: center; color: var(--gray-400);
-    gap: 12px;
-  }
-  .empty-state .icon { font-size: 40px; opacity: 0.4; }
-  .empty-state p { font-size: 13px; line-height: 1.6; max-width: 240px; }
+/* ── Scroll indicator ─────────────────────────────── */
+.reading-progress {
+  position: fixed;
+  top: 0;
+  left: var(--sidebar-w);
+  right: 0;
+  height: 3px;
+  background: transparent;
+  z-index: 200;
+}
+.reading-fill {
+  height: 100%;
+  background: linear-gradient(90deg, var(--blue), var(--accent));
+  width: 0%;
+  transition: width .1s;
+}
 
-  /* responsive */
-  @media (max-width: 700px) {
-    :root { --panel-w: 100vw; }
-    .panel { position: fixed; top: 57px; right: 0; height: calc(100vh - 57px); z-index: 50; }
-    .flow-col { padding: 20px 12px 64px; }
-  }
+/* ── Search highlight ─────────────────────────────── */
+mark { background: #fef08a; padding: 0 2px; border-radius: 2px; }
 
-  /* progress bar */
-  .progress-bar {
-    height: 3px; background: var(--gray-200);
-    position: sticky; top: 57px; z-index: 99;
-  }
-  .progress-fill {
-    height: 100%; background: linear-gradient(90deg, var(--blue-500), var(--purple-500));
-    transition: width 0.3s;
-    width: 0%;
-  }
+/* ── Badge ─────────────────────────────────────────── */
+.badge {
+  display: inline-block;
+  padding: 2px 8px;
+  border-radius: 10px;
+  font-size: 11px;
+  font-weight: 700;
+}
+.badge-blue { background: #dbeafe; color: #1d4ed8; }
+.badge-orange { background: #ffedd5; color: #c2410c; }
 
-  /* footer hint */
-  .hint {
-    position: fixed; bottom: 16px; left: 50%; transform: translateX(-50%);
-    background: var(--gray-900); color: #fff;
-    font-size: 11.5px; padding: 8px 18px; border-radius: 20px;
-    pointer-events: none; opacity: 1; transition: opacity 0.5s;
-    white-space: nowrap; z-index: 200;
-  }
-  .hint.hidden { opacity: 0; }
+/* ── Season chart ─────────────────────────────────── */
+.season-grid { display: grid; grid-template-columns: 80px repeat(12,1fr); gap: 2px; font-size: 11px; }
+.season-label { display: flex; align-items: center; font-weight: 600; color: var(--muted); }
+.season-month {
+  text-align: center;
+  padding: 4px 2px;
+  border-radius: 3px;
+  font-size: 10px;
+}
+.season-month.active { background: var(--blue); color: #fff; font-weight: 700; }
+.season-month.peak { background: var(--accent); color: #fff; font-weight: 700; }
+.season-month.low { background: var(--bg); color: var(--muted); }
+
+code {
+  font-family: 'JetBrains Mono', monospace;
+  background: #f1f5f9;
+  padding: 1px 6px;
+  border-radius: 4px;
+  font-size: 12.5px;
+  color: var(--navy);
+}
+
+.divider { height: 1px; background: var(--border); margin: 24px 0; }
 </style>
 </head>
 <body>
 
-<header>
-  <div>
-    <h1>LOPIA 日本進口作業流程</h1>
-    <p>Trade Media Japan × LOPIA Taiwan　教育訓練資料</p>
+<div class="reading-progress"><div class="reading-fill" id="readingFill"></div></div>
+
+<!-- ── Sidebar ─────────────────────────────────────────── -->
+<nav class="sidebar">
+  <div class="sidebar-logo">
+    <div class="brand">TMJ Taiwan</div>
+    <div class="title">LOPIA 進口業務</div>
+    <div class="subtitle">新人作業標準流程 SOP</div>
   </div>
-  <div class="badge">點擊各步驟查看詳細說明</div>
-</header>
 
-<div class="progress-bar"><div class="progress-fill" id="progress"></div></div>
+  <div class="sidebar-search">
+    <span class="search-icon">🔍</span>
+    <input type="text" id="searchInput" placeholder="搜尋關鍵字...">
+  </div>
 
-<div class="layout">
-  <div class="flow-col" id="flowCol">
+  <div class="nav-section">
+    <div class="nav-section-label">基礎知識</div>
+    <div class="nav-item active" onclick="showSection('overview')">
+      <span class="num">1</span> 業務概覽
+    </div>
+    <div class="nav-item" onclick="showSection('contacts')">
+      <span class="num">2</span> 關係人清單
+    </div>
+    <div class="nav-item" onclick="showSection('stores')">
+      <span class="num">3</span> 門市資訊
+    </div>
+  </div>
 
-    <!-- PHASE 1: 日本出口前 -->
-    <div class="phase ph-blue">
-      <div class="phase-label">
-        <div class="dot"></div>
-        PHASE 1　日本出口前
-        <span class="who">城市青果 宮山・河合 → TMJ</span>
+  <div class="nav-section">
+    <div class="nav-section-label">作業流程</div>
+    <div class="nav-item" onclick="showSection('import')">
+      <span class="num">4</span> 進口通關
+    </div>
+    <div class="nav-item" onclick="showSection('warehouse')">
+      <span class="num">5</span> 提貨 & 倉儲
+    </div>
+    <div class="nav-item" onclick="showSection('delivery')">
+      <span class="num">6</span> 出貨到門市
+    </div>
+    <div class="nav-item" onclick="showSection('invoice')">
+      <span class="num">7</span> 月底請款
+    </div>
+  </div>
+
+  <div class="nav-section">
+    <div class="nav-section-label">參考資料</div>
+    <div class="nav-item" onclick="showSection('pitfalls')">
+      <span class="num">8</span> 常見地雷
+    </div>
+    <div class="nav-item" onclick="showSection('quickref')">
+      <span class="num">9</span> 快速查找
+    </div>
+    <div class="nav-item" onclick="showSection('tasks')">
+      <span class="num">10</span> 進行中任務
+    </div>
+  </div>
+
+  <div class="sidebar-footer">
+    最後更新：2026 年 4 月<br>負責人：Colin（TMJ 台灣）
+  </div>
+</nav>
+
+<!-- ── Main ─────────────────────────────────────────────── -->
+<div class="main">
+  <div class="topbar">
+    <div class="topbar-breadcrumb">
+      LOPIA SOP &rsaquo; <span class="current" id="breadcrumb">業務概覽</span>
+    </div>
+    <div class="topbar-actions">
+      <button class="btn btn-outline" onclick="window.print()">🖨 列印</button>
+    </div>
+  </div>
+
+  <div class="content" id="mainContent">
+
+    <!-- ══ 1. 業務概覽 ════════════════════════════════════ -->
+    <div class="section active" id="sec-overview">
+      <div class="section-header">
+        <div class="section-num">Section 01</div>
+        <div class="section-title">業務概覽</div>
+        <div class="section-desc">TMJ 台灣分公司在 LOPIA 進口業務中的角色、商品類別、稅務規則與財年設定。</div>
       </div>
-      <div class="phase-body">
-        <div class="step" data-id="s1">
-          <div class="step-num">01</div>
-          <div class="step-text">
-            <div class="step-title">接收出貨排程</div>
-            <div class="step-sub">平山 → 宮山 → 河合 → TMJ（LINE + Excel）</div>
-          </div>
-          <div class="step-arrow">›</div>
+
+      <div class="card">
+        <div class="card-title"><span class="icon">🔗</span>商流架構</div>
+        <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap;padding:8px 0;">
+          <div style="background:var(--navy);color:#fff;padding:10px 18px;border-radius:8px;font-size:13px;font-weight:700;">🇯🇵 日本供應商<br><small style="font-weight:400;opacity:.6;">CITY 青果 / 高崎市役所</small></div>
+          <div style="color:var(--blue);font-size:20px;font-weight:700;">→</div>
+          <div style="background:var(--blue);color:#fff;padding:10px 18px;border-radius:8px;font-size:13px;font-weight:700;box-shadow:0 4px 14px rgba(37,99,168,.3);">🏢 TMJ 台灣分公司<br><small style="font-weight:400;opacity:.8;">進口・倉儲・配送管理</small></div>
+          <div style="color:var(--blue);font-size:20px;font-weight:700;">→</div>
+          <div style="background:var(--navy);color:#fff;padding:10px 18px;border-radius:8px;font-size:13px;font-weight:700;">🛒 LOPIA 台灣各門市<br><small style="font-weight:400;opacity:.6;">13 間門市（持續展店中）</small></div>
+          <div style="color:var(--blue);font-size:20px;font-weight:700;">→</div>
+          <div style="background:#f4f6f9;border:1px solid var(--border);padding:10px 18px;border-radius:8px;font-size:13px;color:var(--muted);">👤 消費者</div>
         </div>
-        <div class="connector"></div>
-        <div class="step" data-id="s2">
-          <div class="step-num">02</div>
-          <div class="step-text">
-            <div class="step-title">確認發貨資訊</div>
-            <div class="step-sub">催 AWB、班機號、INV、PL</div>
-            <div class="step-warn">⚠ 検疫証中午前必須提供</div>
+      </div>
+
+      <div class="card">
+        <div class="card-title"><span class="icon">📦</span>主要商品類別</div>
+        <table>
+          <tr><th>類別</th><th>代表品項</th><th>運輸方式</th></tr>
+          <tr><td><span class="badge badge-blue">新鮮水果</span></td><td>草莓、蘋果、シャインマスカット、梨、柿</td><td>✈️ 空運</td></tr>
+          <tr><td><span class="badge badge-blue">蔬菜</span></td><td>舞菇、菠菜、蘆筍、小黃瓜、紅蘿蔔</td><td>✈️ 空運</td></tr>
+          <tr><td><span class="badge badge-orange">大量蔬菜</span></td><td>甘藷、シャインマスカット（大量）</td><td>🚢 船運（20ft 貨櫃）</td></tr>
+          <tr><td><span class="badge badge-orange">加工 / 冷凍</span></td><td>大學芋（冷凍）、芋甘納豆、冷凍草莓</td><td>✈️ 空運 / 船運</td></tr>
+        </table>
+      </div>
+
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">
+        <div class="card">
+          <div class="card-title"><span class="icon">💰</span>稅務規則</div>
+          <table>
+            <tr><th>商品</th><th>稅率</th></tr>
+            <tr><td>加工品 / 冷凍品</td><td style="color:var(--red);font-weight:700;">5% 營業稅</td></tr>
+            <tr><td>新鮮蔬果</td><td style="color:var(--green);font-weight:700;">免稅</td></tr>
+          </table>
+        </div>
+        <div class="card">
+          <div class="card-title"><span class="icon">📅</span>財年 & 匯率</div>
+          <table>
+            <tr><th>項目</th><th>說明</th></tr>
+            <tr><td>財年</td><td>4月1日 ～ 隔年3月31日</td></tr>
+            <tr><td>換算匯率</td><td><code>1 NTD = 4.5 JPY</code></td></tr>
+            <tr><td>請款幣別</td><td>對 LOPIA：TWD<br>對 CITY：JPY</td></tr>
+          </table>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-title"><span class="icon">📊</span>業務量季節分布</div>
+        <div style="overflow-x:auto;">
+          <div class="season-grid" style="min-width:600px;">
+            <div class="season-label">月份</div>
+            <div class="season-month">1月</div><div class="season-month">2月</div><div class="season-month">3月</div><div class="season-month">4月</div><div class="season-month">5月</div><div class="season-month">6月</div><div class="season-month">7月</div><div class="season-month">8月</div><div class="season-month">9月</div><div class="season-month">10月</div><div class="season-month">11月</div><div class="season-month">12月</div>
+
+            <div class="season-label">草莓</div>
+            <div class="season-month peak">旺</div><div class="season-month peak">旺</div><div class="season-month active">↑</div><div class="season-month active">↑</div><div class="season-month low">—</div><div class="season-month low">—</div><div class="season-month low">—</div><div class="season-month low">—</div><div class="season-month low">—</div><div class="season-month low">—</div><div class="season-month low">—</div><div class="season-month low">—</div>
+
+            <div class="season-label">蘋果</div>
+            <div class="season-month active">↑</div><div class="season-month active">↑</div><div class="season-month active">↑</div><div class="season-month active">↑</div><div class="season-month low">—</div><div class="season-month low">—</div><div class="season-month low">—</div><div class="season-month low">—</div><div class="season-month active">↑</div><div class="season-month peak">旺</div><div class="season-month peak">旺</div><div class="season-month active">↑</div>
+
+            <div class="season-label">葡萄</div>
+            <div class="season-month low">—</div><div class="season-month low">—</div><div class="season-month active">↑</div><div class="season-month active">↑</div><div class="season-month low">—</div><div class="season-month low">—</div><div class="season-month low">—</div><div class="season-month peak">旺</div><div class="season-month peak">旺</div><div class="season-month active">↑</div><div class="season-month low">—</div><div class="season-month low">—</div>
+
+            <div class="season-label">甘藷</div>
+            <div class="season-month low">—</div><div class="season-month low">—</div><div class="season-month active">↑</div><div class="season-month active">↑</div><div class="season-month active">↑</div><div class="season-month low">—</div><div class="season-month low">—</div><div class="season-month low">—</div><div class="season-month low">—</div><div class="season-month low">—</div><div class="season-month low">—</div><div class="season-month low">—</div>
           </div>
-          <div class="step-arrow">›</div>
+        </div>
+        <div style="display:flex;gap:12px;margin-top:12px;font-size:11px;">
+          <span><span class="season-month peak" style="padding:2px 8px;border-radius:3px;">旺</span> 旺季高峰</span>
+          <span><span class="season-month active" style="padding:2px 8px;border-radius:3px;">↑</span> 正常業務期</span>
+          <span><span class="season-month low" style="padding:2px 8px;border-radius:3px;">—</span> 淡季</span>
         </div>
       </div>
     </div>
 
-    <!-- PHASE 2: 台灣通關 -->
-    <div class="phase ph-green">
-      <div class="phase-label">
-        <div class="dot"></div>
-        PHASE 2　台灣通關
-        <span class="who">NX日通 Miho／Yumu</span>
+    <!-- ══ 2. 關係人 ══════════════════════════════════════ -->
+    <div class="section" id="sec-contacts">
+      <div class="section-header">
+        <div class="section-num">Section 02</div>
+        <div class="section-title">重要關係人清單</div>
+        <div class="section-desc">業務往來的核心人員，請務必記住各自負責範疇，避免找錯人。</div>
       </div>
-      <div class="phase-body">
-        <div class="step" data-id="s3">
-          <div class="step-num">03</div>
-          <div class="step-text">
-            <div class="step-title">提供文件給報關行</div>
-            <div class="step-sub">INV、PL、AWB、植物検疫証</div>
-            <div class="step-warn">⚠ INV 空運費欄位需刪除 / 葡萄寫品種</div>
-          </div>
-          <div class="step-arrow">›</div>
-        </div>
-        <div class="connector"></div>
-        <div class="step" data-id="s4">
-          <div class="step-num">04</div>
-          <div class="step-text">
-            <div class="step-title">植物検疫 / 農藥抽驗</div>
-            <div class="step-sub">通關 → 取樣 → 2日後出結果</div>
-            <div class="step-warn">⚠ 抽驗需提供切結地址</div>
-          </div>
-          <div class="step-arrow">›</div>
-        </div>
-        <div class="connector"></div>
-        <!-- Decision diamond -->
-        <div class="decision-wrap">
-          <div class="diamond"><span>需要燻蒸？</span></div>
-          <div class="branches">
-            <div class="branch branch-yes">
-              <div class="branch-label">是</div>
-              <div class="branch-box">送煙燻場<br><span style="font-size:10px;font-weight:400">合格後才能領貨</span></div>
+
+      <div class="card">
+        <div class="card-title"><span class="icon">🇯🇵</span>日本供應商側</div>
+        <div class="contact-grid">
+          <div class="contact-card">
+            <div class="contact-role">進出口文件 / 出貨聯絡</div>
+            <div class="contact-name">河合 広志</div>
+            <div class="contact-org">シティ青果（CITY 青果）</div>
+            <div class="contact-detail">
+              <div class="line"><span>📋</span>負責提供每批 INV / PL / AWB / 検疫証明書</div>
+              <div class="line"><span>💬</span>聯絡方式：LINE 群組「台湾ロピア TMJ輸出対応チーム」</div>
             </div>
-            <div class="branch branch-no">
-              <div class="branch-label">否</div>
-              <div class="branch-box">直接安排<br><span style="font-size:10px;font-weight:400">司機領貨</span></div>
+          </div>
+          <div class="contact-card">
+            <div class="contact-role">商品規劃 / 定價 / 付款</div>
+            <div class="contact-name">宮山 伸二</div>
+            <div class="contact-org">シティ青果</div>
+            <div class="contact-detail">
+              <div class="line"><span>📋</span>商品排程、數量變更、價格調整</div>
+              <div class="line"><span>💰</span>負責確認月結付款明細（需要 JPY）</div>
+            </div>
+          </div>
+          <div class="contact-card">
+            <div class="contact-role">蔬菜供應商（高崎市役所）</div>
+            <div class="contact-name">高柳</div>
+            <div class="contact-org">高崎市役所</div>
+            <div class="contact-detail">
+              <div class="line"><span>⚠</span>請透過高崎市役所專用 LINE 群組聯絡！</div>
+              <div class="line"><span>🥦</span>提供舞菇、菠菜、蘆筍等蔬菜</div>
+            </div>
+          </div>
+          <div class="contact-card">
+            <div class="contact-role">承攬 / 航空貨運代理</div>
+            <div class="contact-name">川井 氏</div>
+            <div class="contact-org">シティ社（フォワーダー）</div>
+            <div class="contact-detail">
+              <div class="line"><span>✈</span>協助日方訂艙、提供 AWB 資訊</div>
+              <div class="line"><span>⚠</span>平山要求：文件需提前提供，勿等到最後一刻</div>
             </div>
           </div>
         </div>
       </div>
-    </div>
 
-    <!-- PHASE 3: 倉庫管理 -->
-    <div class="phase ph-amber">
-      <div class="phase-label">
-        <div class="dot"></div>
-        PHASE 3　倉庫管理
-        <span class="who">三義／優儲　廖惠枝</span>
-      </div>
-      <div class="phase-body">
-        <div class="step" data-id="s5">
-          <div class="step-num">05</div>
-          <div class="step-text">
-            <div class="step-title">領貨進倉</div>
-            <div class="step-sub">三義司機待命 → 優儲 or 三義倉庫</div>
-            <div class="step-warn">⚠ Label 在合格前不得移除</div>
+      <div class="card">
+        <div class="card-title"><span class="icon">🛃</span>台灣報關行（群海）</div>
+        <div class="contact-grid">
+          <div class="contact-card">
+            <div class="contact-role">報關窗口 1</div>
+            <div class="contact-name">Miho 🐦</div>
+            <div class="contact-org">群海（NX）</div>
+            <div class="contact-detail">
+              <div class="line"><span>📋</span>通關文件審核、Invoice 格式確認</div>
+              <div class="line"><span>📍</span>機放倉 2 樓提貨手續</div>
+            </div>
           </div>
-          <div class="step-arrow">›</div>
-        </div>
-        <div class="connector"></div>
-        <div class="step" data-id="s6">
-          <div class="step-num">06</div>
-          <div class="step-text">
-            <div class="step-title">庫存管理</div>
-            <div class="step-sub">進出貨紀錄 → Google Sheets 系統</div>
-            <div class="step-warn">⚠ 進口量＝出貨量＝請款量</div>
+          <div class="contact-card">
+            <div class="contact-role">報關窗口 2 / 植物檢疫</div>
+            <div class="contact-name">Yumu モク</div>
+            <div class="contact-org">群海（NX）</div>
+            <div class="contact-detail">
+              <div class="line"><span>🌿</span>植物檢疫狀況回報</div>
+              <div class="line"><span>🔥</span>煙燻通知（可提領時間）</div>
+            </div>
           </div>
-          <div class="step-arrow">›</div>
         </div>
       </div>
-    </div>
 
-    <!-- PHASE 4: 出貨到店 -->
-    <div class="phase ph-rose">
-      <div class="phase-label">
-        <div class="dot"></div>
-        PHASE 4　出貨到店
-        <span class="who">各 LOPIA 門市（不定期循環）</span>
+      <div class="card">
+        <div class="card-title"><span class="icon">🚛</span>台灣貨運 / 倉儲</div>
+        <div class="contact-grid">
+          <div class="contact-card">
+            <div class="contact-role">代倉庫 / 提貨 / 配送</div>
+            <div class="contact-name">廖 惠枝</div>
+            <div class="contact-org">三義國際物流有限公司</div>
+            <div class="contact-detail">
+              <div class="line"><span>📞</span>0913-838-688</div>
+              <div class="line"><span>📍</span>桃園市平鎮區雙榮路 185 號</div>
+              <div class="line"><span>🏭</span>切結倉地址（FDA 非登不可已登記）</div>
+            </div>
+          </div>
+          <div class="contact-card">
+            <div class="contact-role">LOPIA 台灣全店統籌</div>
+            <div class="contact-name">平山 聡士</div>
+            <div class="contact-org">LOPIA 台灣</div>
+            <div class="contact-detail">
+              <div class="line"><span>🏪</span>實質統管台灣約 12 間門市</div>
+              <div class="line"><span>📦</span>發出出貨指令（振分け）</div>
+              <div class="line"><span>⚡</span>資訊需提前共享，緩衝空間極小</div>
+            </div>
+          </div>
+        </div>
       </div>
-      <div class="phase-body">
-        <div class="step" data-id="s7">
-          <div class="step-num">07</div>
-          <div class="step-text">
-            <div class="step-title">收到振り分け指示</div>
-            <div class="step-sub">平山 → 各店鋪商品箱數（Excel / LINE）</div>
-          </div>
-          <div class="step-arrow">›</div>
-        </div>
-        <div class="connector"></div>
-        <div class="step" data-id="s8">
-          <div class="step-num">08</div>
-          <div class="step-text">
-            <div class="step-title">製作出貨單</div>
-            <div class="step-sub">S+YYYYMMDD+序號，各店鋪分頁</div>
-            <div class="step-warn">⚠ 填配送日 / あんぽ柿加5%稅</div>
-          </div>
-          <div class="step-arrow">›</div>
-        </div>
-        <div class="connector"></div>
-        <div class="step" data-id="s9">
-          <div class="step-num">09</div>
-          <div class="step-text">
-            <div class="step-title">通知貨運理貨出貨</div>
-            <div class="step-sub">三義配車 → 倉庫備貨出貨</div>
-          </div>
-          <div class="step-arrow">›</div>
-        </div>
-        <div class="connector"></div>
-        <div class="step" data-id="s10">
-          <div class="step-num">10</div>
-          <div class="step-text">
-            <div class="step-title">回報各店預計到達時刻</div>
-            <div class="step-sub">LINE 回報平山，各店名＋時間</div>
-            <div class="step-warn">⚠ 主動告知，勿等人問</div>
-          </div>
-          <div class="step-arrow">›</div>
-        </div>
-        <div class="loop-note">
-          ↺ 每次平山發出新的振り分け，重複 07 → 10，直到該批庫存清空
-        </div>
+
+      <div class="card" style="background:#fffbeb;border-color:#f59e0b;">
+        <div class="card-title"><span class="icon">⚠</span>物流公司</div>
+        <table>
+          <tr><th>公司</th><th>主要路線</th><th>發車時間</th></tr>
+          <tr><td><strong>成功物流</strong></td><td>五股 PC → 桃園/南港/新荘/中和/台中/高雄各倉（隔日配送）</td><td>每日 17:00</td></tr>
+          <tr><td><strong>グッズマイル</strong></td><td>台中 CK：南港→新荘→中和→桃園<br>夢時 CK：巨蛋→台南MOP→北門</td><td>台中 7:00<br>夢時 8:00</td></tr>
+        </table>
       </div>
     </div>
 
-    <!-- PHASE 5: 月結請款 -->
-    <div class="phase ph-purple">
-      <div class="phase-label">
-        <div class="dot"></div>
-        PHASE 5　月結請款
-        <span class="who">LOPIA JP 平山先生</span>
+    <!-- ══ 3. 門市 ════════════════════════════════════════ -->
+    <div class="section" id="sec-stores">
+      <div class="section-header">
+        <div class="section-num">Section 03</div>
+        <div class="section-title">門市資訊</div>
+        <div class="section-desc">目前共 13 間門市，2026 年目標擴展至 18～20 間。點擊門市可查看代碼。</div>
       </div>
-      <div class="phase-body">
-        <div class="step" data-id="s11">
-          <div class="step-num">11</div>
-          <div class="step-text">
-            <div class="step-title">整理月進出貨紀錄</div>
-            <div class="step-sub">核對：進口量＝出貨量＝請款量</div>
-            <div class="step-warn">⚠ 差異解決後才能請款</div>
+
+      <div class="card">
+        <div class="card-title"><span class="icon">🗺</span>北部門市</div>
+        <div class="store-grid">
+          <div class="store-card" onclick="showStoreInfo(this)" data-code="桃園" data-name="桃園" data-region="北部">
+            <div class="store-code">桃園</div>
+            <div class="store-name">桃園</div>
+            <div class="store-region">新北/桃園</div>
           </div>
-          <div class="step-arrow">›</div>
+          <div class="store-card" onclick="showStoreInfo(this)" data-code="中和" data-name="中和" data-region="北部">
+            <div class="store-code">中和</div>
+            <div class="store-name">中和</div>
+            <div class="store-region">新北</div>
+          </div>
+          <div class="store-card" onclick="showStoreInfo(this)" data-code="新荘" data-name="新荘" data-region="北部">
+            <div class="store-code">新荘</div>
+            <div class="store-name">新荘</div>
+            <div class="store-region">新北</div>
+          </div>
+          <div class="store-card" onclick="showStoreInfo(this)" data-code="南港" data-name="南港" data-region="北部">
+            <div class="store-code">南港</div>
+            <div class="store-name">南港</div>
+            <div class="store-region">台北</div>
+          </div>
         </div>
-        <div class="connector"></div>
-        <div class="step" data-id="s12">
-          <div class="step-num">12</div>
-          <div class="step-text">
-            <div class="step-title">發送請款單</div>
-            <div class="step-sub">月底向 LOPIA JP 請款（JPY 結算）</div>
-            <div class="step-warn">⚠ 加工品（あんぽ柿）需加5%稅</div>
+      </div>
+
+      <div class="card">
+        <div class="card-title"><span class="icon">🏙</span>中部門市</div>
+        <div class="store-grid">
+          <div class="store-card" onclick="showStoreInfo(this)" data-code="台中" data-name="台中" data-region="中部">
+            <div class="store-code">台中</div>
+            <div class="store-name">台中</div>
+            <div class="store-region">台中</div>
           </div>
-          <div class="step-arrow">›</div>
+          <div class="store-card" onclick="showStoreInfo(this)" data-code="IKEA" data-name="IKEA" data-region="中部">
+            <div class="store-code">IKEA</div>
+            <div class="store-name">IKEA</div>
+            <div class="store-region">台中</div>
+          </div>
+          <div class="store-card" onclick="showStoreInfo(this)" data-code="漢神" data-name="台中漢神" data-region="中部">
+            <div class="store-code">漢神</div>
+            <div class="store-name">台中漢神</div>
+            <div class="store-region">台中（新店）</div>
+          </div>
+          <div class="store-card" onclick="showStoreInfo(this)" data-code="らら台中" data-name="らら台中" data-region="中部">
+            <div class="store-code">らら台中</div>
+            <div class="store-name">らら台中</div>
+            <div class="store-region">台中 Lalaport</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-title"><span class="icon">🌴</span>南部門市</div>
+        <div class="store-grid">
+          <div class="store-card" onclick="showStoreInfo(this)" data-code="台南" data-name="台南" data-region="南部">
+            <div class="store-code">台南</div>
+            <div class="store-name">台南</div>
+            <div class="store-region">台南</div>
+          </div>
+          <div class="store-card" onclick="showStoreInfo(this)" data-code="MOP" data-name="MOP" data-region="南部">
+            <div class="store-code">MOP</div>
+            <div class="store-name">MOP</div>
+            <div class="store-region">台南</div>
+          </div>
+          <div class="store-card" onclick="showStoreInfo(this)" data-code="北門" data-name="北門" data-region="南部">
+            <div class="store-code">北門</div>
+            <div class="store-name">北門</div>
+            <div class="store-region">台南北門</div>
+          </div>
+          <div class="store-card" onclick="showStoreInfo(this)" data-code="巨蛋" data-name="巨蛋" data-region="高雄">
+            <div class="store-code">巨蛋</div>
+            <div class="store-name">巨蛋</div>
+            <div class="store-region">高雄</div>
+          </div>
+          <div class="store-card" onclick="showStoreInfo(this)" data-code="夢時" data-name="夢時代" data-region="高雄">
+            <div class="store-code">夢時</div>
+            <div class="store-name">夢時代</div>
+            <div class="store-region">高雄</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="callout info">
+        <span class="callout-icon">📢</span>
+        <div class="callout-text">
+          <strong>2026 年展店計畫</strong>
+          台北 5/15、大直（美麗華）7/6、西門 7/31、高雄阪神 9 月、天母 10 月。新門市開業時需更新店鋪主檔並確認出貨單代碼。
         </div>
       </div>
     </div>
 
-  </div><!-- /flow-col -->
-
-  <!-- DETAIL PANEL -->
-  <aside class="panel" id="panel">
-    <div class="empty-state" id="emptyState">
-      <div class="icon">☜</div>
-      <p>點擊左側任一步驟<br>查看詳細說明、文件清單與注意事項</p>
-    </div>
-    <div id="panelContent" style="display:none; flex-direction:column; flex:1;">
-      <div class="panel-header">
-        <button class="panel-close" id="panelClose">✕</button>
-        <div class="panel-phase-tag" id="panelPhaseTag"></div>
-        <div class="panel-title" id="panelTitle"></div>
+    <!-- ══ 4. 進口通關 ═════════════════════════════════════ -->
+    <div class="section" id="sec-import">
+      <div class="section-header">
+        <div class="section-num">Section 04</div>
+        <div class="section-title">進口通關流程</div>
+        <div class="section-desc">每批日本空運進口的完整作業流程，包含文件時間點、通關類型、煙燻與輻射檢驗。</div>
       </div>
-      <div class="panel-body" id="panelBody"></div>
+
+      <div class="card">
+        <div class="card-title"><span class="icon">📄</span>文件提供時間表（每批必做）</div>
+        <div class="timeline">
+          <div class="tl-item">
+            <div class="tl-time"><div class="label">前一天</div><div class="sub">飛機抵台前</div></div>
+            <div style="display:flex;align-items:flex-start;padding-top:10px;">
+              <div class="tl-dot"></div>
+              <div class="tl-content">
+                <div class="title">提供基本航班資訊</div>
+                <div class="docs">
+                  <div class="doc-tag">📋 Invoice（IV）</div>
+                  <div class="doc-tag">✈ 航班資訊（FLT No. / 時刻）</div>
+                  <div class="doc-tag">📦 AWB 號碼</div>
+                </div>
+              </div>
+            </div>
+          </div>
+          <div class="tl-item">
+            <div class="tl-time"><div class="label">當日 10:00前</div><div class="sub">抵台當天</div></div>
+            <div style="display:flex;align-items:flex-start;padding-top:10px;">
+              <div class="tl-dot"></div>
+              <div class="tl-content">
+                <div class="title">補齊完整文件（簽名版）</div>
+                <div class="docs">
+                  <div class="doc-tag">✍ Signed IV（有簽名的 Invoice）</div>
+                  <div class="doc-tag">📋 Packing List（PL）</div>
+                  <div class="doc-tag">📦 AWB 正本影本（MAWB.pdf）</div>
+                </div>
+              </div>
+            </div>
+          </div>
+          <div class="tl-item">
+            <div class="tl-time"><div class="label">當日 12:00前</div><div class="sub">正午前</div></div>
+            <div style="display:flex;align-items:flex-start;padding-top:10px;">
+              <div class="tl-dot"></div>
+              <div class="tl-content">
+                <div class="title">補交檢疫文件</div>
+                <div class="docs">
+                  <div class="doc-tag">🌿 植物検疫証明書（Phytosanitary Certificate）</div>
+                  <div class="doc-tag">📜 輸出許可書</div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="callout danger" style="margin-top:8px;">
+          <span class="callout-icon">❌</span>
+          <div class="callout-text">文件若未在正午前提供 → 報關行無法以「<strong>生鮮機放</strong>」處理，改走「<strong>一般食品</strong>」通關 → 檢驗結果需多等 3～4 天，倉儲費增加！</div>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-title"><span class="icon">🧊</span>冷凍 / 加工品文件（特殊！）</div>
+        <table>
+          <tr><th>文件</th><th>新鮮蔬果</th><th>冷凍 / 加工品</th></tr>
+          <tr><td>植物検疫証明書</td><td style="color:var(--green);">✓ 必要</td><td style="color:var(--red);">✗ 不需要</td></tr>
+          <tr><td>製造廠証明書</td><td style="color:var(--muted);">— 不需要</td><td style="color:var(--green);">✓ 必要（電子檔即可）</td></tr>
+          <tr><td>賞味期限</td><td style="color:var(--muted);">— 不需要</td><td>單獨提供即可，不必寫在証明書上</td></tr>
+          <tr><td>中文標籤</td><td style="color:var(--muted);">— 不需要</td><td style="color:var(--blue);font-weight:700;">由 TMJ 台灣製作！</td></tr>
+        </table>
+      </div>
+
+      <div class="card">
+        <div class="card-title"><span class="icon">🪄</span>通關流程步驟</div>
+        <div class="steps">
+          <div class="step">
+            <div class="step-num">1</div>
+            <div class="step-body">
+              <strong>收到供應商航班通知</strong>
+              <p>河合さん 發送「次回フライト予定」通知 → 轉傳給 Miho / Yumu（群海 LINE 群）</p>
+            </div>
+          </div>
+          <div class="step">
+            <div class="step-num">2</div>
+            <div class="step-body">
+              <strong>植物檢疫取樣</strong>
+              <p>飛機抵台 → 植物防疫局取樣 → 結果約 2 天後出爐</p>
+              <ul><li>時間軸範例：3/10 班機 → 3/11 取樣 → 3/13 出結果</li></ul>
+            </div>
+          </div>
+          <div class="step">
+            <div class="step-num">3</div>
+            <div class="step-body">
+              <strong>確認是否需要煙燻</strong>
+              <p>Yumu 通知結果：</p>
+              <ul>
+                <li>✅ 合格 → 確認是否有農藥抽驗</li>
+                <li>🔴 有蟲（要燻蒸）→ 送煙燻場，13:00 可領</li>
+              </ul>
+            </div>
+          </div>
+          <div class="step">
+            <div class="step-num">4</div>
+            <div class="step-body">
+              <strong>農藥殘留檢驗（輻射）</strong>
+              <p>抽驗制，不一定每批都抽：</p>
+              <ul>
+                <li>未抽中 → 直接通關提貨</li>
+                <li>抽中 → 辦切結，送三義代倉等結果（2-3 天）</li>
+              </ul>
+            </div>
+          </div>
+          <div class="step">
+            <div class="step-num">5</div>
+            <div class="step-body">
+              <strong>安排三義提貨</strong>
+              <p>確認可提貨時間後，通知三義廖惠枝安排司機前往機放倉</p>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-title"><span class="icon">🔥</span>煙燻作業注意事項</div>
+        <table>
+          <tr><th>項目</th><th>說明</th></tr>
+          <tr><td>觸發條件</td><td>植物檢疫發現害蟲時強制進行</td></tr>
+          <tr><td>一般提貨時間</td><td>送煙燻場後約 <strong>13:00</strong> 可領</td></tr>
+          <tr><td>加速方式</td><td>一早 09:00 送，中午前即可提領</td></tr>
+          <tr><td>注意事項</td><td>煙燻時間受溫度與其他貨主影響，最早 09:30 開始</td></tr>
+        </table>
+        <div class="callout ok" style="margin-top:12px;">
+          <span class="callout-icon">✓</span>
+          <div class="callout-text">建議請司機 12:30 在煙燻場待命，避免等太久影響配送時程</div>
+        </div>
+      </div>
+
+      <div class="card" style="border-color:var(--danger-border);">
+        <div class="card-title" style="color:var(--red)"><span class="icon">❌</span>Invoice 常見錯誤——必須要求供應商修正</div>
+        <div class="checklist" id="ivChecklist">
+          <div class="check-item" onclick="toggleCheck(this)">
+            <div class="check-box">✓</div>
+            <div class="check-text"><strong>重量欄位錯誤：</strong>PL 上應填 Net Weight（淨重），不是 Gross Weight（毛重）</div>
+          </div>
+          <div class="check-item" onclick="toggleCheck(this)">
+            <div class="check-box">✓</div>
+            <div class="check-text"><strong>金額計算錯誤：</strong>單價 × 數量 必須等於小計，請核算確認</div>
+          </div>
+          <div class="check-item" onclick="toggleCheck(this)">
+            <div class="check-box">✓</div>
+            <div class="check-text"><strong>空運費欄位未刪除：</strong>Invoice 不得有「Freight Prepaid」字樣及 JPY 運費欄位</div>
+          </div>
+          <div class="check-item" onclick="toggleCheck(this)">
+            <div class="check-box">✓</div>
+            <div class="check-text"><strong>葡萄品名不夠詳細：</strong>必須寫品種，如「Shine Muscat」，只寫「Fresh Grapes」不夠！</div>
+          </div>
+          <div class="check-item" onclick="toggleCheck(this)">
+            <div class="check-box">✓</div>
+            <div class="check-text"><strong>菇類品名不夠詳細：</strong>必須寫正確品名「maitake」（舞菇），不可只寫「mushroom」</div>
+          </div>
+        </div>
+        <div style="margin-top:8px;font-size:12px;color:var(--muted);">☝ 點擊項目可標記已確認</div>
+      </div>
     </div>
-  </aside>
+
+    <!-- ══ 5. 倉儲 ════════════════════════════════════════ -->
+    <div class="section" id="sec-warehouse">
+      <div class="section-header">
+        <div class="section-num">Section 05</div>
+        <div class="section-title">提貨 & 倉儲管理</div>
+      </div>
+
+      <div class="card">
+        <div class="card-title"><span class="icon">🏭</span>倉庫資訊</div>
+        <table>
+          <tr><th>項目</th><th>說明</th></tr>
+          <tr><td>倉庫公司</td><td>三義國際物流有限公司</td></tr>
+          <tr><td>地址</td><td>324 桃園市平鎮區雙榮路 185 號</td></tr>
+          <tr><td>聯絡人</td><td>廖惠枝</td></tr>
+          <tr><td>電話</td><td><code>0913-838-688</code></td></tr>
+          <tr><td>FDA 切結地址</td><td>已登記在非登不可系統（含樓層：1樓）</td></tr>
+        </table>
+      </div>
+
+      <div class="card">
+        <div class="card-title"><span class="icon">🚛</span>提貨流程</div>
+        <div class="steps">
+          <div class="step"><div class="step-num">1</div><div class="step-body"><strong>Yumu 通知可提貨</strong><p>確認煙燻完成或直接放行</p></div></div>
+          <div class="step"><div class="step-num">2</div><div class="step-body"><strong>通知三義派車</strong><p>提供提貨時間，三義司機至機場機放倉 2 樓倉租櫃檯領提單</p></div></div>
+          <div class="step"><div class="step-num">3</div><div class="step-body"><strong>憑提單提貨</strong><p>確認箱數與 PL 核對，拍照記錄異常</p></div></div>
+          <div class="step"><div class="step-num">4</div><div class="step-body"><strong>進倉（桃園三義）</strong><p>更新庫存記錄</p></div></div>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-title"><span class="icon">📋</span>到貨檢查重點</div>
+        <div class="checklist" id="arrivalChecklist">
+          <div class="check-item" onclick="toggleCheck(this)"><div class="check-box">✓</div><div class="check-text">箱數與 Packing List 一致</div></div>
+          <div class="check-item" onclick="toggleCheck(this)"><div class="check-box">✓</div><div class="check-text">外箱破損情況 → 拍照回報平山</div></div>
+          <div class="check-item" onclick="toggleCheck(this)"><div class="check-box">✓</div><div class="check-text">切結商品：FDA label 未被取下（合格前不可移除）</div></div>
+          <div class="check-item" onclick="toggleCheck(this)"><div class="check-box">✓</div><div class="check-text">品質異常（發霉、壓傷等）→ 拍照後等平山指示再出貨</div></div>
+        </div>
+      </div>
+
+      <div class="callout warn">
+        <span class="callout-icon">⚠</span>
+        <div class="callout-text">平山要求「盡量不長期存倉」→ 能提早出貨優先出，節省倉儲費以降低成本。紅蘿蔔等蔬菜需提醒日方加強外箱強度。</div>
+      </div>
+    </div>
+
+    <!-- ══ 6. 出貨 ════════════════════════════════════════ -->
+    <div class="section" id="sec-delivery">
+      <div class="section-header">
+        <div class="section-num">Section 06</div>
+        <div class="section-title">出貨到 LOPIA 門市</div>
+      </div>
+
+      <div class="card">
+        <div class="card-title"><span class="icon">📦</span>出貨單製作 SOP</div>
+        <div class="steps">
+          <div class="step"><div class="step-num">1</div><div class="step-body"><strong>收到平山的出貨指示（振分け）</strong><p>包含：日期、店鋪名稱、商品與箱數分配</p></div></div>
+          <div class="step"><div class="step-num">2</div><div class="step-body"><strong>對應供應商計畫 Excel（回目數）</strong><p>找到對應的工作表（如「5回目台中」），讀取商品與數量</p></div></div>
+          <div class="step"><div class="step-num">3</div><div class="step-body"><strong>製作出貨單 Excel</strong><p>檔案命名：<code>S20260401_商品_店鋪貨單.xlsx</code><br>各店一個工作表 + 最後一頁「總表」</p></div></div>
+          <div class="step"><div class="step-num">4</div><div class="step-body"><strong>傳送出貨單給三義</strong><p>三義理貨並出貨</p></div></div>
+          <div class="step"><div class="step-num">5</div><div class="step-body"><strong>回報各店預計送達時間給平山</strong><p>格式見下方範例</p></div></div>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-title"><span class="icon">📝</span>出貨單格式規範</div>
+        <table>
+          <tr><th>項目</th><th>規則</th></tr>
+          <tr><td>單號格式</td><td><code>S + YYYYMMDD + 兩位序號</code>，例：<code>S2026040101</code></td></tr>
+          <tr><td>日期填寫</td><td style="color:var(--red);font-weight:700;">填配送日，不是製作日！</td></tr>
+          <tr><td>單價</td><td>直接使用供應商 Excel 的原価（JPY），不換算</td></tr>
+          <tr><td>0 箱商品</td><td>仍需列出，讓店家確認本批貨源</td></tr>
+          <tr><td>「全店」</td><td>自動展開所有 13 間門市</td></tr>
+        </table>
+        <div class="callout danger" style="margin-top:12px;">
+          <span class="callout-icon">❌</span>
+          <div class="callout-text">曾發生出貨單日期填成製作日，導致らら台中門市混亂。每次製作前務必確認配送日期！</div>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-title"><span class="icon">💬</span>各店到貨時間回報格式（回報給平山）</div>
+        <div style="background:#1a2744;color:#e2e8f0;padding:16px 18px;border-radius:8px;font-size:13px;font-family:'JetBrains Mono',monospace;line-height:2;">
+          台中-済み　桃園-14:15　中和-済み<br>
+          新荘-済み　巨蛋-17:30　南港-済み<br>
+          IKEA-済み　夢時-18:30　北門-15:30<br>
+          MOP-16:30
+        </div>
+        <div class="callout warn" style="margin-top:12px;">
+          <span class="callout-icon">⚠</span>
+          <div class="callout-text">平山要求：出貨前先確認好各店分配，不要在他詢問前才提供資訊。配送日是固定的，請先共享。</div>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-title"><span class="icon">🚌</span>物流混載建議（平山特別要求）</div>
+        <div class="callout info">
+          <span class="callout-icon">💡</span>
+          <div class="callout-text">善用成功物流 & グッズマイル 的混載，避免空車浪費。同日不同商品（如蘋果 + 大學芋）盡量同車，利用冷藏/常溫隔艙，降低物流成本並讓消費者用更低的價格買到商品。</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ══ 7. 請款 ════════════════════════════════════════ -->
+    <div class="section" id="sec-invoice">
+      <div class="section-header">
+        <div class="section-num">Section 07</div>
+        <div class="section-title">月底請款作業</div>
+      </div>
+
+      <div class="card">
+        <div class="card-title"><span class="icon">💴</span>請款流程</div>
+        <div class="steps">
+          <div class="step"><div class="step-num">1</div><div class="step-body"><strong>月底彙整出貨紀錄</strong><p>整理當月所有進出貨明細</p></div></div>
+          <div class="step"><div class="step-num">2</div><div class="step-body"><strong>製作請款單（TWD）</strong><p>向 LOPIA 台灣請款，加工品含 5%，蔬果免稅</p></div></div>
+          <div class="step"><div class="step-num">3</div><div class="step-body"><strong>等候 LOPIA 入款</strong><p>通常月初（如 4/1）確認入款</p></div></div>
+          <div class="step"><div class="step-num">4</div><div class="step-body"><strong>轉付 CITY 青果（JPY）</strong><p>LOPIA 入款後 1～2 個工作天內完成，傳振込明細給宮山確認</p></div></div>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-title"><span class="icon">📊</span>請款金額規則</div>
+        <table>
+          <tr><th>對象</th><th>幣別</th><th>稅務</th></tr>
+          <tr><td>向 LOPIA 台灣請款</td><td>TWD</td><td>加工品 +5% 稅；蔬果免稅</td></tr>
+          <tr><td>轉付 CITY 青果</td><td style="color:var(--red);font-weight:700;">JPY（必須！）</td><td>依 IV 金額</td></tr>
+        </table>
+        <div class="callout danger" style="margin-top:12px;">
+          <span class="callout-icon">❌</span>
+          <div class="callout-text">宮山明確要求：付款報告全部以 JPY 標示，不可混用 TWD！（曾有錯誤案例被要求重傳）</div>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-title"><span class="icon">↔</span>相殺（相抵）說明</div>
+        <p style="font-size:13.5px;line-height:1.7;color:var(--muted);">若當月有多付或少付金額（如特賣價差補貼），可透過「相殺」方式在下月調整。需製作相殺明細表（Excel）傳給河合 / 宮山確認。</p>
+      </div>
+    </div>
+
+    <!-- ══ 8. 地雷 ════════════════════════════════════════ -->
+    <div class="section" id="sec-pitfalls">
+      <div class="section-header">
+        <div class="section-num">Section 08</div>
+        <div class="section-title">常見地雷 & 注意事項</div>
+        <div class="section-desc">從對話紀錄中整理出的實際發生過的錯誤，新人必讀。</div>
+      </div>
+
+      <div class="card">
+        <div class="card-title"><span class="icon">📄</span>文件類地雷</div>
+        <div class="accordion-item">
+          <div class="accordion-header" onclick="toggleAccordion(this)">
+            <span>Invoice 空運費欄位未刪除</span>
+            <div style="display:flex;align-items:center;gap:8px;"><span class="accordion-tag tag-danger">高頻錯誤</span><span class="accordion-chevron">▼</span></div>
+          </div>
+          <div class="accordion-body">
+            <p style="font-size:13.5px;line-height:1.7;">Invoice 上不得出現「Freight Prepaid」字樣及 JPY 運費欄位。報關行（Miho）每次都要手動處理，已多次提出。需向 CITY 青果河合要求修正。</p>
+          </div>
+        </div>
+        <div class="accordion-item">
+          <div class="accordion-header" onclick="toggleAccordion(this)">
+            <span>PL 重量欄位用 GW 填寫</span>
+            <div style="display:flex;align-items:center;gap:8px;"><span class="accordion-tag tag-danger">文件退件</span><span class="accordion-chevron">▼</span></div>
+          </div>
+          <div class="accordion-body">
+            <p style="font-size:13.5px;line-height:1.7;">Packing List 上的重量欄位應填 Net Weight（淨重），宮山的說法是 GW 有含棧板重量，只有 NW 才是正確的商品重量。</p>
+          </div>
+        </div>
+        <div class="accordion-item">
+          <div class="accordion-header" onclick="toggleAccordion(this)">
+            <span>葡萄 / 菇類品名不夠詳細</span>
+            <div style="display:flex;align-items:center;gap:8px;"><span class="accordion-tag tag-warn">通關風險</span><span class="accordion-chevron">▼</span></div>
+          </div>
+          <div class="accordion-body">
+            <p style="font-size:13.5px;line-height:1.7;">葡萄必須寫品種（如 Shine Muscat）；菇類必須寫正確日文羅馬字（如 maitake），不能只寫 mushroom。影響海關認定價格。</p>
+          </div>
+        </div>
+        <div class="accordion-item">
+          <div class="accordion-header" onclick="toggleAccordion(this)">
+            <span>冷凍草莓誤送植物検疫証明書</span>
+            <div style="display:flex;align-items:center;gap:8px;"><span class="accordion-tag tag-warn">文件錯誤</span><span class="accordion-chevron">▼</span></div>
+          </div>
+          <div class="accordion-body">
+            <p style="font-size:13.5px;line-height:1.7;">冷凍品屬「一般食品」，不需要植物検疫証明書，需要的是製造廠証明書（電子檔即可）。兩者不要搞混。</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="card" style="margin-top:16px;">
+        <div class="card-title"><span class="icon">⚙</span>作業流程類地雷</div>
+        <div class="accordion-item">
+          <div class="accordion-header" onclick="toggleAccordion(this)">
+            <span>文件未在班機前提供 → 改一般食品通關</span>
+            <div style="display:flex;align-items:center;gap:8px;"><span class="accordion-tag tag-danger">延誤 3-4 天</span><span class="accordion-chevron">▼</span></div>
+          </div>
+          <div class="accordion-body">
+            <p style="font-size:13.5px;line-height:1.7;">3/20 班機草莓就發生過這個情況。因為沒有預先告知，報關行無法進機放倉，草莓被迫以一般食品通關，多花了數天。最後 Yumu 緊急向航空公司申請才解決。</p>
+          </div>
+        </div>
+        <div class="accordion-item">
+          <div class="accordion-header" onclick="toggleAccordion(this)">
+            <span>出貨單日期填錯（填製作日）</span>
+            <div style="display:flex;align-items:center;gap:8px;"><span class="accordion-tag tag-warn">門市混亂</span><span class="accordion-chevron">▼</span></div>
+          </div>
+          <div class="accordion-body">
+            <p style="font-size:13.5px;line-height:1.7;">3/31 出貨時，らら台中收到的出貨單日期有誤，平山要求立即提供修正版 Excel。出貨單的「配送日」欄位填錯是高頻錯誤，每次製作前務必確認。</p>
+          </div>
+        </div>
+        <div class="accordion-item">
+          <div class="accordion-header" onclick="toggleAccordion(this)">
+            <span>未先確認振分け就出貨</span>
+            <div style="display:flex;align-items:center;gap:8px;"><span class="accordion-tag tag-warn">分配錯誤</span><span class="accordion-chevron">▼</span></div>
+          </div>
+          <div class="accordion-body">
+            <p style="font-size:13.5px;line-height:1.7;">4/6 台中漢神店收到不應收到的安保柿，平山立即來電追問。出貨前一定要以平山傳的振分け（分配表）Excel 為準，不可自行決定數量。</p>
+          </div>
+        </div>
+        <div class="accordion-item">
+          <div class="accordion-header" onclick="toggleAccordion(this)">
+            <span>北門店數量短缺</span>
+            <div style="display:flex;align-items:center;gap:8px;"><span class="accordion-tag tag-warn">出貨誤差</span><span class="accordion-chevron">▼</span></div>
+          </div>
+          <div class="accordion-body">
+            <p style="font-size:13.5px;line-height:1.7;">3/10 北門收到シャインマスカット 9房 9箱，應為 10箱，短少 1 箱。平山要求下次注意。出貨前請仔細核對振分け表與實際理貨數量。</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="card" style="margin-top:16px;">
+        <div class="card-title"><span class="icon">💬</span>溝通類地雷</div>
+        <div class="callout warn">
+          <span class="callout-icon">⚠</span>
+          <div class="callout-text"><strong>平山一人管 12 間店</strong>，資訊一定要提前共享！拖到最後一刻告知，他完全沒有緩衝空間。</div>
+        </div>
+        <div class="callout warn">
+          <span class="callout-icon">⚠</span>
+          <div class="callout-text"><strong>高崎市役所的商品</strong>請走高崎市役所專用 LINE 群組，不要在主群組聯絡，曾被高柳提醒過。</div>
+        </div>
+        <div class="callout warn">
+          <span class="callout-icon">⚠</span>
+          <div class="callout-text"><strong>中文標籤</strong>由 TMJ 台灣負責製作，不是供應商責任。曾發生誤以為是河合負責而造成混亂。</div>
+        </div>
+        <div class="callout warn">
+          <span class="callout-icon">⚠</span>
+          <div class="callout-text"><strong>宮山要求：</strong>燻蒸次數、商品異常、進口排程變更等，都需要主動回報，不要等對方詢問。</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ══ 9. 快速查找 ══════════════════════════════════════ -->
+    <div class="section" id="sec-quickref">
+      <div class="section-header">
+        <div class="section-num">Section 09</div>
+        <div class="section-title">緊急快速查找</div>
+        <div class="section-desc">遇到突發狀況時，找對人最重要。</div>
+      </div>
+
+      <div class="quick-grid">
+        <div class="quick-card" onclick="showSection('import')">
+          <div class="situation">情況</div>
+          <div class="action">班機資訊 / 文件遲遲未到</div>
+          <div class="contact">→ 催 河合 広志（CITY 青果 LINE）</div>
+        </div>
+        <div class="quick-card" onclick="showSection('import')">
+          <div class="situation">情況</div>
+          <div class="action">通關進度不明</div>
+          <div class="contact">→ 問 Miho 或 Yumu（群海 LINE）</div>
+        </div>
+        <div class="quick-card" onclick="showSection('import')">
+          <div class="situation">情況</div>
+          <div class="action">煙燻何時完成可提貨</div>
+          <div class="contact">→ 問 Yumu</div>
+        </div>
+        <div class="quick-card" onclick="showSection('warehouse')">
+          <div class="situation">情況</div>
+          <div class="action">提貨司機 / 倉儲問題</div>
+          <div class="contact">→ 三義 廖惠枝 0913-838-688</div>
+        </div>
+        <div class="quick-card" onclick="showSection('delivery')">
+          <div class="situation">情況</div>
+          <div class="action">出貨指令 / 各店分配確認</div>
+          <div class="contact">→ 問 平山（TMJ × LOPIA 群）</div>
+        </div>
+        <div class="quick-card" onclick="showSection('contacts')">
+          <div class="situation">情況</div>
+          <div class="action">商品規格 / 定價問題</div>
+          <div class="contact">→ 找 宮山 伸二（CITY 青果）</div>
+        </div>
+        <div class="quick-card" onclick="showSection('contacts')">
+          <div class="situation">情況</div>
+          <div class="action">高崎市役所商品文件</div>
+          <div class="contact">→ 走高崎市役所專用 LINE 群組</div>
+        </div>
+        <div class="quick-card" onclick="showSection('invoice')">
+          <div class="situation">情況</div>
+          <div class="action">月結付款 / 相殺確認</div>
+          <div class="contact">→ 找 宮山（帳務）/ 河合（確認）</div>
+        </div>
+      </div>
+
+      <div class="card" style="margin-top:20px;">
+        <div class="card-title"><span class="icon">🏢</span>TMJ 公司對外資訊</div>
+        <table>
+          <tr><th>項目</th><th>資訊</th></tr>
+          <tr><td>公司名稱</td><td>日商夢多貿易股份有限公司台灣分公司</td></tr>
+          <tr><td>電話</td><td><code>02-2720-0322</code></td></tr>
+          <tr><td>地址</td><td>台北市信義區信義路五段五號 5D17</td></tr>
+        </table>
+      </div>
+    </div>
+
+    <!-- ══ 10. 進行中任務 ═════════════════════════════════ -->
+    <div class="section" id="sec-tasks">
+      <div class="section-header">
+        <div class="section-num">Section 10</div>
+        <div class="section-title">進行中重點任務</div>
+        <div class="section-desc">交接參考。點擊項目可標記進度。</div>
+      </div>
+
+      <div class="checklist" id="taskList">
+        <div class="check-item" onclick="toggleCheck(this)">
+          <div class="check-box">✓</div>
+          <div class="check-text">
+            <strong>🏭 台灣加工業者開拓（リパック用）</strong><br>
+            <span style="font-size:12px;color:var(--muted);">目標：2026/8 前完成（葡萄旺季前）。現有合作：福和生鮮、翔田。需找常溫作業也可的業者。</span>
+          </div>
+        </div>
+        <div class="check-item" onclick="toggleCheck(this)">
+          <div class="check-box">✓</div>
+          <div class="check-text">
+            <strong>🍠 冷凍大學芋（20ft 貨櫃）進口</strong><br>
+            <span style="font-size:12px;color:var(--muted);">ETA 5/17，店鋪納品目標 5/20～23。672 箱（1箱5kg）。</span>
+          </div>
+        </div>
+        <div class="check-item" onclick="toggleCheck(this)">
+          <div class="check-box">✓</div>
+          <div class="check-text">
+            <strong>🍓 冷凍草莓中文標籤 & 農藥檢驗</strong><br>
+            <span style="font-size:12px;color:var(--muted);">已啟動農藥檢驗。標籤完成後即可開始進口（850元/包估算，含運）。</span>
+          </div>
+        </div>
+        <div class="check-item" onclick="toggleCheck(this)">
+          <div class="check-box">✓</div>
+          <div class="check-text">
+            <strong>🥔 加工甘藷商品中文裏面標示確認</strong><br>
+            <span style="font-size:12px;color:var(--muted);">⚡ 已逾 1～2 個月！宮山與平山持續催促。涉及商品：やきいもスイートポテト、大學芋等。</span>
+          </div>
+        </div>
+        <div class="check-item" onclick="toggleCheck(this)">
+          <div class="check-box">✓</div>
+          <div class="check-text">
+            <strong>🏪 新門市展店配合</strong><br>
+            <span style="font-size:12px;color:var(--muted);">台北 5/15 → 大直（美麗華）7/6 → 西門 7/31 → 高雄阪神 9月 → 天母 10月。各店開業前需更新店鋪主檔。</span>
+          </div>
+        </div>
+        <div class="check-item" onclick="toggleCheck(this)">
+          <div class="check-box">✓</div>
+          <div class="check-text">
+            <strong>🍓 草莓年間輸入量擴大</strong><br>
+            <span style="font-size:12px;color:var(--muted);">平山要求明年最少週 20 棧板準備。今年已是去年 2 倍。需提前與供應商確認產季準備。</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="callout info" style="margin-top:16px;">
+        <span class="callout-icon">💡</span>
+        <div class="callout-text">點擊上方任務可標記完成。頁面重新整理後狀態會重置，建議截圖記錄。</div>
+      </div>
+    </div>
+
+  </div><!-- /content -->
+</div><!-- /main -->
+
+<!-- Store info modal -->
+<div id="storeModal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.4);z-index:300;align-items:center;justify-content:center;">
+  <div style="background:#fff;border-radius:12px;padding:28px;max-width:340px;width:90%;box-shadow:0 20px 60px rgba(0,0,0,.2);">
+    <div id="storeModalContent"></div>
+    <button onclick="document.getElementById('storeModal').style.display='none'" class="btn btn-primary" style="width:100%;margin-top:16px;">關閉</button>
+  </div>
 </div>
 
-<div class="hint" id="hint">👆 點擊步驟卡片查看詳細說明</div>
-
 <script>
-const STEPS = {
-  s1: {
-    phase: '日本出口前',
-    theme: 'theme-blue',
-    title: '① 接收出貨排程',
-    persons: ['平山先生（LOPIA JP）','宮山（城市青果）','河合（城市青果）','TMJ Colin'],
-    docs: [
-      { icon: '📊', text: '振り分け Excel（各店鋪商品箱數）' },
-      { icon: '📱', text: 'LINE 排程訊息（日期、棧板數）' },
-    ],
-    flow: ['平山 → 宮山','宮山 → Excel → 河合','河合 → TMJ（LINE）'],
-    warns: [
-      '排程有<strong>兩階段</strong>：①月度粗排程（只有日期+棧板數）→ ②振り分け Excel（各店明細）。兩者都需要確認',
-      '宮山會臨時更改排程（日期、數量），一定要盯 LINE，不能假設沒變更',
-      '曾發生貨到了才知道有這批 → 無法走生鮮通關，延誤數天',
-      '收到振り分け後才能開始做出貨單，不能提早做',
-    ],
-    tip: {
-      title: '新人提示',
-      text: '建議每週固定向宮山確認一次下週排程，避免臨時通知措手不及。每月初爭取拿到月度概況。',
-    },
-  },
-  s2: {
-    phase: '日本出口前',
-    theme: 'theme-blue',
-    title: '② 確認發貨資訊',
-    persons: ['河合（城市青果）','TMJ Colin','NX日通 Miho'],
-    docs: [
-      { icon: '✈️', text: 'AWB（航空提單號碼）' },
-      { icon: '📄', text: 'Invoice（商業發票）—— 需簽名版' },
-      { icon: '📦', text: 'Packing List —— 需簽名版' },
-      { icon: '🌿', text: '植物検疫証明書（Phytosanitary Certificate）' },
-      { icon: '📋', text: '輸出許可書' },
-      { icon: '📸', text: '荷姿写真（貨物照片）' },
-    ],
-    flow: ['到達前日 → INV草稿 + 班機資訊 + AWB','到達日 AM10:00 前 → 簽名 IV / PL / AWB','到達日 中午前 → 植物検疫証明書'],
-    warns: [
-      'INV 上的<strong>空運費欄位（Freight Prepaid + JPY金額）必須刪除</strong>，否則報關行每次都要退件',
-      '検疫証如果遲了，報關行就無法當天通關，生鮮品會轉為一般食品處理，多等 3-5 天',
-      '簽名版 INV / PL 和草稿版是不同文件，確認是否有蓋章/簽名',
-    ],
-    tip: {
-      title: '催件節奏',
-      text: '出發前 2 天沒收到草稿 INV 就主動催。班機當天上午沒有文件，立刻向河合和 Miho 同步說明狀況。',
-    },
-  },
-  s3: {
-    phase: '台灣通關',
-    theme: 'theme-green',
-    title: '③ 提供文件給報關行',
-    persons: ['TMJ Colin','NX日通 Miho','群海（報關行）'],
-    docs: [
-      { icon: '📄', text: 'Invoice（已刪除空運費欄位）' },
-      { icon: '📦', text: 'Packing List' },
-      { icon: '✈️', text: 'MAWB（主提單）' },
-      { icon: '🌿', text: '植物検疫証明書' },
-      { icon: '📋', text: '輸出許可書' },
-    ],
-    flow: ['收到文件 → 確認格式正確 → 轉發 Miho','Miho → 群海報關行','群海 → 向桃園機場申報'],
-    warns: [
-      '<strong>葡萄品名必須寫到品種</strong>，例如「シャインマスカット」，不能只寫「葡萄」（影響海關認定價格）',
-      '<strong>菇類必須寫正確英文名</strong>：舞菇→maitake，滑菇→nameko，寫錯會被退件',
-      'INV 金額計算錯誤（單價×數量≠總價）也會被退件，提交前自己驗算一次',
-      '文件漏發或遲發會導致當天無法報關',
-    ],
-    tip: {
-      title: '流程順序',
-      text: '不需要等全部文件都到齊才提供。可以先傳 INV + 班機資訊給 Miho，植物検疫証後補即可。',
-    },
-  },
-  s4: {
-    phase: '台灣通關',
-    theme: 'theme-green',
-    title: '④ 植物検疫 / 農藥抽驗',
-    persons: ['NX日通 Yumu','群海（報關行）','桃園機場植物檢疫站','TMJ Colin'],
-    docs: [
-      { icon: '🏷️', text: '植物検疫合格書（通關後取得）' },
-      { icon: '📝', text: '切結書（若被抽驗）' },
-      { icon: '📍', text: '切結地址：桃園市平鎮區雙榮路185號（三義）' },
-    ],
-    flow: ['到達翌日 → 機場取樣','約 2 日後 → 農藥報告出爐','合格 → 可安排領貨','不合格 → 依規處理'],
-    warns: [
-      '被<strong>抽驗輻射/農藥</strong>時，需提供切結地址，貨物先放切結地址等結果',
-      '<strong>切結地址必須是 FDA 非登不可系統上有登記的儲存區</strong>，不能任意填',
-      '生鮮品（草莓等）若沒有在班機到達當晚提供文件，會被改為「一般食品」通關，時間從 2 天延長到 4-5 天',
-      'Label（抽驗標籤）在檢驗合格前不能從貨物上移除',
-    ],
-    tip: {
-      title: '切結地址聯絡資訊',
-      text: '桃園市平鎮區雙榮路185號　廖惠枝　0913-838-688',
-    },
-  },
-  s5: {
-    phase: '倉庫管理',
-    theme: 'theme-amber',
-    title: '⑤ 領貨進倉',
-    persons: ['三義倉儲 廖惠枝','TMJ Colin','NX日通 Yumu'],
-    docs: [
-      { icon: '📋', text: '提單（放在倉租櫃台旁，司機自取）' },
-      { icon: '🏷️', text: 'Label（檢疫標籤，合格前不得移除）' },
-    ],
-    flow: ['Yumu 通知可以領貨 → TMJ 通知三義司機','司機到機場倉 → 憑提單領貨','貨物送往三義（平鎮）或優儲倉庫'],
-    warns: [
-      '<strong>務必提前告知司機集合時間</strong>，最晚在領貨前 1 小時通知',
-      'Yumu 問司機資訊時要立刻回覆，不能讓群海一直等（曾因此延誤）',
-      '燻蒸後的貨需另外安排司機到煙燻場取貨，時間不同於一般領貨',
-      '胡蘿蔔等重量大的品項容易壓箱，收貨時需確認箱況並拍照回報',
-    ],
-    tip: {
-      title: '聯絡順序',
-      text: '① Yumu 通知結果 → ② 立刻在三義 LINE 群告知時間 → ③ 確認司機回覆 → ④ 回報 Miho 司機已安排。',
-    },
-  },
-  s6: {
-    phase: '倉庫管理',
-    theme: 'theme-amber',
-    title: '⑥ 庫存管理',
-    persons: ['TMJ Colin','三義 Sandy','優儲 SANDY'],
-    docs: [
-      { icon: '📊', text: 'TMJ_LOPIA_系統（Google Sheets）' },
-      { icon: '📋', text: '每批次進貨紀錄（INV 數量為基準）' },
-    ],
-    flow: ['進貨 → 記錄進口量','每次出貨 → 記錄出貨量','月底 → 驗算 進口 = 出貨 = 請款'],
-    warns: [
-      '<strong>進口量 = 各店出貨量總計 = 月結請款量，三者必須一致</strong>',
-      '數字對不上就不能請款，而且被 LOPIA 會計退件後很麻煩',
-      '有時振り分け 數量與實際進口數量不符（曾有差 1 箱的情況），要立即向平山確認',
-    ],
-    tip: {
-      title: '系統規則',
-      text: '差異欄位會自動標紅。每次出貨後當天更新 Sheets，不要累積到月底才補登。',
-    },
-  },
-  s7: {
-    phase: '出貨到店',
-    theme: 'theme-rose',
-    title: '⑦ 收到振り分け指示',
-    persons: ['平山先生（LOPIA JP）','TMJ Colin'],
-    docs: [
-      { icon: '📊', text: '振り分け Excel（各店鋪×各商品×箱數矩陣）' },
-      { icon: '📱', text: 'LINE 文字指示（有時以文字直接給）' },
-    ],
-    flow: ['平山 → LINE 或 Excel 傳 TMJ','TMJ 確認各店箱數合計 = 庫存','有疑問 → 立刻回確認'],
-    warns: [
-      '振り分け 總箱數必須等於現有庫存量，有差異要馬上問平山',
-      '文字給的時候要仔細解析括號內的替換商品（例如：某店括號裡的規格可能是不同商品）',
-      '平山有時會事後修改振り分け 數字，收到修改通知要立刻更新出貨單',
-    ],
-    tip: {
-      title: '新人提示',
-      text: '拿到 Excel 後先加總各店箱數，和庫存對一次，再製作出貨單。別急著動手，先驗算。',
-    },
-  },
-  s8: {
-    phase: '出貨到店',
-    theme: 'theme-rose',
-    title: '⑧ 製作出貨單',
-    persons: ['TMJ Colin'],
-    docs: [
-      { icon: '📄', text: '出貨單 Excel（S+YYYYMMDD+序號）' },
-      { icon: '📊', text: '各店鋪分頁 + 總表分頁' },
-    ],
-    flow: ['解析振り分け → 各店箱數','生成 Excel → 一店一分頁','產出總表 → 驗算總箱數'],
-    warns: [
-      '<strong>日期欄一定填「配送日」</strong>，不是製作日。填錯是最常見的錯誤，平山會直接投訴',
-      '<strong>あんぽ柿等加工品需加 5% 營業稅</strong>，蔬果類免稅',
-      '原価數字直接當 TWD 使用，不做匯率換算，欄位標示 TWD',
-      '0 箱的商品仍需列出（讓店家確認本批品項）',
-      '單號格式：S + 8 位日期 + 2 位流水號，例如 S2026033101',
-    ],
-    tip: {
-      title: '出貨單發送前 Checklist',
-      text: '① 配送日正確 ② 各店箱數合計 = 總表 ③ 加工品有加稅 ④ 單號格式正確 ⑤ 所有店鋪都有分頁',
-    },
-  },
-  s9: {
-    phase: '出貨到店',
-    theme: 'theme-rose',
-    title: '⑨ 通知貨運理貨出貨',
-    persons: ['TMJ Colin','三義倉儲 廖惠枝','貨運司機'],
-    docs: [
-      { icon: '📄', text: '出貨單（提供給三義對貨用）' },
-      { icon: '📋', text: '各店配送時間表' },
-    ],
-    flow: ['傳出貨單給三義','三義確認庫存並理貨','安排司機配車 → 出發'],
-    warns: [
-      '出貨前一天就要通知三義，不能當天早上才說',
-      '三義需要出貨單才能對貨，不能口頭說數量就出貨',
-      '若出貨單有修改，一定要重新傳，不能讓司機拿舊版去對貨',
-    ],
-    tip: {
-      title: '聯絡方式',
-      text: '三義 LINE 群組通知，確認廖惠枝已讀並回覆「OK」才算完成。',
-    },
-  },
-  s10: {
-    phase: '出貨到店',
-    theme: 'theme-rose',
-    title: '⑩ 回報各店預計到達時刻',
-    persons: ['TMJ Colin','平山先生（LOPIA JP）','各店門市主管'],
-    docs: [],
-    flow: ['司機出發後 → 確認各店預計時間','LINE 傳給平山（格式：店名 - 時間）','異常延誤 → 立刻通報'],
-    warns: [
-      '<strong>要主動回報，不能等平山來問</strong>。被問到才回報已是失職',
-      '格式要列清楚每一間店，不能只說「今天會到」',
-      '有店舖延誤或未送達，要先自己知道再通報，不要被店鋪投訴後才發現',
-    ],
-    tip: {
-      title: '回報格式範例',
-      text: '桃園：12:40　新荘：15:00　南港：13:00　中和：14:00　IKEA：11:30　台中：12:30　北門：15:00　MOP：16:00　夢時代：17:00',
-    },
-  },
-  s11: {
-    phase: '月結請款',
-    theme: 'theme-purple',
-    title: '⑪ 整理月進出貨紀錄',
-    persons: ['TMJ Colin','LOPIA JP 會計'],
-    docs: [
-      { icon: '📊', text: 'TMJ_LOPIA_系統（Google Sheets）月報' },
-      { icon: '📋', text: '各批次 INV 進口量紀錄' },
-      { icon: '📦', text: '各批次出貨單明細' },
-      { icon: '🔥', text: '燻蒸次數確認（需向日方收費）' },
-    ],
-    flow: ['整理當月所有進口批次','整理當月所有出貨明細','驗算：進口總量 = 出貨總量','有差異 → 查明原因後修正'],
-    warns: [
-      '數字一旦對不上，就<strong>不能送出請款單</strong>',
-      '曾有請款單出現「未納品商品被請款」、「計算錯誤」等問題，被 LOPIA 會計投訴',
-      '燻蒸次數要確認，每次燻蒸費用需記錄並反映在請款中',
-    ],
-    tip: {
-      title: '月結時間',
-      text: '每月底整理，最好在月底 3-5 個工作天前就開始核對，避免月底趕件。',
-    },
-  },
-  s12: {
-    phase: '月結請款',
-    theme: 'theme-purple',
-    title: '⑫ 發送請款單',
-    persons: ['TMJ Colin','平山先生','LOPIA JP 會計'],
-    docs: [
-      { icon: '📄', text: '月結請款單（Invoice / 請求書）' },
-      { icon: '📊', text: '明細附件（各批次出貨明細）' },
-    ],
-    flow: ['製作請款單 → 確認金額','傳給平山確認','平山確認後 → 走付款流程'],
-    warns: [
-      '<strong>加工品（あんぽ柿等）需加 5% 營業稅，蔬果類免稅</strong>',
-      '匯率基準：1 NTD = 4.5 JPY，財年為 4 月至隔年 3 月',
-      '請款金額 ≠ 出貨量×單價 時（例如有折扣或補差額），要附說明',
-      '請款後追蹤付款進度，逾期要主動催',
-    ],
-    tip: {
-      title: '稅務規則',
-      text: '蔬菜・水果・草莓 → 免稅　　あんぽ柿・加工食品 → +5% 營業稅。有疑問的品項當下確認，不要自己猜。',
-    },
-  },
+const sections = {
+  overview: { title: '業務概覽' },
+  contacts: { title: '關係人清單' },
+  stores:   { title: '門市資訊' },
+  import:   { title: '進口通關' },
+  warehouse:{ title: '提貨 & 倉儲' },
+  delivery: { title: '出貨到門市' },
+  invoice:  { title: '月底請款' },
+  pitfalls: { title: '常見地雷' },
+  quickref: { title: '快速查找' },
+  tasks:    { title: '進行中任務' },
 };
 
-let activeId = null;
-const panel = document.getElementById('panel');
-const panelContent = document.getElementById('panelContent');
-const emptyState = document.getElementById('emptyState');
-const panelClose = document.getElementById('panelClose');
-const hint = document.getElementById('hint');
-const progress = document.getElementById('progress');
-
-setTimeout(() => hint.classList.add('hidden'), 4000);
-
-function openPanel(id) {
-  const d = STEPS[id];
-  if (!d) return;
-
-  if (activeId) document.querySelector(`[data-id="${activeId}"]`)?.classList.remove('active');
-  activeId = id;
-  document.querySelector(`[data-id="${id}"]`)?.classList.add('active');
-
-  // Progress
-  const ids = Object.keys(STEPS);
-  const idx = ids.indexOf(id);
-  progress.style.width = ((idx + 1) / ids.length * 100) + '%';
-
-  // Theme
-  const panelHeader = document.querySelector('.panel-header');
-  panelHeader.className = 'panel-header ' + d.theme;
-
-  document.getElementById('panelPhaseTag').textContent = d.phase;
-  document.getElementById('panelTitle').textContent = d.title;
-
-  const body = document.getElementById('panelBody');
-  let html = '';
-
-  // Persons
-  html += `<div class="panel-section">
-    <div class="panel-section-title">負責人員</div>
-    <div class="person-chips">
-      ${d.persons.map(p => `<span class="chip">${p}</span>`).join('')}
-    </div>
-  </div>`;
-
-  // Flow
-  if (d.flow.length) {
-    html += `<div class="panel-section">
-      <div class="panel-section-title">執行步驟</div>
-      <div class="flow-mini">${d.flow.map((f, i) => `<div>${i + 1}. ${f}</div>`).join('')}</div>
-    </div>`;
-  }
-
-  // Documents
-  if (d.docs.length) {
-    html += `<div class="panel-section">
-      <div class="panel-section-title">相關文件</div>
-      <ul class="doc-list">
-        ${d.docs.map(doc => `<li><span class="icon">${doc.icon}</span>${doc.text}</li>`).join('')}
-      </ul>
-    </div>`;
-  }
-
-  // Warnings
-  html += `<div class="panel-section">
-    <div class="panel-section-title">⚠ 常見錯誤 / 注意事項</div>
-    <ul class="warn-list">
-      ${d.warns.map(w => `<li>${w}</li>`).join('')}
-    </ul>
-  </div>`;
-
-  // Tip
-  if (d.tip) {
-    html += `<div class="panel-section">
-      <div class="tip-box">
-        <div class="tip-title">${d.tip.title}</div>
-        ${d.tip.text}
-      </div>
-    </div>`;
-  }
-
-  body.innerHTML = html;
-  emptyState.style.display = 'none';
-  panelContent.style.display = 'flex';
-  panel.classList.add('open');
+function showSection(id) {
+  document.querySelectorAll('.section').forEach(s => s.classList.remove('active'));
+  document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
+  document.getElementById('sec-' + id).classList.add('active');
+  document.querySelector(`[onclick="showSection('${id}')"]`).classList.add('active');
+  document.getElementById('breadcrumb').textContent = sections[id].title;
+  window.scrollTo(0, 0);
 }
 
-function closePanel() {
-  panel.classList.remove('open');
-  if (activeId) {
-    document.querySelector(`[data-id="${activeId}"]`)?.classList.remove('active');
-    activeId = null;
-  }
-  emptyState.style.display = 'flex';
-  panelContent.style.display = 'none';
-  progress.style.width = '0%';
+function toggleCheck(el) {
+  el.classList.toggle('checked');
 }
 
-document.querySelectorAll('.step').forEach(el => {
-  el.addEventListener('click', () => {
-    const id = el.dataset.id;
-    if (activeId === id) { closePanel(); return; }
-    openPanel(id);
+function toggleAccordion(header) {
+  const isOpen = header.classList.contains('open');
+  // Close all in same card
+  const card = header.closest('.card');
+  card.querySelectorAll('.accordion-header').forEach(h => {
+    h.classList.remove('open');
+    h.nextElementSibling.classList.remove('open');
   });
+  if (!isOpen) {
+    header.classList.add('open');
+    header.nextElementSibling.classList.add('open');
+  }
+}
+
+function showStoreInfo(el) {
+  const code = el.dataset.code;
+  const name = el.dataset.name;
+  const region = el.dataset.region;
+  document.getElementById('storeModalContent').innerHTML = `
+    <div style="margin-bottom:12px;">
+      <div style="font-size:11px;color:#6b7a99;font-weight:700;letter-spacing:.1em;text-transform:uppercase;">${region}</div>
+      <div style="font-size:24px;font-weight:900;color:#1a2744;margin:4px 0;">${name}</div>
+    </div>
+    <table style="width:100%;font-size:13px;">
+      <tr><td style="padding:6px 0;color:#6b7a99;font-weight:600;border-bottom:1px solid #eee;">出貨單代碼</td><td style="padding:6px 0;border-bottom:1px solid #eee;"><code style="background:#f1f5f9;padding:2px 8px;border-radius:4px;font-family:monospace;">${code}</code></td></tr>
+      <tr><td style="padding:6px 0;color:#6b7a99;font-weight:600;">顯示名稱</td><td style="padding:6px 0;">${name}</td></tr>
+    </table>
+  `;
+  document.getElementById('storeModal').style.display = 'flex';
+}
+
+// Search
+document.getElementById('searchInput').addEventListener('input', function() {
+  const q = this.value.toLowerCase().trim();
+  if (!q) {
+    document.querySelectorAll('mark').forEach(m => {
+      m.outerHTML = m.textContent;
+    });
+    return;
+  }
+  // Simple: just highlight in active section
+  // (full implementation would search all sections)
 });
 
-panelClose.addEventListener('click', closePanel);
+// Reading progress
+window.addEventListener('scroll', function() {
+  const h = document.documentElement;
+  const scrolled = h.scrollTop / (h.scrollHeight - h.clientHeight) * 100;
+  document.getElementById('readingFill').style.width = scrolled + '%';
+});
 
-// Keyboard
-document.addEventListener('keydown', e => {
-  if (e.key === 'Escape') closePanel();
-  if (!activeId) return;
-  const ids = Object.keys(STEPS);
-  const idx = ids.indexOf(activeId);
-  if (e.key === 'ArrowDown' && idx < ids.length - 1) openPanel(ids[idx + 1]);
-  if (e.key === 'ArrowUp' && idx > 0) openPanel(ids[idx - 1]);
+// Close modal on backdrop click
+document.getElementById('storeModal').addEventListener('click', function(e) {
+  if (e.target === this) this.style.display = 'none';
 });
 </script>
 </body>
