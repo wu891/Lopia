@@ -331,6 +331,9 @@ function GeneratorPanel() {
   const [date, setDate]               = useState('')
   const [label, setLabel]             = useState('')
 
+  // Tax state
+  const [isTaxable, setIsTaxable]     = useState(false)
+
   // Process state
   const [generating, setGenerating]   = useState(false)
   const [error, setError]             = useState<string | null>(null)
@@ -410,6 +413,7 @@ function GeneratorPanel() {
       form.append('file', file)
       form.append('date', date)
       form.append('label', label)
+      form.append('isTaxable', isTaxable ? '1' : '0')
 
       if (manualMode) {
         form.append('manualSheets', JSON.stringify(selectedManualSheets))
@@ -539,6 +543,25 @@ function GeneratorPanel() {
                 className="border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-lopia-red"
               />
             </div>
+          </div>
+
+          {/* Tax toggle */}
+          <div className="bg-amber-50 border border-amber-200 rounded-xl px-4 py-3">
+            <label className="flex items-center gap-2.5 cursor-pointer select-none">
+              <input
+                type="checkbox"
+                checked={isTaxable}
+                onChange={e => setIsTaxable(e.target.checked)}
+                className="w-4 h-4 accent-lopia-red shrink-0"
+              />
+              <span className="text-sm font-medium text-gray-800">
+                加工品
+                <span className="ml-2 inline-block bg-amber-100 text-amber-800 text-[11px] font-semibold px-2 py-0.5 rounded-full">加收 5% 營業稅</span>
+              </span>
+            </label>
+            {isTaxable && (
+              <p className="text-xs text-amber-700 mt-1.5 ml-6">產出的出貨單每張店鋪頁與總表將新增稅金列與含稅合計列</p>
+            )}
           </div>
 
           {/* Auto-detected stores (normal mode) */}

@@ -104,7 +104,7 @@ function styleCell(
 
 // ── Per-store sheet ────────────────────────────────────────────────────────────
 
-function addStoreSheet(wb: ExcelJS.Workbook, order: StoreOrder, shipmentNo: string, processedProductNames?: string[]) {
+function addStoreSheet(wb: ExcelJS.Workbook, order: StoreOrder, shipmentNo: string, isTaxable: boolean = false) {
   const sheetName = order.storeName.slice(0, 31)
   const shortName = order.storeName
   const dateStr   = fmtDate(order.deliveryDate)
@@ -233,31 +233,44 @@ function addStoreSheet(wb: ExcelJS.Workbook, order: StoreOrder, shipmentNo: stri
   const totalRowNum = 9 + order.products.length + 1
   ws.mergeCells(`A${totalRowNum}:B${totalRowNum}`)
 
-      // Tax row — 5% for processed products
-      if (processedProductNames && processedProductNames.length > 0) {
-              const processedProducts = order.products.filter(p =>
-                        processedProductNames.includes(p.name)
-                      )
-              const taxBase = processedProducts.reduce((sum, p) => sum + (p.unitPrice || 0) * (p.quantity || 0), 0)
-              const taxAmount = Math.round(taxBase * 0.05)
-              const taxRowNum = totalRowNum + 1
-              const taxRow = ws.addRow(['營業稅（5%）', '', '', '', taxAmount])
-              taxRow.height = 18
-              ws.mergeCells(`A${taxRowNum}:D${taxRowNum}`)
-              taxRow.eachCell({ includeEmpty: true }, (cell, col) => {
-                        cell.border = border()
-                        cell.alignment = { vertical: 'middle', horizontal: col === 5 ? 'right' : 'left' }
-                        cell.font = { name: 'Arial', size: 11, bold: true }
-                        cell.fill = fill('FFF3CD')
-              })
-              taxRow.getCell(5).numFmt = '#,##0'
-      }
+  let nextOffset = 1
+
+  if (isTaxable) {
+    const taxRowNum = totalRowNum + nextOffset
+    const taxRow = ws.addRow(['稅金（5%）', '', '', '', { formula: `E${totalRowNum}*0.05` }])
+    taxRow.height = 18
+    taxRow.eachCell({ includeEmpty: true }, (cell, col) => {
+      cell.fill = fill('FFFFFDE7')
+      cell.border = border()
+      cell.font = { name: 'Arial', size: 11, color: { argb: 'FF92400E' } }
+      cell.alignment = { horizontal: col === 5 ? 'right' : 'left', vertical: 'middle' }
+    })
+    taxRow.getCell(5).numFmt = '#,##0'
+    ws.mergeCells(`A${taxRowNum}:D${taxRowNum}`)
+    nextOffset++
+
+    const afterTaxRowNum = totalRowNum + nextOffset
+    const afterTaxRow = ws.addRow(['含稅合計', '', '', '', { formula: `E${totalRowNum}+E${taxRowNum}` }])
+    afterTaxRow.height = 20
+    afterTaxRow.eachCell({ includeEmpty: true }, (cell, col) => {
+      cell.fill = fill(C_BLUE_DARK)
+      cell.border = border()
+      cell.font = { name: 'Arial', size: 11, bold: true, color: { argb: C_WHITE } }
+      cell.alignment = { horizontal: col === 5 ? 'right' : 'left', vertical: 'middle' }
+    })
+    afterTaxRow.getCell(5).numFmt = '#,##0'
+    ws.mergeCells(`A${afterTaxRowNum}:D${afterTaxRowNum}`)
+    nextOffset++
+  }
+
   // Spacer
   ws.addRow([''])
+  nextOffset++
 
   // Sign row
+  const signRowNum = totalRowNum + nextOffset
   const signRow = ws.addRow(['收貨簽名：___________________________　　日期：___________'])
-  ws.mergeCells(`A${totalRowNum + 2}:E${totalRowNum + 2}`)
+  ws.mergeCells(`A${signRowNum}:E${signRowNum}`)
   signRow.height = 22
   signRow.getCell(1).font = { name: 'Arial', size: 11 }
   signRow.getCell(1).alignment = { vertical: 'middle' }
@@ -266,7 +279,7 @@ function addStoreSheet(wb: ExcelJS.Workbook, order: StoreOrder, shipmentNo: stri
 
 // ── Summary sheet (總表) ───────────────────────────────────────────────────────
 
-function addSummarySheet(wb: ExcelJS.Workbook, storeOrders: StoreOrder[], shipmentNo: string) {
+function addSummarySheet(wb: ExcelJS.Workbook, storeOrders: StoreOrder[], shipmentNo: string, isTaxable: boolean = false) {
   const ws = wb.addWorksheet('總表', { views: [{ showGridLines: false }] })
   const dateStr = storeOrders.length > 0 ? fmtDate(storeOrders[0].deliveryDate) : ''
   const shortNames = storeOrders.map(o => o.storeName)
@@ -404,6 +417,37 @@ function addSummarySheet(wb: ExcelJS.Workbook, storeOrders: StoreOrder[], shipme
 
   // Merge 合計 A-C
   ws.mergeCells(totalRowNum, 1, totalRowNum, 3)
+
+  if (isTaxable) {
+    const taxRowNum = totalRowNum + 1
+    const afterTaxRowNum = totalRowNum + 2
+
+    const taxRowCells = ['稅金（5%）', '', '', ...Array(shortNames.length).fill(''), '', { formula: `${amountColLetter}${totalRowNum}*0.05` }]
+    const taxRow = ws.addRow(taxRowCells)
+    taxRow.height = 18
+    taxRow.eachCell({ includeEmpty: true }, (cell, col) => {
+      cell.fill = fill('FFFFFDE7')
+      cell.border = border()
+      cell.font = { name: 'Arial', size: 11, color: { argb: 'FF92400E' } }
+      cell.alignment = { horizontal: col <= 3 ? 'left' : 'center', vertical: 'middle' }
+    })
+    ws.getCell(taxRowNum, amountCol).numFmt = '#,##0'
+    ws.getCell(taxRowNum, amountCol).alignment = { horizontal: 'right', vertical: 'middle' }
+    ws.mergeCells(taxRowNum, 1, taxRowNum, 3)
+
+    const afterTaxRowCells = ['含稅總額', '', '', ...Array(shortNames.length).fill(''), '', { formula: `${amountColLetter}${totalRowNum}+${amountColLetter}${taxRowNum}` }]
+    const afterTaxRow = ws.addRow(afterTaxRowCells)
+    afterTaxRow.height = 20
+    afterTaxRow.eachCell({ includeEmpty: true }, (cell, col) => {
+      cell.fill = fill(C_BLUE_DARK)
+      cell.border = border()
+      cell.font = { name: 'Arial', size: 11, bold: true, color: { argb: C_WHITE } }
+      cell.alignment = { horizontal: col <= 3 ? 'left' : 'center', vertical: 'middle' }
+    })
+    ws.getCell(afterTaxRowNum, amountCol).numFmt = '#,##0'
+    ws.getCell(afterTaxRowNum, amountCol).alignment = { horizontal: 'right', vertical: 'middle' }
+    ws.mergeCells(afterTaxRowNum, 1, afterTaxRowNum, 3)
+  }
 }
 
 // 1-based column index → letters (supports A..ZZ)
@@ -423,15 +467,15 @@ export async function generateShipmentOrder(
   storeOrders: StoreOrder[],
   shipmentNo: string,
   _batchName: string,
-    processedProductNames?: string[],
+  isTaxable: boolean = false,
 ): Promise<ArrayBuffer> {
   const wb = new ExcelJS.Workbook()
   wb.creator = 'LOPIA'
 
   for (const order of storeOrders) {
-    addStoreSheet(wb, order, shipmentNo, processedProductNames)
+    addStoreSheet(wb, order, shipmentNo, isTaxable)
   }
-  addSummarySheet(wb, storeOrders, shipmentNo)
+  addSummarySheet(wb, storeOrders, shipmentNo, isTaxable)
 
   const buf = await wb.xlsx.writeBuffer()
   return buf as ArrayBuffer

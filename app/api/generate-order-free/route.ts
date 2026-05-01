@@ -8,6 +8,7 @@ export async function POST(req: NextRequest) {
           const date = form.get('date') as string
           const file = form.get('file') as File | null
           const label = (form.get('label') as string) || ''
+          const isTaxable = form.get('isTaxable') === '1'
 
           const manualSheetsRaw = form.get('manualSheets') as string | null
           const manualSheets: string[] | undefined = manualSheetsRaw ? JSON.parse(manualSheetsRaw) : undefined
@@ -61,9 +62,7 @@ export async function POST(req: NextRequest) {
 
       const batchName = label || (isManualMode ? '手動選頁' : `第${roundNo}回`)
       const shipmentNo = generateShipmentNo(date)
-                const processedItemsRaw = form.get('processedItems') as string | null
-                const processedProductNames: string[] = processedItemsRaw ? JSON.parse(processedItemsRaw) : []
-          const excelBuffer = await generateShipmentOrder(storeOrders, shipmentNo, batchName, processedProductNames)
+          const excelBuffer = await generateShipmentOrder(storeOrders, shipmentNo, batchName, isTaxable)
 
       const summaryMap = new Map<string, { boxSpec: string; total: number }>()
           for (const order of storeOrders) {
