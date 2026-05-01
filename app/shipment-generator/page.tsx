@@ -339,6 +339,7 @@ function GeneratorPanel() {
   const EXCLUDED_SHEETS = new Set(['彙整_商品總數', '請款単', '総数', '総量', '総計', 'summary'])
 
   // ── File upload: detect rounds and store all sheet names ──────────────────
+    const [processedProductNames, setProcessedProductNames] = useState<Set<string>>(new Set())
   const handleFile = useCallback(async (f: File) => {
     setFile(f)
     setSheetNames([])
@@ -416,6 +417,7 @@ function GeneratorPanel() {
         form.append('roundNo', roundNo)
         form.append('stores', JSON.stringify(detectedStores.map(s => s.code)))
       }
+              form.append('processedItems', JSON.stringify(Array.from(processedProductNames)))
 
       const res = await fetch('/api/generate-order-free', { method: 'POST', body: form })
       if (!res.ok) {
