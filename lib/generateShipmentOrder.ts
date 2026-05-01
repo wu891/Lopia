@@ -104,7 +104,7 @@ function styleCell(
 
 // ── Per-store sheet ────────────────────────────────────────────────────────────
 
-function addStoreSheet(wb: ExcelJS.Workbook, order: StoreOrder, shipmentNo: string) {
+function addStoreSheet(wb: ExcelJS.Workbook, order: StoreOrder, shipmentNo: string, processedProductNames?: string[]) {
   const sheetName = order.storeName.slice(0, 31)
   const shortName = order.storeName
   const dateStr   = fmtDate(order.deliveryDate)
@@ -162,7 +162,7 @@ function addStoreSheet(wb: ExcelJS.Workbook, order: StoreOrder, shipmentNo: stri
   ws.getRow(8).height = 6
 
   // R9 — table header
-  ws.addRow(['商品名稱', '入數(玉)', '箱數', '單價(TWD/箱)', '小計(TWD)'])
+  ws.addRow(['商品名稱', '入數', '箱數', '單價(TWD/箱)', '小計(TWD)'])
   applyRow(ws.getRow(9), {
     bg: C_BLUE_DARK, bold: true, color: C_WHITE, size: 11,
     align: 'center', valign: 'middle', borders: true, height: 20
@@ -233,6 +233,25 @@ function addStoreSheet(wb: ExcelJS.Workbook, order: StoreOrder, shipmentNo: stri
   const totalRowNum = 9 + order.products.length + 1
   ws.mergeCells(`A${totalRowNum}:B${totalRowNum}`)
 
+      // Tax row — 5% for processed products
+      if (processedProductNames && processedProductNames.length > 0) {
+              const processedProducts = order.products.filter(p =>
+                        processedProductNames.includes(p.name)
+                      )
+              const taxBase = processedProducts.reduce((sum, p) => sum + (p.unitPrice || 0) * (p.quantity || 0), 0)
+              const taxAmount = Math.round(taxBase * 0.05)
+              const taxRowNum = totalRowNum + 1
+              const taxRow = ws.addRow(['營業稅（5%）', '', '', '', taxAmount])
+              taxRow.height = 18
+              ws.mergeCells(`A${taxRowNum}:D${taxRowNum}`)
+              taxRow.eachCell({ includeEmpty: true }, (cell, col) => {
+                        cell.border = border()
+                        cell.alignment = { vertical: 'middle', horizontal: col === 5 ? 'right' : 'left' }
+                        cell.font = { name: 'Arial', size: 11, bold: true }
+                        cell.fill = fill('FFF3CD')
+              })
+              taxRow.getCell(5).numFmt = '#,##0'
+      }
   // Spacer
   ws.addRow([''])
 
@@ -284,7 +303,7 @@ function addSummarySheet(wb: ExcelJS.Workbook, storeOrders: StoreOrder[], shipme
   applyRow(ws.getRow(1), { bg: C_BLUE_LIGHT, bold: true, size: 13, align: 'center', valign: 'middle', height: 22 })
 
   // R2 — header
-  ws.addRow(['商品名稱', '入數(玉)', '單價(TWD)', ...shortNames, '總箱數', '總金額(TWD)'])
+  ws.addRow(['商品名稱', '入數', '單價(TWD)', ...shortNames, '總箱數', '總金額(TWD)'])
   const hRow = ws.getRow(2)
   hRow.height = 20
   hRow.eachCell({ includeEmpty: true }, (cell, col) => {
@@ -404,12 +423,13 @@ export async function generateShipmentOrder(
   storeOrders: StoreOrder[],
   shipmentNo: string,
   _batchName: string,
+    processedProductNames?: string[],
 ): Promise<ArrayBuffer> {
   const wb = new ExcelJS.Workbook()
   wb.creator = 'LOPIA'
 
   for (const order of storeOrders) {
-    addStoreSheet(wb, order, shipmentNo)
+    addStoreSheet(wb, order, shipmentNo, processedProductNames)
   }
   addSummarySheet(wb, storeOrders, shipmentNo)
 
