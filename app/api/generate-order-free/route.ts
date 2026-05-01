@@ -61,7 +61,9 @@ export async function POST(req: NextRequest) {
 
       const batchName = label || (isManualMode ? '手動選頁' : `第${roundNo}回`)
       const shipmentNo = generateShipmentNo(date)
-          const excelBuffer = await generateShipmentOrder(storeOrders, shipmentNo, batchName)
+                const processedItemsRaw = form.get('processedItems') as string | null
+                const processedProductNames: string[] = processedItemsRaw ? JSON.parse(processedItemsRaw) : []
+          const excelBuffer = await generateShipmentOrder(storeOrders, shipmentNo, batchName, processedProductNames)
 
       const summaryMap = new Map<string, { boxSpec: string; total: number }>()
           for (const order of storeOrders) {
