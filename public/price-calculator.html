@@ -19,6 +19,9 @@ body { font-family: 'Segoe UI','Noto Sans TC',sans-serif; background:#f0f2f5; co
 .header-right { margin-left:auto;text-align:right; }
 .header-right .date { font-size:12px;color:#a0aec0; }
 .badge-gm { color:#68d391;font-size:12px;font-weight:600;margin-top:4px; }
+.badge-mode { display:inline-block;margin-left:10px;padding:2px 8px;border-radius:4px;font-size:11px;font-weight:700; }
+.badge-mode.air { background:#ffe0e0;color:#c53030; }
+.badge-mode.sea { background:#dbeafe;color:#1e40af; }
 
 /* ── Layout ── */
 .container { max-width:1440px;margin:0 auto;padding:22px 18px; }
@@ -42,9 +45,12 @@ body { font-family: 'Segoe UI','Noto Sans TC',sans-serif; background:#f0f2f5; co
 }
 .param-box input:focus, .param-box select:focus { border-color:#e94560;box-shadow:0 0 0 3px rgba(233,69,96,.1); }
 .param-hint { font-size:11px;color:#a0aec0;margin-top:3px; }
+.param-box.sea-only { display:none; }
+.param-box.sea-only.visible { display:block; }
 
 /* ── Logistics accordion ── */
 .logistics-grid { display:grid;grid-template-columns:repeat(3,1fr);gap:14px;margin-bottom:18px; }
+.logistics-grid.sea-mode { grid-template-columns:repeat(2,1fr); }
 @media(max-width:900px){ .logistics-grid{grid-template-columns:1fr;} }
 
 .log-panel { border:1px solid #e2e8f0;border-radius:10px;overflow:hidden; }
@@ -58,6 +64,7 @@ body { font-family: 'Segoe UI','Noto Sans TC',sans-serif; background:#f0f2f5; co
 .flag-jp { background:#ffe0e0; }
 .flag-tw { background:#e0f0ff; }
 .flag-sa { background:#e0ffe8; }
+.flag-oc { background:#dbeafe; }
 .log-header .log-title { font-size:13px;font-weight:700;color:#2d3748;flex:1; }
 .log-header .log-total { font-size:15px;font-weight:800;color:#e94560;margin-right:6px; }
 .log-header .log-sub { font-size:11px;color:#a0aec0; }
@@ -67,7 +74,7 @@ body { font-family: 'Segoe UI','Noto Sans TC',sans-serif; background:#f0f2f5; co
 .log-body { border-top:1px solid #edf2f7;padding:0; }
 .log-body.hidden { display:none; }
 
-/* ── GW helper row ── */
+/* ── GW / CBM helper row ── */
 .gw-row {
   display:flex;align-items:center;gap:10px;padding:10px 14px;
   background:#fffbeb;border-bottom:1px solid #fef3c7;font-size:12px;
@@ -78,6 +85,13 @@ body { font-family: 'Segoe UI','Noto Sans TC',sans-serif; background:#f0f2f5; co
   font-size:13px;font-weight:700;text-align:right;color:#92400e;outline:none;
 }
 .gw-row span { color:#a0aec0;font-size:11px; }
+.cbm-row {
+  display:none;align-items:center;gap:10px;padding:10px 14px;
+  background:#eff6ff;border-bottom:1px solid #bfdbfe;font-size:12px;
+}
+.cbm-row label { color:#1e40af;font-weight:700;white-space:nowrap; }
+.cbm-row .cbm-val { font-size:16px;font-weight:800;color:#1e40af; }
+.cbm-row span { color:#a0aec0;font-size:11px; }
 
 /* ── Item table ── */
 .item-table { width:100%;border-collapse:collapse;font-size:12px; }
@@ -121,6 +135,7 @@ table.prod-table { width:100%;border-collapse:collapse;font-size:13px; }
   border-bottom:2px solid #edf2f7;white-space:nowrap;
 }
 .prod-table thead th.r { text-align:right; }
+.prod-table thead th.sea-col { background:#eff6ff;color:#1e40af; }
 .prod-table tbody tr { border-bottom:1px solid #f0f4f8;transition:background .15s; }
 .prod-table tbody tr:hover { background:#fafbff; }
 .prod-table tbody td { padding:8px 11px;vertical-align:middle; }
@@ -130,6 +145,7 @@ table.prod-table { width:100%;border-collapse:collapse;font-size:13px; }
 }
 .prod-table tbody td input:focus { border-color:#667eea;box-shadow:0 0 0 2px rgba(102,126,234,.15); }
 .prod-table tbody td input[type="number"] { text-align:right; }
+.cbm-cell { text-align:right;font-size:11px;font-weight:700;color:#1e40af;white-space:nowrap; }
 .add-btn {
   display:flex;align-items:center;gap:6px;margin-top:10px;
   color:#667eea;font-size:13px;font-weight:600;cursor:pointer;
@@ -159,6 +175,7 @@ table.res-table { width:100%;border-collapse:collapse;font-size:12px; }
 
 .th-goods { background:#1a2a3e;color:#90cdf4; }
 .th-log   { background:#1a3a26;color:#9ae6b4; }
+.th-oc    { background:#1a2a4e;color:#93c5fd; }
 .th-price { background:#1a3a2e;color:#68d391; }
 .th-dark  { background:#1a1a2e;color:#a0aec0; }
 
@@ -194,7 +211,10 @@ table.res-table { width:100%;border-collapse:collapse;font-size:12px; }
   </div>
   <div class="header-right">
     <div class="date" id="hdr-date"></div>
-    <div class="badge-gm">毛利目標：<span id="hdr-m1">5</span>% ～ <span id="hdr-m2">10</span>%</div>
+    <div class="badge-gm">
+      毛利目標：<span id="hdr-m1">5</span>% ～ <span id="hdr-m2">10</span>%
+      <span class="badge-mode air" id="hdr-mode-badge">✈ 空運</span>
+    </div>
   </div>
 </div>
 
@@ -205,9 +225,22 @@ table.res-table { width:100%;border-collapse:collapse;font-size:12px; }
     <div class="card-title"><span class="dot"></span>① 全局參數</div>
     <div class="params-row">
       <div class="param-box">
+        <label>運輸模式</label>
+        <select id="transport_mode" onchange="switchMode()">
+          <option value="air">✈ 空運 AIR</option>
+          <option value="sea">🚢 海運 SEA</option>
+        </select>
+        <div class="param-hint">切換後物流費欄位自動更新</div>
+      </div>
+      <div class="param-box">
         <label>匯率（JPY → TWD）</label>
         <input type="number" id="exchange_rate" value="0.21" step="0.001" min="0.001" oninput="recalc()">
         <div class="param-hint">1 JPY = 0.21 NTD（可修改）</div>
+      </div>
+      <div class="param-box sea-only" id="usd-rate-box">
+        <label>匯率（USD → TWD）</label>
+        <input type="number" id="usd_rate" value="32" step="0.1" min="1" oninput="recalc()">
+        <div class="param-hint">海運費以 USD 計，需設定</div>
       </div>
       <div class="param-box">
         <label>加工品消費稅（%）</label>
@@ -228,15 +261,15 @@ table.res-table { width:100%;border-collapse:collapse;font-size:12px; }
   <!-- ② 物流費明細 -->
   <div class="card">
     <div class="card-title"><span class="dot"></span>② 物流費明細（點擊展開微調）</div>
-    <div class="logistics-grid">
+    <div class="logistics-grid" id="logistics-grid">
 
-      <!-- 日本輸出費 -->
+      <!-- 日本輸出費 (AIR / SEA 共用面板，內容依模式切換) -->
       <div class="log-panel" id="panel-jp">
         <div class="log-header" onclick="togglePanel('jp')">
           <div class="flag flag-jp">🇯🇵</div>
           <div>
             <div class="log-title">日本輸出費</div>
-            <div class="log-sub">見積書 AIR — JPY</div>
+            <div class="log-sub" id="jp-sub">見積書 AIR — JPY</div>
           </div>
           <div>
             <div class="log-total" id="jp-total-disp">¥0</div>
@@ -245,24 +278,31 @@ table.res-table { width:100%;border-collapse:collapse;font-size:12px; }
           <div class="chevron" id="chev-jp">▼</div>
         </div>
         <div class="log-body hidden" id="body-jp">
-          <div class="gw-row">
+          <!-- AIR: GW input -->
+          <div class="gw-row" id="gw-row-air">
             <label>GW（kg）：</label>
-            <input type="number" id="jp-gw" value="250" oninput="updateWeightRows('jp'); recalc()">
+            <input type="number" id="jp-gw" value="250" oninput="updateWeightRows(); recalc()">
             <span>重量連動項目自動更新</span>
+          </div>
+          <!-- SEA: CBM display -->
+          <div class="cbm-row" id="cbm-row-jp">
+            <label>總體積（CBM）：</label>
+            <span class="cbm-val" id="cbm-disp-jp">0.000</span>
+            <span>m³　由商品尺寸自動累算</span>
           </div>
           <table class="item-table">
             <thead><tr>
               <th>項目</th>
-              <th class="r">単価（¥）</th>
+              <th class="r">単価</th>
               <th class="r">數量</th>
               <th>単位</th>
-              <th class="r">金額（¥）</th>
+              <th class="r" id="jp-amt-hdr">金額（¥）</th>
               <th>含</th>
             </tr></thead>
             <tbody id="rows-jp"></tbody>
           </table>
           <div class="log-footer">
-            <span class="footer-label">日本費合計 (JPY)</span>
+            <span class="footer-label" id="jp-foot-label">日本費合計 (JPY)</span>
             <div>
               <span class="footer-total" id="jp-foot-total">¥0</span>
               <span class="tax-note" style="margin-left:6px">→ <span id="jp-foot-twd">0</span> TWD</span>
@@ -271,13 +311,54 @@ table.res-table { width:100%;border-collapse:collapse;font-size:12px; }
         </div>
       </div>
 
-      <!-- 台灣進口費 -->
+      <!-- 海上運費（海運模式專用，預設隱藏） -->
+      <div class="log-panel" id="panel-oc" style="display:none">
+        <div class="log-header" onclick="togglePanel('oc')">
+          <div class="flag flag-oc">🚢</div>
+          <div>
+            <div class="log-title">海上運費</div>
+            <div class="log-sub">Ocean Freight — USD</div>
+          </div>
+          <div>
+            <div class="log-total" id="oc-total-disp" style="color:#1e40af">$0</div>
+            <div class="log-sub" id="oc-twd-disp"></div>
+          </div>
+          <div class="chevron" id="chev-oc">▼</div>
+        </div>
+        <div class="log-body hidden" id="body-oc">
+          <div class="cbm-row" style="display:flex">
+            <label style="color:#1e40af">總體積（CBM）：</label>
+            <span class="cbm-val" id="cbm-disp-oc" style="color:#1e40af">0.000</span>
+            <span>m³　運費連動項目自動更新</span>
+          </div>
+          <table class="item-table">
+            <thead><tr>
+              <th>項目</th>
+              <th class="r">単価（USD）</th>
+              <th class="r">數量</th>
+              <th>単位</th>
+              <th class="r">金額（USD）</th>
+              <th>含</th>
+            </tr></thead>
+            <tbody id="rows-oc"></tbody>
+          </table>
+          <div class="log-footer">
+            <span class="footer-label">海運費合計 (USD)</span>
+            <div>
+              <span class="footer-total" id="oc-foot-total" style="color:#1e40af">$0</span>
+              <span class="tax-note" style="margin-left:6px">→ <span id="oc-foot-twd">0</span> TWD</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- 台灣進口費 (AIR / SEA 共用面板) -->
       <div class="log-panel" id="panel-tw">
         <div class="log-header" onclick="togglePanel('tw')">
           <div class="flag flag-tw">🇹🇼</div>
           <div>
             <div class="log-title">台灣進口費</div>
-            <div class="log-sub">NX Taiwan AIR — TWD（未含稅）</div>
+            <div class="log-sub" id="tw-sub">NX Taiwan AIR — TWD（未含稅）</div>
           </div>
           <div>
             <div class="log-total" id="tw-total-disp">NT$0</div>
@@ -286,6 +367,12 @@ table.res-table { width:100%;border-collapse:collapse;font-size:12px; }
           <div class="chevron" id="chev-tw">▼</div>
         </div>
         <div class="log-body hidden" id="body-tw">
+          <!-- SEA: CBM display for TW -->
+          <div class="cbm-row" id="cbm-row-tw">
+            <label>總體積（CBM）：</label>
+            <span class="cbm-val" id="cbm-disp-tw">0.000</span>
+            <span>m³　THC/CFS 連動項目自動更新</span>
+          </div>
           <table class="item-table">
             <thead><tr>
               <th>項目</th>
@@ -307,7 +394,7 @@ table.res-table { width:100%;border-collapse:collapse;font-size:12px; }
         </div>
       </div>
 
-      <!-- 三義配送 -->
+      <!-- 倉儲配送費（不分模式） -->
       <div class="log-panel" id="panel-sa">
         <div class="log-header" onclick="togglePanel('sa')">
           <div class="flag flag-sa">🚚</div>
@@ -351,12 +438,16 @@ table.res-table { width:100%;border-collapse:collapse;font-size:12px; }
     <div class="card-title"><span class="dot"></span>③ 商品明細</div>
     <div style="overflow-x:auto">
       <table class="prod-table">
-        <thead><tr>
+        <thead id="prod-head"><tr>
           <th style="min-width:180px">商品名稱</th>
           <th class="r" style="width:120px">仕入単価（JPY/箱）</th>
           <th class="r" style="width:80px">數量（箱）</th>
           <th class="r" style="width:85px">GW（kg/箱）</th>
           <th class="r" style="width:85px">NW（kg/箱）</th>
+          <th class="r sea-col" style="width:70px">長(cm)</th>
+          <th class="r sea-col" style="width:70px">寬(cm)</th>
+          <th class="r sea-col" style="width:70px">高(cm)</th>
+          <th class="r sea-col" style="width:85px">CBM/箱</th>
           <th class="r" style="width:85px">關稅率（%）</th>
           <th style="width:36px" class="no-print"></th>
         </tr></thead>
@@ -372,46 +463,12 @@ table.res-table { width:100%;border-collapse:collapse;font-size:12px; }
     <div class="summary-row" id="summary-cards"></div>
     <div class="res-wrap">
       <table class="res-table">
-        <thead>
-          <tr>
-            <th rowspan="2" class="th-dark" style="min-width:150px">商品名稱</th>
-            <th rowspan="2" class="th-dark r" style="width:50px">箱</th>
-            <th colspan="4" class="th-goods" style="text-align:center">商品成本／箱（TWD）</th>
-            <th colspan="3" class="th-log"   style="text-align:center">物流分攤／箱（TWD）</th>
-            <th rowspan="2" class="r" style="background:#2a1a1e;color:#fc8181;min-width:80px">總成本/箱</th>
-            <th colspan="2" class="th-price" style="text-align:center;min-width:160px">建議售價/箱（TWD）</th>
-          </tr>
-          <tr>
-            <th class="th-goods r">仕入</th>
-            <th class="th-goods r">關稅</th>
-            <th class="th-goods r">消費稅</th>
-            <th class="th-goods r">小計</th>
-            <th class="th-log r">日本費</th>
-            <th class="th-log r">台灣費</th>
-            <th class="th-log r">配送費</th>
-            <th class="th-price r">
-              <div class="margin-input-wrap">
-                毛利
-                <input type="number" id="margin1" class="margin-input" value="5" min="0" max="99" step="0.5"
-                  oninput="syncMarginHeader();recalc()">
-                %
-              </div>
-            </th>
-            <th class="th-price r">
-              <div class="margin-input-wrap">
-                毛利
-                <input type="number" id="margin2" class="margin-input" value="10" min="0" max="99" step="0.5"
-                  oninput="syncMarginHeader();recalc()">
-                %
-              </div>
-            </th>
-          </tr>
-        </thead>
+        <thead id="res-head"></thead>
         <tbody id="res-body"></tbody>
         <tfoot id="res-foot"></tfoot>
       </table>
     </div>
-    <div class="note-bar">
+    <div class="note-bar" id="note-bar">
       <strong>公式：</strong>建議售價 = 總成本/箱 ÷ (1 − 毛利率)　|　關稅稅基 = 仕入TWD　|　消費稅稅基 = 仕入 + 關稅　|　台灣進口費＆配送費自動加算 5% 消費稅
     </div>
   </div>
@@ -423,42 +480,69 @@ table.res-table { width:100%;border-collapse:collapse;font-size:12px; }
 //  資料定義
 // ══════════════════════════════════════════════════════
 
-// 日本輸出費 — isWeight:true 的項目數量會跟著 GW 同步
+// 空運：日本輸出費
 const jpItems = [
-  // id, name, rate, qty, unit, isWeight, enabled
-  {id:'jp01', name:'輸出通関料',        rate:5900,  qty:1,   unit:'Sheet', isWeight:false, en:true},
-  {id:'jp02', name:'取扱料',            rate:5000,  qty:1,   unit:'件',    isWeight:false, en:true},
-  {id:'jp03', name:'保冷梱包料',        rate:16000, qty:1,   unit:'Pallet',isWeight:false, en:true},
-  {id:'jp04', name:'ドライアイス',      rate:280,   qty:20,  unit:'kg',    isWeight:false, en:true},
-  {id:'jp05', name:'搬入作業料',        rate:18,    qty:250, unit:'kg',    isWeight:true,  en:true},
-  {id:'jp06', name:'ターミナルチャージ', rate:20,    qty:250, unit:'kg',    isWeight:true,  en:true},
-  {id:'jp07', name:'爆発物検査（Min）',  rate:3000,  qty:1,   unit:'Min',   isWeight:false, en:true},
-  {id:'jp08', name:'爆発物検査（追加）', rate:300,   qty:2,   unit:'pkg',   isWeight:false, en:true},
-  {id:'jp09', name:'AWB Fee',           rate:200,   qty:1,   unit:'AWB',   isWeight:false, en:true},
-  {id:'jp10', name:'Air Freight',       rate:230,   qty:250, unit:'kg',    isWeight:true,  en:true},
-  {id:'jp11', name:'Fuel Surcharge',    rate:42,    qty:250, unit:'kg',    isWeight:true,  en:true},
-  {id:'jp12', name:'Security Charge',   rate:500,   qty:1,   unit:'AWB',   isWeight:false, en:true},
+  {id:'jp01', name:'輸出通関料',        rate:5900,  qty:1,   unit:'Sheet', isWeight:false, isVol:false, en:true},
+  {id:'jp02', name:'取扱料',            rate:5000,  qty:1,   unit:'件',    isWeight:false, isVol:false, en:true},
+  {id:'jp03', name:'保冷梱包料',        rate:16000, qty:1,   unit:'Pallet',isWeight:false, isVol:false, en:true},
+  {id:'jp04', name:'ドライアイス',      rate:280,   qty:20,  unit:'kg',    isWeight:false, isVol:false, en:true},
+  {id:'jp05', name:'搬入作業料',        rate:18,    qty:250, unit:'kg',    isWeight:true,  isVol:false, en:true},
+  {id:'jp06', name:'ターミナルチャージ', rate:20,    qty:250, unit:'kg',    isWeight:true,  isVol:false, en:true},
+  {id:'jp07', name:'爆発物検査（Min）',  rate:3000,  qty:1,   unit:'Min',   isWeight:false, isVol:false, en:true},
+  {id:'jp08', name:'爆発物検査（追加）', rate:300,   qty:2,   unit:'pkg',   isWeight:false, isVol:false, en:true},
+  {id:'jp09', name:'AWB Fee',           rate:200,   qty:1,   unit:'AWB',   isWeight:false, isVol:false, en:true},
+  {id:'jp10', name:'Air Freight',       rate:230,   qty:250, unit:'kg',    isWeight:true,  isVol:false, en:true},
+  {id:'jp11', name:'Fuel Surcharge',    rate:42,    qty:250, unit:'kg',    isWeight:true,  isVol:false, en:true},
+  {id:'jp12', name:'Security Charge',   rate:500,   qty:1,   unit:'AWB',   isWeight:false, isVol:false, en:true},
 ];
 
-// 台灣進口費
+// 海運：日本輸出費（JPY）
+const seaJpItems = [
+  {id:'sj01', name:'輸出通関料',   rate:15000, qty:1,   unit:'件',  isWeight:false, isVol:false, en:true},
+  {id:'sj02', name:'取扱料',       rate:5000,  qty:1,   unit:'件',  isWeight:false, isVol:false, en:true},
+  {id:'sj03', name:'CFS Charge',   rate:3000,  qty:0,   unit:'CBM', isWeight:false, isVol:true,  en:true},
+  {id:'sj04', name:'BL Fee',       rate:3000,  qty:1,   unit:'BL',  isWeight:false, isVol:false, en:true},
+];
+
+// 海運：海上運費（USD）
+const oceanItems = [
+  {id:'oc01', name:'Ocean Freight',  rate:90,  qty:0, unit:'CBM', isWeight:false, isVol:true,  en:true},
+  {id:'oc02', name:'BAF 燃油附加費', rate:15,  qty:0, unit:'CBM', isWeight:false, isVol:true,  en:true},
+  {id:'oc03', name:'GRI 旺季附加費', rate:0,   qty:0, unit:'CBM', isWeight:false, isVol:false, en:false},
+  {id:'oc04', name:'THC（日本）',    rate:100, qty:0, unit:'CBM', isWeight:false, isVol:true,  en:true},
+];
+
+// 空運：台灣進口費
 const twItems = [
-  {id:'tw01', name:'Customs Clearance Fee',  rate:2500, qty:1, unit:'BL',   en:true},
-  {id:'tw02', name:'Handling Charge',        rate:1000, qty:1, unit:'BL',   en:true},
-  {id:'tw03', name:'EDI Entry Fee',          rate:200,  qty:1, unit:'BL',   en:true},
-  {id:'tw04', name:'Labour Charge at CKS',   rate:1500, qty:1, unit:'SHPT', en:true},
-  {id:'tw05', name:'Terminal（0〜8hrs）',     rate:2560, qty:1, unit:'式',   en:true},
-  {id:'tw06', name:'Terminal（8〜16hrs）',    rate:2482, qty:1, unit:'式',   en:true},
-  {id:'tw07', name:'Terminal（16〜96hrs）',   rate:18250,qty:1, unit:'式',   en:true},
-  {id:'tw08', name:'Truck Charge（3.5ton）',  rate:2500, qty:1, unit:'SHPT', en:true},
-  {id:'tw09', name:'Forklift Fee',           rate:250,  qty:1, unit:'10min',en:true},
-  {id:'tw10', name:'Food Inspection Fee',    rate:3000, qty:1, unit:'item', en:true},
-  {id:'tw11', name:'Customs Inspection Fee', rate:500,  qty:1, unit:'次',   en:true},
-  {id:'tw12', name:'NETW Handling Fee',      rate:3000, qty:1, unit:'SHPT', en:true},
-  {id:'tw13', name:'Overtime（平日）',        rate:4000, qty:1, unit:'次',   en:false},
-  {id:'tw14', name:'Overtime（假日）',        rate:6000, qty:1, unit:'次',   en:false},
+  {id:'tw01', name:'Customs Clearance Fee',  rate:2500, qty:1, unit:'BL',   isVol:false, en:true},
+  {id:'tw02', name:'Handling Charge',        rate:1000, qty:1, unit:'BL',   isVol:false, en:true},
+  {id:'tw03', name:'EDI Entry Fee',          rate:200,  qty:1, unit:'BL',   isVol:false, en:true},
+  {id:'tw04', name:'Labour Charge at CKS',   rate:1500, qty:1, unit:'SHPT', isVol:false, en:true},
+  {id:'tw05', name:'Terminal（0〜8hrs）',     rate:2560, qty:1, unit:'式',   isVol:false, en:true},
+  {id:'tw06', name:'Terminal（8〜16hrs）',    rate:2482, qty:1, unit:'式',   isVol:false, en:true},
+  {id:'tw07', name:'Terminal（16〜96hrs）',   rate:18250,qty:1, unit:'式',   isVol:false, en:true},
+  {id:'tw08', name:'Truck Charge（3.5ton）',  rate:2500, qty:1, unit:'SHPT', isVol:false, en:true},
+  {id:'tw09', name:'Forklift Fee',           rate:250,  qty:1, unit:'10min',isVol:false, en:true},
+  {id:'tw10', name:'Food Inspection Fee',    rate:3000, qty:1, unit:'item', isVol:false, en:true},
+  {id:'tw11', name:'Customs Inspection Fee', rate:500,  qty:1, unit:'次',   isVol:false, en:true},
+  {id:'tw12', name:'NETW Handling Fee',      rate:3000, qty:1, unit:'SHPT', isVol:false, en:true},
+  {id:'tw13', name:'Overtime（平日）',        rate:4000, qty:1, unit:'次',   isVol:false, en:false},
+  {id:'tw14', name:'Overtime（假日）',        rate:6000, qty:1, unit:'次',   isVol:false, en:false},
 ];
 
-// 優儲倉儲費
+// 海運：台灣進口費（TWD）
+const seaTwItems = [
+  {id:'st01', name:'Customs Clearance Fee', rate:3500, qty:1, unit:'BL',   isVol:false, en:true},
+  {id:'st02', name:'Handling Charge',       rate:1000, qty:1, unit:'BL',   isVol:false, en:true},
+  {id:'st03', name:'EDI Entry Fee',         rate:200,  qty:1, unit:'BL',   isVol:false, en:true},
+  {id:'st04', name:'THC（台灣）',           rate:500,  qty:0, unit:'CBM',  isVol:true,  en:true},
+  {id:'st05', name:'CFS Fee',              rate:600,  qty:0, unit:'CBM',  isVol:true,  en:true},
+  {id:'st06', name:'Food Inspection Fee',  rate:3000, qty:1, unit:'item', isVol:false, en:true},
+  {id:'st07', name:'Truck Charge',         rate:3000, qty:1, unit:'SHPT', isVol:false, en:true},
+  {id:'st08', name:'Customs Inspection Fee',rate:500, qty:1, unit:'次',   isVol:false, en:true},
+];
+
+// 倉儲配送費（不分模式）
 const saItems = [
   {id:'sa01', name:'入庫費',              rate:150,  qty:3,   unit:'板',    en:true},
   {id:'sa02', name:'拆櫃費',             rate:6000, qty:1,   unit:'貨櫃',  en:false},
@@ -471,10 +555,10 @@ const saItems = [
 
 // 商品
 let products = [
-  {name:'紅はるか大学芋',       price:4100, qty:36, gw:'', nw:'', duty:25},
-  {name:'元祖大学芋',           price:4005, qty:36, gw:'', nw:'', duty:25},
-  {name:'燒番薯スイートポテト', price:2640, qty:87, gw:'', nw:'', duty:25},
-  {name:'カリカリスティックポテト', price:5100, qty:40, gw:'', nw:'', duty:25},
+  {name:'紅はるか大学芋',          price:4100, qty:36, gw:'', nw:'', duty:25, l:'', w:'', h:''},
+  {name:'元祖大学芋',              price:4005, qty:36, gw:'', nw:'', duty:25, l:'', w:'', h:''},
+  {name:'燒番薯スイートポテト',    price:2640, qty:87, gw:'', nw:'', duty:25, l:'', w:'', h:''},
+  {name:'カリカリスティックポテト', price:5100, qty:40, gw:'', nw:'', duty:25, l:'', w:'', h:''},
 ];
 
 // ══════════════════════════════════════════════════════
@@ -484,11 +568,57 @@ window.onload = () => {
   document.getElementById('hdr-date').textContent =
     new Date().toLocaleDateString('zh-TW',{year:'numeric',month:'long',day:'numeric'});
   renderLogSection('jp', jpItems);
+  renderLogSection('oc', oceanItems);
   renderLogSection('tw', twItems);
   renderLogSection('sa', saItems);
   renderProdTable();
+  renderResultHead(false, 5, 10);
   recalc();
 };
+
+// ══════════════════════════════════════════════════════
+//  模式切換
+// ══════════════════════════════════════════════════════
+function switchMode() {
+  const isSea = document.getElementById('transport_mode').value === 'sea';
+  const grid = document.getElementById('logistics-grid');
+
+  // Grid layout
+  grid.classList.toggle('sea-mode', isSea);
+
+  // Panel visibility
+  document.getElementById('panel-oc').style.display = isSea ? '' : 'none';
+
+  // GW row ↔ CBM row in JP panel
+  document.getElementById('gw-row-air').style.display = isSea ? 'none' : '';
+  document.getElementById('cbm-row-jp').style.display = isSea ? 'flex' : 'none';
+  document.getElementById('cbm-row-tw').style.display = isSea ? 'flex' : 'none';
+
+  // Panel subtitles
+  document.getElementById('jp-sub').textContent = isSea ? '見積書 SEA — JPY' : '見積書 AIR — JPY';
+  document.getElementById('tw-sub').textContent = isSea ? '台灣 SEA 進口費 — TWD（未含稅）' : 'NX Taiwan AIR — TWD（未含稅）';
+
+  // USD rate box
+  const usdBox = document.getElementById('usd-rate-box');
+  if (isSea) usdBox.classList.add('visible');
+  else usdBox.classList.remove('visible');
+
+  // Mode badge
+  const badge = document.getElementById('hdr-mode-badge');
+  badge.textContent = isSea ? '🚢 海運' : '✈ 空運';
+  badge.className = 'badge-mode ' + (isSea ? 'sea' : 'air');
+
+  // Re-render logistics sections
+  renderLogSection('jp', isSea ? seaJpItems : jpItems);
+  renderLogSection('tw', isSea ? seaTwItems : twItems);
+
+  // Re-render result head (preserving current margins)
+  const m1 = +document.getElementById('margin1')?.value || 5;
+  const m2 = +document.getElementById('margin2')?.value || 10;
+  renderResultHead(isSea, m1, m2);
+
+  recalc();
+}
 
 // ══════════════════════════════════════════════════════
 //  面板切換
@@ -505,8 +635,9 @@ function togglePanel(id) {
 // ══════════════════════════════════════════════════════
 function renderLogSection(sid, items) {
   const tbody = document.getElementById('rows-'+sid);
+  if (!tbody) return;
   tbody.innerHTML = '';
-  items.forEach((item, i) => {
+  items.forEach(item => {
     const tr = document.createElement('tr');
     if (!item.en) tr.classList.add('disabled-row');
     tr.id = 'tr-'+item.id;
@@ -535,7 +666,11 @@ function renderLogSection(sid, items) {
 }
 
 function getItems(sid) {
-  return sid==='jp' ? jpItems : sid==='tw' ? twItems : saItems;
+  if (sid === 'oc') return oceanItems;
+  const isSea = document.getElementById('transport_mode').value === 'sea';
+  if (sid === 'jp') return isSea ? seaJpItems : jpItems;
+  if (sid === 'tw') return isSea ? seaTwItems : twItems;
+  return saItems;
 }
 
 function updateLogItem(sid, itemId, key, val) {
@@ -552,13 +687,12 @@ function updateLogItem(sid, itemId, key, val) {
   recalc();
 }
 
-// GW 連動
-function updateWeightRows(sid) {
+// ── GW 連動（空運）──
+function updateWeightRows() {
   const gw = +document.getElementById('jp-gw').value || 0;
   jpItems.forEach(item => {
     if (!item.isWeight) return;
     item.qty = gw;
-    // 更新 input 顯示
     const tr = document.getElementById('tr-'+item.id);
     if (!tr) return;
     const qtyInput = tr.querySelectorAll('input')[1];
@@ -570,6 +704,32 @@ function updateWeightRows(sid) {
   });
 }
 
+// ── CBM 連動（海運）──
+function computeTotalCBM() {
+  return products.reduce((s, p) => {
+    const l = p.l || 0, w = p.w || 0, h = p.h || 0;
+    return s + (l * w * h / 1000000) * (p.qty || 0);
+  }, 0);
+}
+
+function updateVolRows(items, totalCBM) {
+  const cbm = Math.round(totalCBM * 1000) / 1000;
+  items.forEach(item => {
+    if (!item.isVol) return;
+    item.qty = cbm;
+    const tr = document.getElementById('tr-'+item.id);
+    if (!tr) return;
+    const qtyInput = tr.querySelectorAll('input')[1];
+    if (qtyInput) qtyInput.value = cbm;
+    const amt = item.en ? item.rate * item.qty : 0;
+    const amtEl = document.getElementById('amt-'+item.id);
+    if (amtEl) {
+      amtEl.textContent = fmt(amt);
+      amtEl.className = 'r amt' + (amt===0?' zero':'');
+    }
+  });
+}
+
 // ══════════════════════════════════════════════════════
 //  商品表格
 // ══════════════════════════════════════════════════════
@@ -577,26 +737,81 @@ function renderProdTable() {
   const body = document.getElementById('prod-body');
   body.innerHTML = '';
   products.forEach((p, i) => {
+    const cbmPerBox = (p.l && p.w && p.h) ? (p.l * p.w * p.h / 1000000) : null;
     const tr = document.createElement('tr');
     tr.innerHTML = `
       <td><input type="text" value="${p.name}" oninput="products[${i}].name=this.value;recalc()"></td>
       <td><input type="number" value="${p.price}" oninput="products[${i}].price=+this.value;recalc()"></td>
-      <td><input type="number" value="${p.qty}"   oninput="products[${i}].qty=+this.value;recalc()"></td>
+      <td><input type="number" value="${p.qty}"   oninput="products[${i}].qty=+this.value;recalc()" placeholder="—"></td>
       <td><input type="number" value="${p.gw}"    oninput="products[${i}].gw=+this.value;recalc()" placeholder="—"></td>
       <td><input type="number" value="${p.nw}"    oninput="products[${i}].nw=+this.value;recalc()" placeholder="—"></td>
+      <td><input type="number" value="${p.l}" style="width:65px" oninput="products[${i}].l=+this.value;recalc()" placeholder="—"></td>
+      <td><input type="number" value="${p.w}" style="width:65px" oninput="products[${i}].w=+this.value;recalc()" placeholder="—"></td>
+      <td><input type="number" value="${p.h}" style="width:65px" oninput="products[${i}].h=+this.value;recalc()" placeholder="—"></td>
+      <td class="cbm-cell">${cbmPerBox !== null ? cbmPerBox.toFixed(4) + ' m³' : '—'}</td>
       <td><input type="number" value="${p.duty}"  oninput="products[${i}].duty=+this.value;recalc()"></td>
       <td class="no-print"><button class="del-btn" onclick="delProd(${i})">✕</button></td>
     `;
     body.appendChild(tr);
   });
 }
+
 function addProd() {
-  products.push({name:'新商品', price:0, qty:0, gw:'', nw:'', duty:25});
+  products.push({name:'新商品', price:0, qty:0, gw:'', nw:'', duty:25, l:'', w:'', h:''});
   renderProdTable(); recalc();
 }
 function delProd(i) {
   if (products.length<=1) return;
   products.splice(i,1); renderProdTable(); recalc();
+}
+
+// ══════════════════════════════════════════════════════
+//  結果表格 Header（模式切換時重繪）
+// ══════════════════════════════════════════════════════
+function renderResultHead(isSea, m1, m2) {
+  const logCols = isSea
+    ? `<th class="th-log r">日本出口費</th>
+       <th class="th-oc r">海上運費</th>
+       <th class="th-log r">台灣進口費</th>
+       <th class="th-log r">配送費</th>`
+    : `<th class="th-log r">日本費</th>
+       <th class="th-log r">台灣費</th>
+       <th class="th-log r">配送費</th>`;
+  const logColspan = isSea ? 4 : 3;
+
+  document.getElementById('res-head').innerHTML = `
+    <tr>
+      <th rowspan="2" class="th-dark" style="min-width:150px">商品名稱</th>
+      <th rowspan="2" class="th-dark r" style="width:50px">箱</th>
+      <th colspan="4" class="th-goods" style="text-align:center">商品成本／箱（TWD）</th>
+      <th colspan="${logColspan}" class="th-log" style="text-align:center">物流分攤／箱（TWD）</th>
+      <th rowspan="2" class="r" style="background:#2a1a1e;color:#fc8181;min-width:80px">總成本/箱</th>
+      <th colspan="2" class="th-price" style="text-align:center;min-width:160px">建議售價/箱（TWD）</th>
+    </tr>
+    <tr>
+      <th class="th-goods r">仕入</th>
+      <th class="th-goods r">關稅</th>
+      <th class="th-goods r">消費稅</th>
+      <th class="th-goods r">小計</th>
+      ${logCols}
+      <th class="th-price r">
+        <div class="margin-input-wrap">
+          毛利
+          <input type="number" id="margin1" class="margin-input" value="${m1}" min="0" max="99" step="0.5"
+            oninput="syncMarginHeader();recalc()">
+          %
+        </div>
+      </th>
+      <th class="th-price r">
+        <div class="margin-input-wrap">
+          毛利
+          <input type="number" id="margin2" class="margin-input" value="${m2}" min="0" max="99" step="0.5"
+            oninput="syncMarginHeader();recalc()">
+          %
+        </div>
+      </th>
+    </tr>
+  `;
 }
 
 // ══════════════════════════════════════════════════════
@@ -614,26 +829,56 @@ function syncMarginHeader() {
 }
 
 function recalc() {
-  const rate    = +document.getElementById('exchange_rate').value || 0.21;
-  const twTax   = (+document.getElementById('tw_tax').value || 5) / 100;
-  const allocBy = document.getElementById('alloc_method').value;
-  const m1      = +document.getElementById('margin1').value || 5;
-  const m2      = +document.getElementById('margin2').value || 10;
+  const jpyRate  = +document.getElementById('exchange_rate').value || 0.21;
+  const usdRate  = +document.getElementById('usd_rate').value || 32;
+  const twTax    = (+document.getElementById('tw_tax').value || 5) / 100;
+  const allocBy  = document.getElementById('alloc_method').value;
+  const m1       = +document.getElementById('margin1')?.value || 5;
+  const m2       = +document.getElementById('margin2')?.value || 10;
+  const isSea    = document.getElementById('transport_mode').value === 'sea';
+
+  // ── CBM（海運模式）──
+  const totalCBM = computeTotalCBM();
+  if (isSea) {
+    const cbmStr = totalCBM.toFixed(3);
+    ['cbm-disp-jp','cbm-disp-oc','cbm-disp-tw'].forEach(id => {
+      const el = document.getElementById(id);
+      if (el) el.textContent = cbmStr;
+    });
+    updateVolRows(seaJpItems, totalCBM);
+    updateVolRows(oceanItems, totalCBM);
+    updateVolRows(seaTwItems, totalCBM);
+  }
 
   // ── 物流費計算 ──
-  const jpJPY  = sectionTotal(jpItems);
-  const twBase = sectionTotal(twItems);
-  const saBase = sectionTotal(saItems);
-  const jpTWD  = jpJPY * rate;
-  const twTWD  = twBase * (1 + twTax);
-  const saTWD  = saBase * (1 + twTax);
-  const totalLog = jpTWD + twTWD + saTWD;
+  const activeJp = isSea ? seaJpItems : jpItems;
+  const activeTw = isSea ? seaTwItems : twItems;
 
-  // 更新面板顯示
-  document.getElementById('jp-total-disp').textContent = '¥' + fmt(jpJPY);
+  const jpJPY   = sectionTotal(activeJp);
+  const twBase  = sectionTotal(activeTw);
+  const saBase  = sectionTotal(saItems);
+  const jpTWD   = jpJPY * jpyRate;
+  const twTWD   = twBase * (1 + twTax);
+  const saTWD   = saBase * (1 + twTax);
+
+  const oceanUSD = isSea ? sectionTotal(oceanItems) : 0;
+  const oceanTWD = oceanUSD * usdRate;
+
+  const totalLog = jpTWD + oceanTWD + twTWD + saTWD;
+
+  // ── 更新面板顯示 ──
+  const jpPrefix = isSea ? '¥' : '¥';
+  document.getElementById('jp-total-disp').textContent = jpPrefix + fmt(jpJPY);
   document.getElementById('jp-twd-disp').textContent   = 'TWD ' + fmt(jpTWD);
-  document.getElementById('jp-foot-total').textContent  = '¥' + fmt(jpJPY);
+  document.getElementById('jp-foot-total').textContent  = jpPrefix + fmt(jpJPY);
   document.getElementById('jp-foot-twd').textContent    = fmt(jpTWD);
+
+  if (isSea) {
+    document.getElementById('oc-total-disp').textContent = '$' + fmtDec(oceanUSD);
+    document.getElementById('oc-twd-disp').textContent   = 'TWD ' + fmt(oceanTWD);
+    document.getElementById('oc-foot-total').textContent  = '$' + fmtDec(oceanUSD);
+    document.getElementById('oc-foot-twd').textContent    = fmt(oceanTWD);
+  }
 
   document.getElementById('tw-total-disp').textContent = 'NT$' + fmt(twBase);
   document.getElementById('tw-tax-disp').textContent   = '含稅 ' + fmt(twTWD);
@@ -656,38 +901,49 @@ function recalc() {
     const gw   = p.gw    || 0;
     const duty = p.duty  || 0;
 
-    const purch  = p.price * rate;
+    const purch  = p.price * jpyRate;
     const dtyAmt = purch * (duty/100);
     const vatAmt = (purch + dtyAmt) * twTax;
     const goods  = purch + dtyAmt + vatAmt;
 
-    // 物流分攤
     const unit   = allocBy==='gw' ? gw : 1;
     const share  = allocBase>0 ? unit/allocBase : 0;
     const jpPer  = share * jpTWD;
+    const ocPer  = share * oceanTWD;
     const twPer  = share * twTWD;
     const saPer  = share * saTWD;
-    const logPer = jpPer + twPer + saPer;
+    const total  = goods + jpPer + ocPer + twPer + saPer;
 
-    const total  = goods + logPer;
-    return {name:p.name, qty, purch, dtyAmt, vatAmt, goods, jpPer, twPer, saPer, total,
-            p5:  m1>=100 ? null : total/(1-m1/100),
-            p10: m2>=100 ? null : total/(1-m2/100),
-            totalAll: total*qty};
+    return {
+      name: p.name, qty, purch, dtyAmt, vatAmt, goods,
+      jpPer, ocPer, twPer, saPer, total,
+      p5:  m1>=100 ? null : total/(1-m1/100),
+      p10: m2>=100 ? null : total/(1-m2/100),
+      totalAll: total*qty
+    };
   });
 
   // ── 摘要卡片 ──
   const grandCost = rows.reduce((s,r)=>s+r.totalAll, 0);
+  const cbmCard = isSea
+    ? `<div class="sum-card" style="border-color:#bfdbfe">
+        <div class="lbl">總體積（CBM）</div>
+        <div class="val" style="color:#1e40af">${totalCBM.toFixed(3)} m³</div>
+        <div class="sub">依商品尺寸自動計算</div>
+       </div>`
+    : '';
+
   document.getElementById('summary-cards').innerHTML = `
     <div class="sum-card">
       <div class="lbl">總箱數</div>
       <div class="val">${totalBoxes} 箱</div>
       <div class="sub">本批合計</div>
     </div>
+    ${cbmCard}
     <div class="sum-card">
       <div class="lbl">物流費合計（TWD）</div>
       <div class="val">${fmt(totalLog)}</div>
-      <div class="sub">日本＋台灣＋配送（含稅）</div>
+      <div class="sub">${isSea?'日本出口＋海運＋台灣進口＋配送（含稅）':'日本＋台灣＋配送（含稅）'}</div>
     </div>
     <div class="sum-card">
       <div class="lbl">物流費 / 箱平均（TWD）</div>
@@ -701,10 +957,18 @@ function recalc() {
     </div>
   `;
 
-  // ── 結果表格 ──
+  // ── 結果表格 tbody ──
   const tbody = document.getElementById('res-body');
   tbody.innerHTML = '';
   rows.forEach(r => {
+    const logCells = isSea
+      ? `<td class="r">${fmt(r.jpPer)}</td>
+         <td class="r" style="color:#1e40af">${fmt(r.ocPer)}</td>
+         <td class="r">${fmt(r.twPer)}</td>
+         <td class="r">${fmt(r.saPer)}</td>`
+      : `<td class="r">${fmt(r.jpPer)}</td>
+         <td class="r">${fmt(r.twPer)}</td>
+         <td class="r">${fmt(r.saPer)}</td>`;
     const tr = document.createElement('tr');
     tr.innerHTML = `
       <td style="font-weight:600;font-size:12px;color:#2d3748">${r.name}</td>
@@ -713,9 +977,7 @@ function recalc() {
       <td class="r">${fmt(r.dtyAmt)}</td>
       <td class="r">${fmt(r.vatAmt)}</td>
       <td class="r" style="font-weight:700">${fmt(r.goods)}</td>
-      <td class="r">${fmt(r.jpPer)}</td>
-      <td class="r">${fmt(r.twPer)}</td>
-      <td class="r">${fmt(r.saPer)}</td>
+      ${logCells}
       <td class="r cost-total">${fmt(r.total)}</td>
       <td class="r"><span class="chip-low">▸ ${fmt(r.p5)}</span></td>
       <td class="r"><span class="chip-high">▸ ${fmt(r.p10)}</span></td>
@@ -723,21 +985,32 @@ function recalc() {
     tbody.appendChild(tr);
   });
 
+  const footColspan = isSea ? 10 : 9;
   document.getElementById('res-foot').innerHTML = `
     <tr style="background:#f0f4f8;font-weight:700">
-      <td colspan="9" style="padding:9px 10px;color:#4a5568;font-size:11px">
-        匯率 ${rate} | 總箱數 ${totalBoxes} | 物流 ${fmt(totalLog)} TWD
+      <td colspan="${footColspan}" style="padding:9px 10px;color:#4a5568;font-size:11px">
+        JPY/TWD ${jpyRate}${isSea ? ' | USD/TWD '+usdRate+' | CBM '+totalCBM.toFixed(3) : ''}
+        | 總箱數 ${totalBoxes} | 物流 ${fmt(totalLog)} TWD
       </td>
       <td class="r cost-total" style="padding:9px 10px">全批</td>
       <td colspan="2" class="r" style="padding:9px 10px;color:#e94560;font-size:13px">${fmt(grandCost)} TWD</td>
     </tr>
   `;
+
+  // ── 備註欄 ──
+  document.getElementById('note-bar').innerHTML = isSea
+    ? '<strong>海運公式：</strong>建議售價 = 總成本/箱 ÷ (1 − 毛利率)　|　海上運費以 USD 計，乘以 USD/TWD 匯率後納入成本　|　CBM 依商品長×寬×高自動累算　|　THC / CFS 連動 CBM 自動更新'
+    : '<strong>公式：</strong>建議售價 = 總成本/箱 ÷ (1 − 毛利率)　|　關稅稅基 = 仕入TWD　|　消費稅稅基 = 仕入 + 關稅　|　台灣進口費＆配送費自動加算 5% 消費稅';
 }
 
 // ── 格式化 ──
 function fmt(n) {
   if (!n && n!==0) return '—';
   return Math.round(n).toLocaleString('zh-TW');
+}
+function fmtDec(n) {
+  if (!n && n!==0) return '0.00';
+  return n.toFixed(2);
 }
 </script>
 </body>
