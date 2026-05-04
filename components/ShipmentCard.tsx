@@ -179,6 +179,22 @@ export default function ShipmentCard({ shipment, lang, allRecords, onRecordChang
             <span className="text-xs font-medium text-lopia-red">{shipment.warehouse}</span>
           </div>
         )}
+        {shipment.transportMode && (
+          <div className="flex flex-col">
+            <span className="text-xs text-gray-500">{T.transportMode}</span>
+            <span className="text-xs font-medium text-gray-700">
+              {shipment.transportMode}{shipment.fclLcl ? ` · ${shipment.fclLcl}` : ''}
+            </span>
+          </div>
+        )}
+        {shipment.transportMode && (
+          <div className="flex flex-col">
+            <span className="text-xs text-gray-500">{T.customsBroker}</span>
+            <span className="text-xs font-medium text-gray-700">
+              {shipment.transportMode === '空運' ? '日通' : '台灣航空'}
+            </span>
+          </div>
+        )}
       </div>
 
       <div className="px-5 py-3 space-y-3">

@@ -25,6 +25,8 @@ export default function AddBatchForm({ lang, onBatchAdded }: Props) {
 
   // Form fields
   const [ivName, setIvName]                   = useState('')
+  const [transportMode, setTransportMode]     = useState<'空運'|'海運'|''>('')
+  const [fclLcl, setFclLcl]                   = useState<'FCL'|'LCL'|''>('')
   const [flightNo, setFlightNo]               = useState('')
   const [awbNo, setAwbNo]                     = useState('')
   const [departJP, setDepartJP]               = useState('')
@@ -50,7 +52,8 @@ export default function AddBatchForm({ lang, onBatchAdded }: Props) {
   }
 
   function reset() {
-    setIvName(''); setFlightNo(''); setAwbNo('')
+    setIvName(''); setTransportMode(''); setFclLcl('')
+    setFlightNo(''); setAwbNo('')
     setDepartJP(''); setArrivalTW('')
     setTotalBoxes(''); setProductSummary(''); setRemarks('')
     setAttachedFiles([]); setPendingDocType('')
@@ -69,6 +72,8 @@ export default function AddBatchForm({ lang, onBatchAdded }: Props) {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           ivName: ivName.trim(),
+          transportMode:  transportMode  || undefined,
+          fclLcl:         fclLcl         || undefined,
           flightNo:       flightNo       || undefined,
           awbNo:          awbNo          || undefined,
           departJP:       departJP       || undefined,
@@ -111,10 +116,11 @@ export default function AddBatchForm({ lang, onBatchAdded }: Props) {
       })
 
       // 4. Write change log
+      const customsBroker = transportMode === '空運' ? '日通' : transportMode === '海運' ? '台灣航空' : '—'
       await logChange(
         '新增批次',
         ivName.trim(),
-        `班機: ${flightNo || '—'}, AWB: ${awbNo || '—'}, 抵台: ${arrivalTW || '—'}, 箱數: ${totalBoxes || '—'}`,
+        `運輸: ${transportMode || '—'}, 報關行: ${customsBroker}, 班機: ${flightNo || '—'}, AWB: ${awbNo || '—'}, 抵台: ${arrivalTW || '—'}, 箱數: ${totalBoxes || '—'}`,
       )
 
       setSuccess(true)
@@ -137,8 +143,15 @@ export default function AddBatchForm({ lang, onBatchAdded }: Props) {
   }
 
   const isJa = lang === 'ja'
+  const customsBroker = transportMode === '空運' ? '日通' : transportMode === '海運' ? '台灣航空' : null
   const inputCls = "w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-lopia-red bg-white"
   const labelCls = "text-xs text-gray-500 mb-1 block font-medium"
+  const toggleCls = (active: boolean) =>
+    `px-4 py-1.5 rounded-full text-sm font-medium border transition ${
+      active
+        ? 'bg-lopia-red text-white border-lopia-red'
+        : 'bg-white text-gray-600 border-gray-300 hover:border-lopia-red'
+    }`
 
   return (
     <>
@@ -204,6 +217,46 @@ export default function AddBatchForm({ lang, onBatchAdded }: Props) {
                       className={inputCls}
                     />
                   </div>
+
+                  {/* ── Transport mode toggle ── */}
+                  <div>
+                    <label className={labelCls}>{isJa ? '輸送方式' : '運輸方式'}</label>
+                    <div className="flex gap-2 mt-1">
+                      {(['空運', '海運'] as const).map(m => (
+                        <button key={m} type="button"
+                          onClick={() => { setTransportMode(m); setFclLcl('') }}
+                          className={toggleCls(transportMode === m)}>
+                          {m}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+
+                  {/* ── FCL/LCL（海運 only）── */}
+                  {transportMode === '海運' && (
+                    <div>
+                      <label className={labelCls}>FCL / LCL</label>
+                      <div className="flex gap-2 mt-1">
+                        {(['FCL', 'LCL'] as const).map(type => (
+                          <button key={type} type="button"
+                            onClick={() => setFclLcl(type)}
+                            className={toggleCls(fclLcl === type)}>
+                            {type}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* ── 報關行（自動帶入）── */}
+                  {customsBroker && (
+                    <div>
+                      <label className={labelCls}>{isJa ? '通関業者' : '報關行'}</label>
+                      <div className="mt-1 px-3 py-1.5 bg-gray-100 rounded text-sm text-gray-700 w-fit">
+                        {customsBroker}
+                      </div>
+                    </div>
+                  )}
 
                   {/* ── Row: flight + AWB ── */}
                   <div className="grid grid-cols-2 gap-3">

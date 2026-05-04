@@ -145,6 +145,10 @@ export const t = {
     diffNone: '所有輪次與現有計畫相同，無需更新',
     saveFail: '儲存失敗',
     netError: '網路錯誤',
+    // Transport
+    transportMode: '運輸方式',
+    fclLcl: 'FCL/LCL',
+    customsBroker: '報關行',
     // Calendar / logistics
     pickupLocation: '取貨地點',
     allDelivered: '全數送達',
@@ -330,6 +334,10 @@ export const t = {
     diffNone: '全回次が現在の計画と同一です',
     saveFail: '保存失敗',
     netError: 'ネットワークエラー',
+    // Transport
+    transportMode: '輸送方式',
+    fclLcl: 'FCL/LCL',
+    customsBroker: '通関業者',
     // Calendar / logistics
     pickupLocation: '取貨地点',
     allDelivered: '全数配送完了',

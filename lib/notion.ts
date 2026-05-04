@@ -41,6 +41,9 @@ export interface Shipment {
   // Inspection
   radiationTest: string | null
   pesticideTest: string | null
+  // Transport
+  transportMode: string | null   // 空運 | 海運
+  fclLcl: string | null          // FCL | LCL
   // Supplier Excel
   supplierExcelId: string | null
   // Computed
@@ -129,6 +132,8 @@ function pageToShipment(page: any): Shipment {
     quarantineCert: getCheckbox(p['檢疫證明 ✓']),
     radiationTest: getSelect(p['輻射檢驗']),
     pesticideTest: getSelect(p['農藥檢驗']),
+    transportMode: getSelect(p['運輸方式']),
+    fclLcl: getSelect(p['FCL/LCL']),
     supplierExcelId: getText(p['供應商配送Excel']),
   }
 }
@@ -379,6 +384,8 @@ export async function createShipment(data: {
   totalBoxes?: number
   productSummary?: string
   remarks?: string
+  transportMode?: string
+  fclLcl?: string
 }) {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const props: any = {
@@ -393,8 +400,10 @@ export async function createShipment(data: {
   if (data.arrivalTW)      props['抵台日']     = { date: { start: data.arrivalTW } }
   if (data.estClearance)   props['預計出關日'] = { date: { start: data.estClearance } }
   if (data.totalBoxes != null) props['入倉箱數'] = { number: data.totalBoxes }
-  if (data.productSummary) props['商品摘要']   = { rich_text: [{ text: { content: data.productSummary } }] }
-  if (data.remarks)        props['備註']       = { rich_text: [{ text: { content: data.remarks } }] }
+  if (data.productSummary)  props['商品摘要']  = { rich_text: [{ text: { content: data.productSummary } }] }
+  if (data.remarks)         props['備註']      = { rich_text: [{ text: { content: data.remarks } }] }
+  if (data.transportMode)   props['運輸方式']  = { select: { name: data.transportMode } }
+  if (data.fclLcl)          props['FCL/LCL']  = { select: { name: data.fclLcl } }
 
   const page = await notion.pages.create({
     parent: { database_id: IMPORT_STATUS_DB },
