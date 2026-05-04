@@ -113,7 +113,7 @@ function addStoreSheet(wb: ExcelJS.Workbook, order: StoreOrder, shipmentNo: stri
 
   ws.columns = [
     { key: 'name',    width: 36 },
-    { key: 'spec',    width: 10 },
+    { key: 'spec',    width: 12 },
     { key: 'qty',     width: 8  },
     { key: 'price',   width: 14 },
     { key: 'amount',  width: 14 },
@@ -179,7 +179,7 @@ function addStoreSheet(wb: ExcelJS.Workbook, order: StoreOrder, shipmentNo: stri
 
     const row = ws.addRow([
       p.name,
-      p.boxSpec || '—',
+      (p.boxSpec || '—').replace(/房/g, ''),
       p.quantity || 0,
       p.unitPrice || 0,
       { formula: `C${rowNum}*D${rowNum}` },
@@ -303,7 +303,7 @@ function addSummarySheet(wb: ExcelJS.Workbook, storeOrders: StoreOrder[], shipme
   // Set column widths
   ws.columns = [
     { key: 'name',  width: 36 },
-    { key: 'spec',  width: 10 },
+    { key: 'spec',  width: 12 },
     { key: 'price', width: 12 },
     ...shortNames.map(() => ({ width: 8 })),
     { key: 'total', width: 10 },
@@ -368,7 +368,7 @@ function addSummarySheet(wb: ExcelJS.Workbook, storeOrders: StoreOrder[], shipme
 
     const row = ws.addRow([
       info.name,
-      info.boxSpec || '—',
+      (info.boxSpec || '—').replace(/房/g, ''),
       info.unitPrice,          // always a single price per row now
       ...storeCounts,
       { formula: `SUM(${firstStoreLetter}${rowNum}:${lastStoreLetter}${rowNum})` },
