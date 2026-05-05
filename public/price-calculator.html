@@ -199,6 +199,46 @@ table.res-table { width:100%;border-collapse:collapse;font-size:12px; }
 @media print {
   body{background:white;} .no-print{display:none!important;} .card{box-shadow:none;border:1px solid #e2e8f0;}
 }
+
+/* ── Language Toggle Button ── */
+.lang-toggle-btn {
+  display: inline-flex; align-items: center; gap: 6px;
+  padding: 6px 14px; background: rgba(255,255,255,0.12);
+  border: 1.5px solid rgba(255,255,255,0.3); border-radius: 20px;
+  color: white; font-size: 13px; font-weight: 600;
+  cursor: pointer; transition: all 0.2s ease; white-space: nowrap; margin-top: 6px;
+}
+.lang-toggle-btn:hover { background: rgba(255,255,255,0.22); border-color: rgba(255,255,255,0.6); transform: scale(1.04); }
+.lang-toggle-btn .lang-flag { font-size: 16px; }
+.lang-toggle-btn.ja-active { background: rgba(233,69,96,0.35); border-color: #e94560; color: #fca5a5; }
+#batch-save-section { background: white; border-radius: 12px; box-shadow: 0 2px 12px rgba(0,0,0,0.08); padding: 24px 28px; margin-top: 24px; }
+#batch-save-section h3 { font-size: 15px; font-weight: 700; color: #1a1a2e; margin-bottom: 16px; display: flex; align-items: center; gap: 8px; }
+.batch-input-row { display: flex; gap: 12px; align-items: flex-end; flex-wrap: wrap; margin-bottom: 20px; }
+.batch-input-group { display: flex; flex-direction: column; gap: 5px; }
+.batch-input-group label { font-size: 12px; color: #718096; font-weight: 600; }
+.batch-input-group input, .batch-input-group textarea { padding: 8px 12px; border: 1.5px solid #e2e8f0; border-radius: 7px; font-size: 13px; color: #2d3748; background: #f7fafc; outline: none; transition: border-color 0.2s; }
+.batch-input-group input:focus, .batch-input-group textarea:focus { border-color: #e94560; background: white; }
+.batch-input-group input[name="batchId"] { width: 180px; font-weight: 700; font-size: 15px; }
+.batch-input-group textarea { width: 300px; height: 60px; resize: vertical; }
+.btn-save-batch { padding: 9px 22px; background: linear-gradient(135deg,#e94560,#c53030); color: white; border: none; border-radius: 8px; font-size: 13px; font-weight: 700; cursor: pointer; transition: all 0.2s; white-space: nowrap; align-self: flex-end; }
+.btn-save-batch:hover { transform: translateY(-1px); box-shadow: 0 4px 12px rgba(233,69,96,0.4); }
+.btn-save-batch:active { transform: translateY(0); }
+#batch-records-wrap { margin-top: 8px; }
+#batch-records-wrap h4 { font-size: 13px; font-weight: 700; color: #4a5568; margin-bottom: 10px; display: flex; align-items: center; justify-content: space-between; }
+.btn-clear-records { font-size: 11px; padding: 3px 10px; background: #fed7d7; color: #c53030; border: none; border-radius: 5px; cursor: pointer; font-weight: 600; }
+.btn-clear-records:hover { background: #fca5a5; }
+#batch-records-table { width: 100%; border-collapse: collapse; font-size: 12px; }
+#batch-records-table th { background: #f0f4f8; color: #4a5568; font-weight: 700; padding: 8px 10px; text-align: left; border-bottom: 2px solid #e2e8f0; white-space: nowrap; }
+#batch-records-table td { padding: 8px 10px; border-bottom: 1px solid #f0f4f8; color: #2d3748; vertical-align: middle; }
+#batch-records-table tr:hover td { background: #fef9f9; }
+#batch-records-table .record-batch-id { font-weight: 700; color: #e94560; font-size: 13px; }
+#batch-records-table .record-cost { font-weight: 700; color: #2b6cb0; }
+#batch-records-table .btn-del-record { padding: 2px 8px; background: #fff5f5; border: 1px solid #fed7d7; color: #c53030; border-radius: 4px; cursor: pointer; font-size: 11px; }
+#batch-records-table .btn-del-record:hover { background: #fed7d7; }
+#batch-records-table .record-products { color: #718096; font-size: 11px; max-width: 200px; }
+.no-records-msg { text-align: center; color: #a0aec0; padding: 24px; font-size: 13px; }
+.save-toast { position: fixed; bottom: 30px; right: 30px; background: #276749; color: white; padding: 12px 22px; border-radius: 10px; font-size: 13px; font-weight: 600; box-shadow: 0 4px 20px rgba(0,0,0,0.2); z-index: 9999; opacity: 0; transition: opacity 0.3s; pointer-events: none; }
+.save-toast.show { opacity: 1; }
 </style>
 </head>
 <body>
@@ -254,6 +294,9 @@ table.res-table { width:100%;border-collapse:collapse;font-size:12px; }
           <option value="gw">依 GW 比例</option>
         </select>
         <div class="param-hint">GW 比例需填各商品 GW/箱</div>
+  <button class="lang-toggle-btn" id="lang-toggle-btn" onclick="toggleLanguage()" title="日本語に切り替え / 切換為日文">
+    <span class="lang-flag">🇯🇵</span><span class="lang-label">日本語</span>
+  </button>
       </div>
     </div>
   </div>
@@ -512,6 +555,38 @@ const oceanItems = [
   {id:'oc04', name:'THC（日本）',    rate:100, qty:0, unit:'CBM', isWeight:false, isVol:true,  en:true},
 ];
 
+  <!-- ⑤ 批號紀錄 -->
+  <div id="batch-save-section">
+    <h3>📦 批號紀錄</h3>
+    <div class="batch-input-row">
+      <div class="batch-input-group">
+        <label id="batch-id-label">批號（Lot No.）</label>
+        <input type="text" id="batch-id-input" name="batchId" placeholder="例：2026-05-001" autocomplete="off">
+      </div>
+      <div class="batch-input-group">
+        <label id="batch-remark-label">備注</label>
+        <textarea id="batch-remark-input" placeholder="可輸入備注（選填）..."></textarea>
+      </div>
+      <button class="btn-save-batch" id="btn-save-batch" onclick="saveBatchRecord()">💾 保存本次試算</button>
+    </div>
+    <div id="batch-records-wrap">
+      <h4>
+        <span id="batch-history-title">歷史紀錄 </span>
+        <button class="btn-clear-records" onclick="clearAllRecords()">清除全部</button>
+      </h4>
+      <table id="batch-records-table">
+        <thead>
+          <tr>
+            <th>批號</th><th>保存時間</th><th>模式</th>
+            <th class="r">總箱數</th><th class="r">全批成本(TWD)</th>
+            <th>商品</th><th>操作</th>
+          </tr>
+        </thead>
+        <tbody id="batch-records-tbody"></tbody>
+      </table>
+    </div>
+  </div>
+  <div id="save-toast" class="save-toast"></div>
 // 空運：台灣進口費
 const twItems = [
   {id:'tw01', name:'Customs Clearance Fee',  rate:2500, qty:1, unit:'BL',   isVol:false, en:true},
@@ -646,6 +721,7 @@ function renderLogSection(sid, items) {
       <td style="font-weight:600;color:#2d3748;white-space:nowrap">${item.name}</td>
       <td class="r">
         <input type="number" class="rate-input" value="${item.rate}"
+  renderBatchRecords();
           onchange="updateLogItem('${sid}','${item.id}','rate',+this.value)"
           oninput="updateLogItem('${sid}','${item.id}','rate',+this.value)">
       </td>
@@ -1012,6 +1088,212 @@ function fmtDec(n) {
   if (!n && n!==0) return '0.00';
   return n.toFixed(2);
 }
+
+// ══════════════════════════════════════════════════════
+// ① 日文切換功能
+// ══════════════════════════════════════════════════════
+window._langMode = 'zh';
+window._originalTexts = new WeakMap();
+window._jaDict = {
+  '進口報價試算工具':'輸入見積計算ツール',
+  '① 全局參數':'① 全体パラメータ',
+  '運輸模式':'輸送モード',
+  '切換後物流費欄位自動更新':'切替後に物流費欄が自動更新',
+  '匯率（JPY → TWD）':'為替レート（JPY → TWD）',
+  '1 JPY = 0.21 NTD（可修改）':'1 JPY = 0.21 NTD（変更可）',
+  '匯率（USD → TWD）':'為替レート（USD → TWD）',
+  '海運費以 USD 計，需設定':'海運費はUSD建て、要設定',
+  '加工品消費稅（%）':'加工品消費税（%）',
+  '加工品 5%，蔬果 0%':'加工品 5%、青果 0%',
+  '物流費分攤方式':'物流費配分方式',
+  '依箱數比例':'箱数比例',
+  '依 GW 比例':'GW比例',
+  'GW 比例需填各商品 GW/箱':'GW比例は各商品GW/箱入力必須',
+  '② 物流費明細（點擊展開微調）':'② 物流費明細（クリックで展開・微調整）',
+  '見積書 SEA — JPY':'見積書 SEA — JPY',
+  '見積書 AIR — JPY':'見積書 AIR — JPY',
+  'NX Taiwan AIR — TWD（未含稅）':'NX Taiwan AIR — TWD（税別）',
+  '台灣 SEA 進口費 — TWD（未含稅）':'台湾 SEA 輸入費 — TWD（税別）',
+  'GW（kg）：':'GW（kg）：',
+  '重量連動項目自動更新':'重量連動項目が自動更新',
+  '總體積（CBM）：':'総体積（CBM）：',
+  '由商品尺寸自動累算':'商品サイズから自動累計',
+  'THC/CFS 連動項目自動更新':'THC/CFS 連動項目が自動更新',
+  '運費連動項目自動更新':'運賃連動項目が自動更新',
+  '項目':'項目',
+  '単価':'単価',
+  '數量':'数量',
+  '単位':'単位',
+  '金額（¥）':'金額（¥）',
+  '含':'含',
+  '日本費合計 (JPY)':'日本費合計 (JPY)',
+  '海運費合計 (USD)':'海運費合計 (USD)',
+  '台灣費合計（未含稅）':'台湾費合計（税別）',
+  '三義費合計（未含稅）':'三義費合計（税別）',
+  '含5%稅':'税5%込',
+  '③ 商品明細':'③ 商品明細',
+  '商品名稱':'商品名',
+  '仕入単価（JPY/箱）':'仕入単価（JPY/箱）',
+  '數量（箱）':'数量（箱）',
+  'GW（kg/箱）':'GW（kg/箱）',
+  'NW（kg/箱）':'NW（kg/箱）',
+  '長(cm)':'長(cm)','寬(cm)':'幅(cm)','高(cm)':'高(cm)',
+  'CBM/箱':'CBM/箱',
+  '關稅率（%）':'関税率（%）',
+  '＋ 新增商品':'＋ 商品を追加',
+  '④ 試算結果':'④ 試算結果',
+  '本批合計':'今回合計',
+  '依商品尺寸自動計算':'商品サイズから自動計算',
+  '物流費合計（TWD）':'物流費合計（TWD）',
+  '日本出口＋海運＋台灣進口＋配送（含稅）':'日本輸出＋海運＋台湾輸入＋配送（税込）',
+  '日本＋台灣＋配送（含稅）':'日本＋台湾＋配送（税込）',
+  '物流費 / 箱平均（TWD）':'物流費 / 箱平均（TWD）',
+  '依箱數分攤':'箱数で配分',
+  '依GW分攤':'GWで配分',
+  '全批總成本（TWD）':'全体総コスト（TWD）',
+  '商品＋物流全部含稅':'商品＋物流全額税込',
+  '商品成本／箱（TWD）':'商品コスト／箱（TWD）',
+  '物流分攤／箱（TWD）':'物流配分／箱（TWD）',
+  '建議售價/箱（TWD）':'推奨販売価格/箱（TWD）',
+  '仕入':'仕入','關稅':'関税','消費稅':'消費税','小計':'小計',
+  '日本出口費':'日本輸出費','海上運費':'海上運賃',
+  '台灣進口費':'台湾輸入費','配送費':'配送費',
+  '總成本/箱':'総コスト/箱','毛利':'粗利',
+  '海運公式：':'海運計算式：',
+  '建議售價 = 總成本/箱 ÷ (1 − 毛利率)':'推奨販売価格 = 総コスト/箱 ÷ (1 − 粗利率)',
+  '海上運費以 USD 計，乘以 USD/TWD 匯率後納入成本':'海上運賃はUSD建て、USD/TWD為替レートを乗じてコストに算入',
+  'CBM 依商品長×寬×高自動累算':'CBMは商品の長×幅×高さから自動累計',
+  'THC / CFS 連動 CBM 自動更新':'THC / CFS はCBM連動で自動更新',
+  '公式：':'計算式：',
+  '關稅稅基 = 仕入TWD':'関税課税標準 = 仕入TWD',
+  '消費稅稅基 = 仕入 + 關稅':'消費税課税標準 = 仕入 + 関税',
+  '台灣進口費＆配送費自動加算 5% 消費稅':'台湾輸入費＆配送費に5%消費税を自動加算',
+  '📦 批號紀錄':'📦 ロット番号記録',
+  '批號（Lot No.）':'ロット番号','備注':'メモ',
+  '💾 保存本次試算':'💾 今回の試算を保存',
+  '歷史紀錄':'履歴','清除全部':'全件削除',
+  '批號':'ロット番号','保存時間':'保存日時',
+  '全批成本(TWD)':'全体コスト(TWD)','操作':'操作','刪除':'削除',
+};
+window.applyLanguage = function(lang) {
+  const dict = window._jaDict;
+  function walk(root) {
+    const wk = document.createTreeWalker(root, NodeFilter.SHOW_TEXT, {
+      acceptNode(node) {
+        const t = node.parentElement && node.parentElement.tagName.toLowerCase();
+        if (['script','style','input','textarea','select'].includes(t)) return NodeFilter.FILTER_REJECT;
+        return NodeFilter.FILTER_ACCEPT;
+      }
+    });
+    const ns = []; let n;
+    while (n = wk.nextNode()) ns.push(n);
+    ns.forEach(tn => {
+      if (!window._originalTexts.has(tn)) window._originalTexts.set(tn, tn.textContent);
+      const orig = window._originalTexts.get(tn);
+      if (lang === 'zh') { tn.textContent = orig; return; }
+      let tr = orig;
+      Object.keys(dict).sort((a,b)=>b.length-a.length).forEach(k => {
+        if (k.length > 1 && tr.includes(k)) tr = tr.split(k).join(dict[k]);
+      });
+      if (tr !== orig) tn.textContent = tr;
+    });
+  }
+  walk(document.querySelector('.container'));
+  const h1 = document.querySelector('.header h1');
+  if (h1) {
+    if (!window._originalTexts.has(h1.childNodes[0])) window._originalTexts.set(h1.childNodes[0], h1.textContent);
+    h1.textContent = lang==='ja'?'輸入見積計算ツール':(window._originalTexts.get(h1.childNodes[0])||'進口報價試算工具');
+  }
+  const bt = document.querySelector('#batch-save-section h3');
+  if (bt) bt.innerHTML = lang==='ja'?'📦 ロット番号記録':'📦 批號紀錄';
+  refreshBatchLabels(lang);
+};
+window.refreshBatchLabels = function(lang) {
+  const L = {
+    zh:{idLabel:'批號（Lot No.）',remarkLabel:'備注',saveBtn:'💾 保存本次試算',historyTitle:'歷史紀錄',clearBtn:'清除全部',
+        thLabels:['批號','保存時間','模式','總箱數','全批成本(TWD)','商品','操作']},
+    ja:{idLabel:'ロット番号',remarkLabel:'メモ',saveBtn:'💾 今回の試算を保存',historyTitle:'履歴',clearBtn:'全件削除',
+        thLabels:['ロット番号','保存日時','輸送モード','総箱数','全体コスト(TWD)','商品','操作']},
+  }[lang]||{};
+  const e=id=>document.getElementById(id);
+  if(e('batch-id-label')) e('batch-id-label').textContent=L.idLabel;
+  if(e('batch-remark-label')) e('batch-remark-label').textContent=L.remarkLabel;
+  if(e('btn-save-batch')) e('btn-save-batch').textContent=L.saveBtn;
+  const ht=e('batch-history-title'); if(ht) ht.textContent=L.historyTitle+' ';
+  const cb=document.querySelector('.btn-clear-records'); if(cb) cb.textContent=L.clearBtn;
+  const ths=document.querySelectorAll('#batch-records-table thead th');
+  ths.forEach((th,i)=>{if(L.thLabels&&L.thLabels[i]) th.textContent=L.thLabels[i];});
+  const ri=e('batch-remark-input'); if(ri) ri.placeholder=lang==='ja'?'メモを入力（任意）...':'可輸入備注（選填）...';
+  renderBatchRecords();
+};
+window.toggleLanguage = function() {
+  window._langMode = window._langMode==='zh'?'ja':'zh';
+  const btn=document.getElementById('lang-toggle-btn'), lang=window._langMode;
+  if(lang==='ja'){
+    btn.classList.add('ja-active');
+    btn.innerHTML='<span class="lang-flag">🇹🇼</span><span class="lang-label">中文</span>';
+    btn.title='中国語に切り替え';
+  } else {
+    btn.classList.remove('ja-active');
+    btn.innerHTML='<span class="lang-flag">🇯🇵</span><span class="lang-label">日本語</span>';
+    btn.title='日本語に切り替え / 切換為日文';
+  }
+  window.applyLanguage(lang);
+};
+// ══════════════════════════════════════════════════════
+// ② 批號紀錄功能
+// ══════════════════════════════════════════════════════
+const BATCH_STORAGE_KEY='tmj_batch_records';
+function getBatchRecords(){try{return JSON.parse(localStorage.getItem(BATCH_STORAGE_KEY)||'[]');}catch(e){return[];}}
+function saveBatchRecords(r){localStorage.setItem(BATCH_STORAGE_KEY,JSON.stringify(r));}
+function showToast(msg){const t=document.getElementById('save-toast');if(!t)return;t.textContent=msg;t.classList.add('show');setTimeout(()=>t.classList.remove('show'),2500);}
+function escHtml(s){return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');}
+window.renderBatchRecords=function(){
+  const records=getBatchRecords(),tbody=document.getElementById('batch-records-tbody');
+  if(!tbody)return;
+  const lang=window._langMode||'zh';
+  const noMsg=lang==='ja'?'記録がありません。試算後に保存してください。':'暫無紀錄，試算後保存以供日後查閱';
+  const del=lang==='ja'?'削除':'刪除';
+  if(!records.length){tbody.innerHTML='<tr><td colspan="7" class="no-records-msg">'+noMsg+'</td></tr>';return;}
+  tbody.innerHTML='';
+  [...records].reverse().forEach((r,i)=>{
+    const idx=records.length-1-i, mode=r.mode==='sea'?'🚢 海運':'✈ 空運', tr=document.createElement('tr');
+    tr.innerHTML='<td class="record-batch-id">'+escHtml(r.batchId)+'</td>'+
+      '<td style="color:#718096;font-size:11px">'+r.savedAt+'</td>'+
+      '<td>'+mode+'</td><td class="r">'+r.totalBoxes+'箱</td>'+
+      '<td class="r record-cost">'+Number(r.grandCost).toLocaleString('zh-TW')+' TWD</td>'+
+      '<td class="record-products">'+escHtml(r.productNames)+'</td>'+
+      '<td><button class="btn-del-record" onclick="deleteRecord('+idx+')">'+del+'</button></td>';
+    tbody.appendChild(tr);
+  });
+};
+window.deleteRecord=function(idx){const r=getBatchRecords();r.splice(idx,1);saveBatchRecords(r);renderBatchRecords();};
+window.clearAllRecords=function(){
+  const lang=window._langMode||'zh';
+  if(confirm(lang==='ja'?'全ての履歴を削除しますか？':'確定要清除所有紀錄？')){saveBatchRecords([]);renderBatchRecords();}
+};
+window.saveBatchRecord=function(){
+  const bi=document.getElementById('batch-id-input'),ri=document.getElementById('batch-remark-input');
+  const batchId=bi.value.trim(),lang=window._langMode||'zh';
+  if(!batchId){alert(lang==='ja'?'ロット番号を入力してください':'請輸入批號');bi.focus();return;}
+  const isSea=document.getElementById('transport_mode').value==='sea';
+  const cards=document.querySelectorAll('#summary-cards .sum-card');
+  let grandCost='0',totalBoxes='0';
+  cards.forEach((c,i)=>{
+    const lbl=c.querySelector('.lbl')?c.querySelector('.lbl').textContent:'';
+    const val=c.querySelector('.val')?c.querySelector('.val').textContent:'';
+    if(i===0)totalBoxes=val.replace(/[^0-9]/g,'');
+    if(lbl.includes('總成本')||lbl.includes('全批')||lbl.includes('全体')||lbl.includes('総コスト'))
+      grandCost=val.replace(/[^0-9]/g,'');
+  });
+  const prods=Array.from(document.querySelectorAll('#prod-body td:first-child input[type="text"]')).map(x=>x.value).join(', ');
+  const now=new Date(), savedAt=now.toLocaleString('zh-TW',{year:'numeric',month:'2-digit',day:'2-digit',hour:'2-digit',minute:'2-digit'});
+  const rec={batchId,remark:ri.value.trim(),savedAt,mode:isSea?'sea':'air',totalBoxes,grandCost,productNames:prods,
+    jpyRate:document.getElementById('exchange_rate').value,usdRate:document.getElementById('usd_rate').value};
+  const records=getBatchRecords(); records.push(rec); saveBatchRecords(records);
+  bi.value=''; ri.value=''; renderBatchRecords();
+  showToast(lang==='ja'?'✅ 保存しました！ロット番号：'+batchId:'✅ 試算已保存！批號：'+batchId);
+};
 </script>
 </body>
 </html>
