@@ -255,6 +255,9 @@ table.res-table { width:100%;border-collapse:collapse;font-size:12px; }
       毛利目標：<span id="hdr-m1">5</span>% ～ <span id="hdr-m2">10</span>%
       <span class="badge-mode air" id="hdr-mode-badge">✈ 空運</span>
     </div>
+    <button class="lang-toggle-btn" id="lang-toggle-btn" onclick="toggleLanguage()" title="日本語に切り替え / 切換為日文">
+    <span class="lang-flag">🇯🇵</span><span class="lang-label">日本語</span>
+  </button>
   </div>
 </div>
 
@@ -293,11 +296,7 @@ table.res-table { width:100%;border-collapse:collapse;font-size:12px; }
           <option value="box">依箱數比例</option>
           <option value="gw">依 GW 比例</option>
         </select>
-        <div class="param-hint">GW 比例需填各商品 GW/箱</div>
-  <button class="lang-toggle-btn" id="lang-toggle-btn" onclick="toggleLanguage()" title="日本語に切り替え / 切換為日文">
-    <span class="lang-flag">🇯🇵</span><span class="lang-label">日本語</span>
-  </button>
-      </div>
+        <div class="param-hint">GW 比例需填各商品 GW/箱</div>      </div>
     </div>
   </div>
 
@@ -518,6 +517,40 @@ table.res-table { width:100%;border-collapse:collapse;font-size:12px; }
 
 </div><!-- /container -->
 
+<div class="container" style="margin-top:0; padding-bottom:32px">
+<div id="batch-save-section">
+    <h3>📦 批號紀錄</h3>
+    <div class="batch-input-row">
+      <div class="batch-input-group">
+        <label id="batch-id-label">批號（Lot No.）</label>
+        <input type="text" id="batch-id-input" name="batchId" placeholder="例：2026-05-001" autocomplete="off">
+      </div>
+      <div class="batch-input-group">
+        <label id="batch-remark-label">備注</label>
+        <textarea id="batch-remark-input" placeholder="可輸入備注（選填）..."></textarea>
+      </div>
+      <button class="btn-save-batch" id="btn-save-batch" onclick="saveBatchRecord()">💾 保存本次試算</button>
+    </div>
+    <div id="batch-records-wrap">
+      <h4>
+        <span id="batch-history-title">歷史紀錄 </span>
+        <button class="btn-clear-records" onclick="clearAllRecords()">清除全部</button>
+      </h4>
+      <table id="batch-records-table">
+        <thead>
+          <tr>
+            <th>批號</th><th>保存時間</th><th>模式</th>
+            <th class="r">總箱數</th><th class="r">全批成本(TWD)</th>
+            <th>商品</th><th>操作</th>
+          </tr>
+        </thead>
+        <tbody id="batch-records-tbody"></tbody>
+      </table>
+    </div>
+  </div>
+  <div id="save-toast" class="save-toast"></div>
+</div>
+
 <script>
 // ══════════════════════════════════════════════════════
 //  資料定義
@@ -555,38 +588,7 @@ const oceanItems = [
   {id:'oc04', name:'THC（日本）',    rate:100, qty:0, unit:'CBM', isWeight:false, isVol:true,  en:true},
 ];
 
-  <!-- ⑤ 批號紀錄 -->
-  <div id="batch-save-section">
-    <h3>📦 批號紀錄</h3>
-    <div class="batch-input-row">
-      <div class="batch-input-group">
-        <label id="batch-id-label">批號（Lot No.）</label>
-        <input type="text" id="batch-id-input" name="batchId" placeholder="例：2026-05-001" autocomplete="off">
-      </div>
-      <div class="batch-input-group">
-        <label id="batch-remark-label">備注</label>
-        <textarea id="batch-remark-input" placeholder="可輸入備注（選填）..."></textarea>
-      </div>
-      <button class="btn-save-batch" id="btn-save-batch" onclick="saveBatchRecord()">💾 保存本次試算</button>
-    </div>
-    <div id="batch-records-wrap">
-      <h4>
-        <span id="batch-history-title">歷史紀錄 </span>
-        <button class="btn-clear-records" onclick="clearAllRecords()">清除全部</button>
-      </h4>
-      <table id="batch-records-table">
-        <thead>
-          <tr>
-            <th>批號</th><th>保存時間</th><th>模式</th>
-            <th class="r">總箱數</th><th class="r">全批成本(TWD)</th>
-            <th>商品</th><th>操作</th>
-          </tr>
-        </thead>
-        <tbody id="batch-records-tbody"></tbody>
-      </table>
-    </div>
-  </div>
-  <div id="save-toast" class="save-toast"></div>
+  
 // 空運：台灣進口費
 const twItems = [
   {id:'tw01', name:'Customs Clearance Fee',  rate:2500, qty:1, unit:'BL',   isVol:false, en:true},
