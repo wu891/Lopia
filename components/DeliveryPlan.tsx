@@ -74,6 +74,9 @@ export default function DeliveryPlan({ batchId, batchName, totalBoxes, records, 
   const T = t[lang]
   const fileRef      = useRef<HTMLInputElement>(null)
   const xlsUpdateRef = useRef<HTMLInputElement>(null)
+  const chukuFileRef = useRef<HTMLInputElement>(null)
+  const chukuRoundRef = useRef<number>(0)
+  const chukuDateRef  = useRef<string>('')
 
   const [collapsed, setCollapsed]     = useState(true)
   const [showForm, setShowForm]       = useState(false)
@@ -108,6 +111,10 @@ export default function DeliveryPlan({ batchId, batchName, totalBoxes, records, 
   const [generatingRound, setGeneratingRound] = useState<number | null>(null)
   const [generateMsg, setGenerateMsg] = useState<{ roundNo: number; type: 'ok' | 'err'; text: string } | null>(null)
 
+  // 優儲出庫單
+  const [chukuGeneratingRound, setChukuGeneratingRound] = useState<number | null>(null)
+  const [chukuMsg, setChukuMsg] = useState<{ roundNo: number; type: 'ok' | 'err'; text: string } | null>(null)
+
   // Three-way verification modal
   const [pendingGenerateRound, setPendingGenerateRound] = useState<number | null>(null)
 
@@ -140,8 +147,6 @@ export default function DeliveryPlan({ batchId, batchName, totalBoxes, records, 
   const formMatchWarn= totalBoxes != null && formTotal > 0 && formTotal !== totalBoxes
   // Warn user about rounds with boxes but no date (they will NOT be saved)
   const undatedRoundsCount = rounds.filter(r => !r.date && !r.dateTbd && r.stores.some(s => Number(s.boxes) > 0)).length
-  // Count locked rounds for display
-  const lockedCount = roundGroups.filter(g => g.locked).length
 
   // ── Excel ────────────────────────────────────────────
   async function handleExcelFile(e: React.ChangeEvent<HTMLInputElement>) {
@@ -197,27 +202,45 @@ export default function DeliveryPlan({ batchId, batchName, totalBoxes, records, 
     }
   }
 
-  // ── Lock / Unlock ────────────────────────────────────
-  const [lockingRound, setLockingRound] = useState<number | null>(null)
+  // ── 優儲出庫單 ───────────────────────────────────────
+  function handleChukuClick(roundNo: number, date: string | null) {
+    chukuRoundRef.current = roundNo
+    chukuDateRef.current = date ?? ''
+    chukuFileRef.current?.click()
+  }
 
-  async function doToggleLock(group: RoundGroup) {
-    const newLocked = !group.locked
-    setLockingRound(group.roundNo)
+  async function handleChukuFile(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0]
+    if (!file) return
+    const roundNo = chukuRoundRef.current
+    const date = chukuDateRef.current
+    setChukuGeneratingRound(roundNo)
+    setChukuMsg(null)
     try {
-      await Promise.all(group.ids.map(id =>
-        fetch(`/api/records/${id}`, {
-          method: 'PUT',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ locked: newLocked }),
-        })
-      ))
-      await logChange(
-        newLocked ? '鎖定出貨計畫' : '解鎖出貨計畫',
-        batchId,
-        `第 ${group.roundNo} 次 / 日期: ${group.date ?? '—'} / ${group.totalBoxes} 箱`,
-      )
-      onRecordChange()
-    } finally { setLockingRound(null) }
+      const fd = new FormData()
+      fd.append('file', file)
+      fd.append('roundNo', String(roundNo))
+      fd.append('date', date)
+      const res = await fetch('/api/generate-chuku-order', { method: 'POST', body: fd })
+      if (!res.ok) {
+        const { error } = await res.json()
+        setChukuMsg({ roundNo, type: 'err', text: error ?? '產生失敗' })
+        return
+      }
+      const blob = await res.blob()
+      const url = URL.createObjectURL(blob)
+      const a = document.createElement('a')
+      a.href = url
+      a.download = `優儲出庫單_第${roundNo}回_${date.replace(/-/g, '')}.xlsx`
+      a.click()
+      URL.revokeObjectURL(url)
+      setChukuMsg({ roundNo, type: 'ok', text: '出庫單已下載' })
+    } catch {
+      setChukuMsg({ roundNo, type: 'err', text: '產生失敗，請重試' })
+    } finally {
+      setChukuGeneratingRound(null)
+      if (chukuFileRef.current) chukuFileRef.current.value = ''
+    }
   }
 
   // ── XLS Update ───────────────────────────────────────
@@ -734,6 +757,15 @@ export default function DeliveryPlan({ batchId, batchName, totalBoxes, records, 
         onChange={handleXlsUpdateFile}
       />
 
+      {/* Hidden 優儲出庫單 input */}
+      <input
+        ref={chukuFileRef}
+        type="file"
+        accept=".xlsx,.xls"
+        className="hidden"
+        onChange={handleChukuFile}
+      />
+
       {/* Header — always visible, click label to toggle */}
       <div className="flex items-center justify-between gap-2 flex-wrap">
         <button
@@ -782,7 +814,6 @@ export default function DeliveryPlan({ batchId, batchName, totalBoxes, records, 
           {roundGroups.length > 0 && (
             <span className="ml-auto text-xs opacity-70">
               {T.plannedBoxes}: {plannedTotal} / {totalBoxes} {T.boxes}
-              {lockedCount > 0 && <span className="ml-1.5 text-amber-600">🔒{lockedCount}</span>}
             </span>
           )}
         </div>
@@ -806,7 +837,6 @@ export default function DeliveryPlan({ batchId, batchName, totalBoxes, records, 
                   <span className={`text-gray-400 text-xs transition-transform duration-150 flex-shrink-0 ${isExpanded ? 'rotate-90' : ''}`}>▶</span>
 
                   <span className="text-gray-500 font-medium text-xs whitespace-nowrap flex-shrink-0">
-                    {g.locked && <span className="text-amber-500 mr-0.5">🔒</span>}
                     {T.roundNo}{g.roundNo}{T.roundSuffix}
                   </span>
                   <span className="text-gray-700 font-medium text-xs whitespace-nowrap flex-shrink-0">
@@ -843,19 +873,15 @@ export default function DeliveryPlan({ batchId, batchName, totalBoxes, records, 
                       </button>
                     )}
                     <button
-                      onClick={() => requireAuth(() => doToggleLock(g))}
-                      disabled={lockingRound === g.roundNo}
-                      title={g.locked
-                        ? (lang === 'ja' ? 'ロック解除（編集可能にする）' : '解鎖（允許編輯）')
-                        : (lang === 'ja' ? 'ロック（Excel更新から保護）' : '鎖定（防止Excel更新覆蓋）')}
-                      className={`transition-colors text-xs disabled:opacity-40 ${
-                        g.locked ? 'text-amber-500 hover:text-amber-600' : 'text-gray-400 hover:text-amber-500'
-                      }`}
+                      onClick={() => handleChukuClick(g.roundNo, g.date)}
+                      disabled={chukuGeneratingRound === g.roundNo}
+                      title="優儲出庫單"
+                      className="text-emerald-500 hover:text-emerald-700 transition-colors text-xs disabled:opacity-40"
                     >
-                      {lockingRound === g.roundNo ? '⟳' : g.locked ? '🔒' : '🔓'}
+                      {chukuGeneratingRound === g.roundNo ? '⟳' : '🏭'}
                     </button>
-                    <button onClick={() => startEdit(g)} disabled={g.locked} className={`transition-colors text-xs ${g.locked ? 'text-gray-300 cursor-not-allowed' : 'text-gray-400 hover:text-lopia-red'}`}>✏</button>
-                    <button onClick={() => handleDeleteRound(g)} disabled={deletingRound === g.roundNo || g.locked} className={`transition-colors text-xs ${g.locked ? 'text-gray-300 cursor-not-allowed' : 'text-gray-400 hover:text-red-500'}`}>
+                    <button onClick={() => startEdit(g)} className="transition-colors text-xs text-gray-400 hover:text-lopia-red">✏</button>
+                    <button onClick={() => handleDeleteRound(g)} disabled={deletingRound === g.roundNo} className="transition-colors text-xs text-gray-400 hover:text-red-500 disabled:opacity-40">
                       {deletingRound === g.roundNo ? '…' : '✕'}
                     </button>
                   </div>
@@ -874,26 +900,42 @@ export default function DeliveryPlan({ batchId, batchName, totalBoxes, records, 
                       <span>{T.subtotal}</span>
                       <span>{g.totalBoxes}{T.boxes}</span>
                     </div>
-                    {/* Generate shipment order button */}
-                    <div className="pt-1.5 border-t border-gray-100">
-                      {supplierExcelId ? (
+                    {/* Generate buttons */}
+                    <div className="pt-1.5 border-t border-gray-100 space-y-1.5">
+                      <div className="flex gap-2">
+                        {supplierExcelId ? (
+                          <button
+                            onClick={() => handleGenerateClick(g.roundNo)}
+                            disabled={generatingRound === g.roundNo}
+                            className="flex-1 py-1.5 bg-blue-50 text-blue-600 text-xs font-medium rounded-lg hover:bg-blue-100 disabled:opacity-40 transition-colors flex items-center justify-center gap-1"
+                          >
+                            {generatingRound === g.roundNo
+                              ? <><span className="animate-spin inline-block">⟳</span> {lang === 'ja' ? '生成中...' : '產生中...'}</>
+                              : <>📄 {lang === 'ja' ? '出荷伝票を生成' : '產生出貨單'}</>}
+                          </button>
+                        ) : (
+                          <p className="flex-1 text-xs text-gray-400 text-center py-1.5">
+                            {lang === 'ja' ? '※先にExcelをアップロード' : '※ 需先上傳供應商Excel'}
+                          </p>
+                        )}
                         <button
-                          onClick={() => handleGenerateClick(g.roundNo)}
-                          disabled={generatingRound === g.roundNo}
-                          className="w-full py-1.5 bg-blue-50 text-blue-600 text-xs font-medium rounded-lg hover:bg-blue-100 disabled:opacity-40 transition-colors flex items-center justify-center gap-1"
+                          onClick={() => handleChukuClick(g.roundNo, g.date)}
+                          disabled={chukuGeneratingRound === g.roundNo}
+                          className="flex-1 py-1.5 bg-emerald-50 text-emerald-700 text-xs font-medium rounded-lg hover:bg-emerald-100 disabled:opacity-40 transition-colors flex items-center justify-center gap-1"
                         >
-                          {generatingRound === g.roundNo
-                            ? <><span className="animate-spin inline-block">⟳</span> {lang === 'ja' ? '生成中...' : '產生中...'}</>
-                            : <>📄 {lang === 'ja' ? '出荷伝票を生成' : '產生出貨單'}</>}
+                          {chukuGeneratingRound === g.roundNo
+                            ? <><span className="animate-spin inline-block">⟳</span> 產生中...</>
+                            : <>🏭 優儲出庫單</>}
                         </button>
-                      ) : (
-                        <p className="text-xs text-gray-400 text-center py-1">
-                          {lang === 'ja' ? '※出荷伝票の生成には、先にExcelをアップロードしてください' : '※ 需先上傳供應商配送Excel才能產生出貨單'}
+                      </div>
+                      {generateMsg?.roundNo === g.roundNo && (
+                        <p className={`text-xs text-center ${generateMsg.type === 'ok' ? 'text-green-600' : 'text-red-500'}`}>
+                          {generateMsg.type === 'ok' ? '✓' : '⚠'} {generateMsg.text}
                         </p>
                       )}
-                      {generateMsg?.roundNo === g.roundNo && (
-                        <p className={`text-xs mt-1 text-center ${generateMsg.type === 'ok' ? 'text-green-600' : 'text-red-500'}`}>
-                          {generateMsg.type === 'ok' ? '✓' : '⚠'} {generateMsg.text}
+                      {chukuMsg?.roundNo === g.roundNo && (
+                        <p className={`text-xs text-center ${chukuMsg.type === 'ok' ? 'text-green-600' : 'text-red-500'}`}>
+                          {chukuMsg.type === 'ok' ? '✓' : '⚠'} {chukuMsg.text}
                         </p>
                       )}
                     </div>
