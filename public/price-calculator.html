@@ -239,6 +239,47 @@ table.res-table { width:100%;border-collapse:collapse;font-size:12px; }
 .no-records-msg { text-align: center; color: #a0aec0; padding: 24px; font-size: 13px; }
 .save-toast { position: fixed; bottom: 30px; right: 30px; background: #276749; color: white; padding: 12px 22px; border-radius: 10px; font-size: 13px; font-weight: 600; box-shadow: 0 4px 20px rgba(0,0,0,0.2); z-index: 9999; opacity: 0; transition: opacity 0.3s; pointer-events: none; }
 .save-toast.show { opacity: 1; }
+
+/* ── Markup / Margin Toggle ── */
+.price-mode-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  background: rgba(0,0,0,0.3);
+  border-radius: 20px;
+  padding: 3px;
+  border: 1px solid rgba(255,255,255,0.15);
+  margin: 3px 0 2px;
+}
+.price-mode-toggle .pm-btn {
+  padding: 3px 10px;
+  border-radius: 16px;
+  border: none;
+  cursor: pointer;
+  font-size: 11px;
+  font-weight: 700;
+  transition: all 0.2s;
+  background: transparent;
+  color: rgba(255,255,255,0.4);
+  letter-spacing: 0.5px;
+}
+.price-mode-toggle .pm-btn.pm-markup-on {
+  background: #ed8936;
+  color: #fff;
+  box-shadow: 0 2px 6px rgba(237,137,54,0.45);
+}
+.price-mode-toggle .pm-btn.pm-margin-on {
+  background: #48bb78;
+  color: #fff;
+  box-shadow: 0 2px 6px rgba(72,187,120,0.45);
+}
+.price-mode-desc {
+  font-size: 9px;
+  color: rgba(255,255,255,0.5);
+  display: block;
+  text-align: center;
+  white-space: nowrap;
+}
 </style>
 </head>
 <body>
@@ -651,6 +692,8 @@ window.onload = () => {
   renderProdTable();
   renderResultHead(false, 5, 10);
   recalc();
+  // 初始化 Markup/Margin toggle 按鈕狀態
+  window.setPriceMode(window._priceMode || 'margin');
 };
 
 // ══════════════════════════════════════════════════════
@@ -864,7 +907,16 @@ function renderResultHead(isSea, m1, m2) {
       <th colspan="4" class="th-goods" style="text-align:center">商品成本／箱（TWD）</th>
       <th colspan="${logColspan}" class="th-log" style="text-align:center">物流分攤／箱（TWD）</th>
       <th rowspan="2" class="r" style="background:#2a1a1e;color:#fc8181;min-width:80px">總成本/箱</th>
-      <th colspan="2" class="th-price" style="text-align:center;min-width:160px">建議售價/箱（TWD）</th>
+      <th colspan="2" class="th-price" style="text-align:center;min-width:180px">
+        <div style="display:flex;flex-direction:column;align-items:center;gap:1px;">
+          建議售價/箱（TWD）
+          <div class="price-mode-toggle">
+            <button class="pm-btn" id="btn-markup" onclick="setPriceMode('markup')" title="Markup = 利潤 / 成本（加成率）">Markup</button>
+            <button class="pm-btn" id="btn-margin" onclick="setPriceMode('margin')" title="Margin = 利潤 / 售價（毛利率）">Margin</button>
+          </div>
+          <span class="price-mode-desc" id="price-mode-desc">售價 = 成本 ÷ (1 − 毛利%)</span>
+        </div>
+      </th>
     </tr>
     <tr>
       <th class="th-goods r">仕入</th>
@@ -890,6 +942,14 @@ function renderResultHead(isSea, m1, m2) {
       </th>
     </tr>
   `;
+  // 更新 toggle 按鈕狀態
+  const mode = window._priceMode || 'margin';
+  const btnMu = document.getElementById('btn-markup');
+  const btnMg = document.getElementById('btn-margin');
+  if (btnMu) btnMu.className = 'pm-btn' + (mode === 'markup' ? ' pm-markup-on' : '');
+  if (btnMg) btnMg.className = 'pm-btn' + (mode === 'margin' ? ' pm-margin-on' : '');
+  const desc = document.getElementById('price-mode-desc');
+  if (desc) desc.textContent = mode === 'markup' ? '售價 = 成本 × (1 + 毛利%)' : '售價 = 成本 ÷ (1 − 毛利%)';
 }
 
 // ══════════════════════════════════════════════════════
@@ -1296,6 +1356,23 @@ window.saveBatchRecord=function(){
   bi.value=''; ri.value=''; renderBatchRecords();
   showToast(lang==='ja'?'✅ 保存しました！ロット番号：'+batchId:'✅ 試算已保存！批號：'+batchId);
 };
+
+  // ══════════════════════════════════════════════════════
+  // Markup / Margin Toggle
+  // ══════════════════════════════════════════════════════
+  window._priceMode = 'margin'; // 預設 margin 模式
+
+  window.setPriceMode = function(mode) {
+    window._priceMode = mode;
+    const btnMu = document.getElementById('btn-markup');
+    const btnMg = document.getElementById('btn-margin');
+    if (btnMu) btnMu.className = 'pm-btn' + (mode === 'markup' ? ' pm-markup-on' : '');
+    if (btnMg) btnMg.className = 'pm-btn' + (mode === 'margin' ? ' pm-margin-on' : '');
+    const desc = document.getElementById('price-mode-desc');
+    if (desc) desc.textContent = mode === 'markup' ? '售價 = 成本 × (1 + 毛利%)' : '售價 = 成本 ÷ (1 − 毛利%)';
+    recalc();
+  };
+
 </script>
 </body>
 </html>
