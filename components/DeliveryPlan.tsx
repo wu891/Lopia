@@ -74,6 +74,8 @@ export default function DeliveryPlan({ batchId, batchName, totalBoxes, records, 
   const T = t[lang]
   const fileRef      = useRef<HTMLInputElement>(null)
   const xlsUpdateRef = useRef<HTMLInputElement>(null)
+  const chukuFileRef = useRef<HTMLInputElement>(null)
+  const chukuRoundRef = useRef<number>(0)
   const chukuDateRef  = useRef<string>('')
 
   const [collapsed, setCollapsed]     = useState(true)
@@ -89,7 +91,7 @@ export default function DeliveryPlan({ batchId, batchName, totalBoxes, records, 
   const [showPassword, setShowPassword]   = useState(false)
   const [pendingAction, setPendingAction] = useState<(() => void) | null>(null)
 
-  // XLS update (ä¸å³ä¿®æ¹åºè²¨æç¨è¡¨)
+  // XLS update (上傳修改出貨時程表)
   const [showXlsUpdate,    setShowXlsUpdate]    = useState(false)
   const [xlsUpdateParsing, setXlsUpdateParsing] = useState(false)
   const [xlsUpdateError,   setXlsUpdateError]   = useState('')
@@ -106,6 +108,16 @@ export default function DeliveryPlan({ batchId, batchName, totalBoxes, records, 
   const [xlsFile, setXlsFile]         = useState<File | null>(null) // keep original file for Drive upload
 
   // Generate shipment order
+  const [generatingRound, setGeneratingRound] = useState<number | null>(null)
+  const [generateMsg, setGenerateMsg] = useState<{ roundNo: number; type: 'ok' | 'err'; text: string } | null>(null)
+
+  // 優儲出庫單
+  const [chukuGeneratingRound, setChukuGeneratingRound] = useState<number | null>(null)
+  const [chukuMsg, setChukuMsg] = useState<{ roundNo: number; type: 'ok' | 'err'; text: string } | null>(null)
+
+  // Three-way verification modal
+  const [pendingGenerateRound, setPendingGenerateRound] = useState<number | null>(null)
+
   const batchRecords = records.filter(r => r.batchId === batchId).sort((a, b) => (a.round ?? 99) - (b.round ?? 99))
   const roundGroups  = groupByRound(batchRecords)
   const plannedTotal = batchRecords.reduce((s, r) => s + (r.boxes ?? 0), 0)
@@ -115,7 +127,7 @@ export default function DeliveryPlan({ batchId, batchName, totalBoxes, records, 
   const openStores   = STORES
   const sName        = (s: typeof STORES[0]) => lang === 'ja' ? s.name_ja : s.name_zh
 
-  // ââ Pre-save form summary (computed live from rounds state) ââ
+  // ── Pre-save form summary (computed live from rounds state) ──
   // Only count rounds that WILL actually be saved (have a date set)
   const formStoreTotals: Record<string, { boxes: number; rounds: number }> = {}
   for (const r of rounds) {
@@ -136,7 +148,7 @@ export default function DeliveryPlan({ batchId, batchName, totalBoxes, records, 
   // Warn user about rounds with boxes but no date (they will NOT be saved)
   const undatedRoundsCount = rounds.filter(r => !r.date && !r.dateTbd && r.stores.some(s => Number(s.boxes) > 0)).length
 
-  // ââ Excel ââââââââââââââââââââââââââââââââââââââââââââ
+  // ── Excel ────────────────────────────────────────────
   async function handleExcelFile(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0]; if (!file) return
     setXlsError(''); setXlsResult(null); setXlsParsing(true); setXlsFileName(file.name); setXlsFile(file)
@@ -151,7 +163,7 @@ export default function DeliveryPlan({ batchId, batchName, totalBoxes, records, 
 
   function clearExcel() { setXlsResult(null); setXlsFileName(''); setXlsError(''); setXlsFile(null); setRounds([emptyRound(), emptyRound(), emptyRound(), emptyRound()]) }
 
-  // ââ Add form helpers âââââââââââââââââââââââââââââââââ
+  // ── Add form helpers ─────────────────────────────────
   function startAdd() { setCollapsed(false); setEditRound(null); clearExcel(); setShowForm(true) }
   function addRoundRow() { setRounds(prev => [...prev, emptyRound()]) }
   function toggleRoundTbd(idx: number) { setRounds(rs => rs.map((r, i) => i === idx ? { ...r, dateTbd: !r.dateTbd, date: '' } : r)) }
@@ -167,7 +179,7 @@ export default function DeliveryPlan({ batchId, batchName, totalBoxes, records, 
     setRounds(prev => prev.map((r, i) => i !== idx ? r : { ...r, stores: r.stores.map(s => s.name === name ? { ...s, boxes } : s) }))
   }
 
-  // ââ Edit helpers âââââââââââââââââââââââââââââââââââââ
+  // ── Edit helpers ─────────────────────────────────────
   function startEdit(group: RoundGroup) {
     setCollapsed(false)
     setEditRound({ roundNo: group.roundNo, date: group.date ?? '', stores: group.stores.map(s => ({ name: s.name, boxes: String(s.boxes) })), existingIds: group.ids })
@@ -180,7 +192,7 @@ export default function DeliveryPlan({ batchId, batchName, totalBoxes, records, 
     setEditRound(f => f ? { ...f, stores: f.stores.map(s => s.name === name ? { ...s, boxes } : s) } : f)
   }
 
-  // ââ Auth gate âââââââââââââââââââââââââââââââââââââââââ
+  // ── Auth gate ─────────────────────────────────────────
   function requireAuth(fn: () => void) {
     if (isAuthed()) {
       fn()
@@ -190,8 +202,48 @@ export default function DeliveryPlan({ batchId, batchName, totalBoxes, records, 
     }
   }
 
-  // ââ åªå²åºåº«å® âââââââââââââââââââââââââââââââââââââââ
-  // ââ XLS Update âââââââââââââââââââââââââââââââââââââââ
+  // ── 優儲出庫單 ───────────────────────────────────────
+  function handleChukuClick(roundNo: number, date: string | null) {
+    chukuRoundRef.current = roundNo
+    chukuDateRef.current = date ?? ''
+    chukuFileRef.current?.click()
+  }
+
+  async function handleChukuFile(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0]
+    if (!file) return
+    const roundNo = chukuRoundRef.current
+    const date = chukuDateRef.current
+    setChukuGeneratingRound(roundNo)
+    setChukuMsg(null)
+    try {
+      const fd = new FormData()
+      fd.append('file', file)
+      fd.append('roundNo', String(roundNo))
+      fd.append('date', date)
+      const res = await fetch('/api/generate-chuku-order', { method: 'POST', body: fd })
+      if (!res.ok) {
+        const { error } = await res.json()
+        setChukuMsg({ roundNo, type: 'err', text: error ?? '產生失敗' })
+        return
+      }
+      const blob = await res.blob()
+      const url = URL.createObjectURL(blob)
+      const a = document.createElement('a')
+      a.href = url
+      a.download = `優儲出庫單_第${roundNo}回_${date.replace(/-/g, '')}.xlsx`
+      a.click()
+      URL.revokeObjectURL(url)
+      setChukuMsg({ roundNo, type: 'ok', text: '出庫單已下載' })
+    } catch {
+      setChukuMsg({ roundNo, type: 'err', text: '產生失敗，請重試' })
+    } finally {
+      setChukuGeneratingRound(null)
+      if (chukuFileRef.current) chukuFileRef.current.value = ''
+    }
+  }
+
+  // ── XLS Update ───────────────────────────────────────
   function computeDiff(parsed: ParsedDeliveryRound[]): DiffRound[] {
     const excelCount = parsed.length
 
@@ -232,7 +284,7 @@ export default function DeliveryPlan({ batchId, batchName, totalBoxes, records, 
       }
     })
 
-    // Notion rounds with roundNo > excelCount are stale â not in the new Excel, must be deleted
+    // Notion rounds with roundNo > excelCount are stale — not in the new Excel, must be deleted
     const staleRounds: DiffRound[] = roundGroups
       .filter(g => g.roundNo > excelCount)
       .map(g => ({
@@ -283,11 +335,11 @@ export default function DeliveryPlan({ batchId, batchName, totalBoxes, records, 
     setApplyingUpdate(true); setApplyError('')
     try {
       const changedRounds = diffRounds.filter(d => d.hasChanges)
-      // Skip locked rounds â they are protected from Excel updates
+      // Skip locked rounds — they are protected from Excel updates
       const skippedLocked = changedRounds.filter(d => d.existingGroup?.locked)
       const updatableRounds = changedRounds.filter(d => !d.existingGroup?.locked)
       for (const d of updatableRounds) {
-        // Stale round (exists in Notion but not in new Excel) â delete only, no date needed
+        // Stale round (exists in Notion but not in new Excel) — delete only, no date needed
         if (d.newStores.length === 0 && d.existingGroup) {
           await Promise.all(d.existingGroup.ids.map(id => fetch(`/api/records/${id}`, { method: 'DELETE' })))
           continue
@@ -308,13 +360,13 @@ export default function DeliveryPlan({ batchId, batchName, totalBoxes, records, 
             )
           )
           const err = (await Promise.all(res.map(async r => r.ok ? null : (await r.json().catch(() => ({}))).error ?? `HTTP ${r.status}`))).find(Boolean)
-          if (err) { setApplyError(`ç¬¬ ${d.roundNo} æ¬¡æ´æ°å¤±æï¼${err}`); return }
+          if (err) { setApplyError(`第 ${d.roundNo} 次更新失敗：${err}`); return }
         }
       }
       await logChange(
-        'æ´æ°åºè²¨æç¨è¡¨',
+        '更新出貨時程表',
         batchId,
-        `Excel æ´æ° ${updatableRounds.length} åè¼ªæ¬¡${skippedLocked.length > 0 ? ` / è·³é ${skippedLocked.length} åå·²éå®è¼ªæ¬¡` : ''} / æªæ¡: ${xlsUpdateFileName}`,
+        `Excel 更新 ${updatableRounds.length} 個輪次${skippedLocked.length > 0 ? ` / 跳過 ${skippedLocked.length} 個已鎖定輪次` : ''} / 檔案: ${xlsUpdateFileName}`,
       )
 
       // Upload updated supplier Excel to Drive (overwrite reference)
@@ -323,7 +375,7 @@ export default function DeliveryPlan({ batchId, batchName, totalBoxes, records, 
           const form = new FormData()
           form.append('file', xlsUpdateFile)
           form.append('batch', batchName)
-          form.append('docType', 'ä¾æåéé')
+          form.append('docType', '供應商配送')
           const upRes = await fetch('/api/upload', { method: 'POST', body: form })
           if (upRes.ok) {
             const { fileId } = await upRes.json()
@@ -342,7 +394,7 @@ export default function DeliveryPlan({ batchId, batchName, totalBoxes, records, 
       setXlsUpdateFile(null)
       onRecordChange()
     } catch (e) {
-      setApplyError(`ç¶²è·¯é¯èª¤ï¼${e instanceof Error ? e.message : String(e)}`)
+      setApplyError(`網路錯誤：${e instanceof Error ? e.message : String(e)}`)
     } finally {
       setApplyingUpdate(false)
     }
@@ -352,7 +404,7 @@ export default function DeliveryPlan({ batchId, batchName, totalBoxes, records, 
     setShowXlsUpdate(false); setDiffRounds([]); setXlsUpdateFileName(''); setApplyError('')
   }
 
-  // ââ Save âââââââââââââââââââââââââââââââââââââââââââââ
+  // ── Save ─────────────────────────────────────────────
   async function handleSave() {
     setSaving(true); setSaveError('')
     try {
@@ -365,12 +417,12 @@ export default function DeliveryPlan({ batchId, batchName, totalBoxes, records, 
           )
         )
         const err = (await Promise.all(res.map(async r => r.ok ? null : (await r.json().catch(() => ({}))).error ?? `HTTP ${r.status}`))).find(Boolean)
-        if (err) { setSaveError(`å²å­å¤±æï¼${err}`); return }
+        if (err) { setSaveError(`儲存失敗：${err}`); return }
         // Log edit
         await logChange(
-          'ç·¨è¼¯åºè²¨è¨ç«',
+          '編輯出貨計畫',
           batchId,
-          `ç¬¬ ${editRound.roundNo} æ¬¡ / æ¥æ: ${editRound.date} / åºæ¸: ${editRound.stores.length}`,
+          `第 ${editRound.roundNo} 次 / 日期: ${editRound.date} / 店數: ${editRound.stores.length}`,
         )
       } else {
         const valid = rounds.filter(r => (r.date || r.dateTbd) && r.stores.some(s => s.boxes && Number(s.boxes) > 0))
@@ -384,14 +436,14 @@ export default function DeliveryPlan({ batchId, batchName, totalBoxes, records, 
             )
           )
           const err = (await Promise.all(res.map(async r => r.ok ? null : (await r.json().catch(() => ({}))).error ?? `HTTP ${r.status}`))).find(Boolean)
-          if (err) { setSaveError(`ç¬¬ ${nextRoundNo + offset} æ¬¡å²å­å¤±æï¼${err}`); return }
+          if (err) { setSaveError(`第 ${nextRoundNo + offset} 次儲存失敗：${err}`); return }
           offset++
         }
         // Log add
         await logChange(
-          'æ°å¢åºè²¨è¨ç«',
+          '新增出貨計畫',
           batchId,
-          `æ°å¢ ${valid.length} åè¼ªæ¬¡`,
+          `新增 ${valid.length} 個輪次`,
         )
 
         // Upload supplier Excel to Drive if available and not already uploaded
@@ -400,7 +452,7 @@ export default function DeliveryPlan({ batchId, batchName, totalBoxes, records, 
             const form = new FormData()
             form.append('file', xlsFile)
             form.append('batch', batchName)
-            form.append('docType', 'ä¾æåéé')
+            form.append('docType', '供應商配送')
             const upRes = await fetch('/api/upload', { method: 'POST', body: form })
             if (upRes.ok) {
               const { fileId } = await upRes.json()
@@ -411,11 +463,11 @@ export default function DeliveryPlan({ batchId, batchName, totalBoxes, records, 
                 body: JSON.stringify({ batchId, fileId }),
               })
             }
-          } catch { /* non-critical â user can re-upload later */ }
+          } catch { /* non-critical — user can re-upload later */ }
         }
       }
       cancelForm(); onRecordChange()
-    } catch (e) { setSaveError(`ç¶²è·¯é¯èª¤ï¼${e instanceof Error ? e.message : String(e)}`)
+    } catch (e) { setSaveError(`網路錯誤：${e instanceof Error ? e.message : String(e)}`)
     } finally { setSaving(false) }
   }
 
@@ -424,9 +476,9 @@ export default function DeliveryPlan({ batchId, batchName, totalBoxes, records, 
     try {
       await Promise.all(group.ids.map(id => fetch(`/api/records/${id}`, { method: 'DELETE' })))
       await logChange(
-        'åªé¤åºè²¨è¨ç«',
+        '刪除出貨計畫',
         batchId,
-        `ç¬¬ ${group.roundNo} æ¬¡ / æ¥æ: ${group.date ?? 'â'} / ${group.totalBoxes} ç®±`,
+        `第 ${group.roundNo} 次 / 日期: ${group.date ?? '—'} / ${group.totalBoxes} 箱`,
       )
       onRecordChange()
     } finally { setDeletingRound(null) }
@@ -458,10 +510,56 @@ export default function DeliveryPlan({ batchId, batchName, totalBoxes, records, 
     })
   }
 
+  function handleGenerateClick(roundNo: number) {
+    const hasExcel = !!(xlsResult?.find(r => r.roundNo === roundNo))
+    if (hasExcel) {
+      setPendingGenerateRound(roundNo)
+    } else {
+      doGenerateOrder(roundNo)
+    }
+  }
+
+  async function doGenerateOrder(roundNo: number) {
+    setGeneratingRound(roundNo); setGenerateMsg(null)
+    try {
+      const res = await fetch('/api/generate-order', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ batchId, roundNo }),
+      })
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({ error: `HTTP ${res.status}` }))
+        setGenerateMsg({ roundNo, type: 'err', text: err.error ?? '產生失敗' })
+        return
+      }
+      // Download file
+      const blob = await res.blob()
+      const shipmentNo = res.headers.get('X-Shipment-No') ?? ''
+      const driveUrl = res.headers.get('X-Drive-Url') ?? ''
+      const fileName = `${shipmentNo} LOPIA_${batchName}_店鋪貨單.xlsx`
+
+      const a = document.createElement('a')
+      a.href = URL.createObjectURL(blob)
+      a.download = fileName
+      a.click()
+      URL.revokeObjectURL(a.href)
+
+      setGenerateMsg({
+        roundNo,
+        type: 'ok',
+        text: driveUrl ? `已產生 ${shipmentNo}` : `已下載 ${fileName}`,
+      })
+    } catch (e) {
+      setGenerateMsg({ roundNo, type: 'err', text: `網路錯誤：${e instanceof Error ? e.message : String(e)}` })
+    } finally {
+      setGeneratingRound(null)
+    }
+  }
+
   const addSaveDisabled  = saving || rounds.every(r => !r.date || !r.stores.some(s => s.boxes && Number(s.boxes) > 0))
   const editSaveDisabled = saving || !editRound?.date || !editRound?.stores.some(s => s.boxes && Number(s.boxes) > 0)
 
-  // ââ Store checklist ââââââââââââââââââââââââââââââââââ
+  // ── Store checklist ──────────────────────────────────
   function StoreChecklist({ selectedStores, onToggle, onBoxesChange }: {
     selectedStores: StoreEntry[]; onToggle: (n: string) => void; onBoxesChange: (n: string, b: string) => void
   }) {
@@ -495,7 +593,7 @@ export default function DeliveryPlan({ batchId, batchName, totalBoxes, records, 
     )
   }
 
-  // ââ Pre-save summary panel âââââââââââââââââââââââââââ
+  // ── Pre-save summary panel ───────────────────────────
   function FormSummary() {
     if (!hasSummary) return null
     const entries = Object.entries(formStoreTotals).sort((a, b) => b[1].boxes - a[1].boxes)
@@ -506,7 +604,7 @@ export default function DeliveryPlan({ batchId, batchName, totalBoxes, records, 
                         'bg-gray-50 border-gray-200'
       }`}>
         <p className="text-xs font-semibold text-gray-600">
-          ð¦ {T.inputTotal}
+          📦 {T.inputTotal}
         </p>
         <div className="space-y-1">
           {entries.map(([name, { boxes, rounds: rCount }]) => (
@@ -521,11 +619,11 @@ export default function DeliveryPlan({ batchId, batchName, totalBoxes, records, 
         </div>
         {undatedRoundsCount > 0 && (
           <div className="flex items-start gap-1.5 px-2 py-1.5 bg-red-50 border border-red-200 rounded-lg text-xs text-red-600">
-            <span className="flex-shrink-0 mt-0.5">â </span>
+            <span className="flex-shrink-0 mt-0.5">⚠</span>
             <span>
               {lang === 'ja'
-                ? `${undatedRoundsCount} åæ¬¡ã¯æ¥ä»æªè¨­å®ã®ããä¿å­ããã¾ãããæ¥ä»ãå¥åãã¦ãã ããã`
-                : `${undatedRoundsCount} åè¼ªæ¬¡å°æªè¨­å®æ¥æï¼å²å­æå°è¢«ç¥éãè«è£å¡«åºè²¨æ¥æã`}
+                ? `${undatedRoundsCount} 回次は日付未設定のため保存されません。日付を入力してください。`
+                : `${undatedRoundsCount} 個輪次尚未設定日期，儲存時將被略過。請補填出貨日期。`}
             </span>
           </div>
         )}
@@ -536,8 +634,8 @@ export default function DeliveryPlan({ batchId, batchName, totalBoxes, records, 
         }`}>
           <span>{T.grandTotal}</span>
           <span className="flex items-center gap-1.5">
-            {formMatchOk   && <span>â</span>}
-            {formMatchWarn && <span>â ï¸</span>}
+            {formMatchOk   && <span>✅</span>}
+            {formMatchWarn && <span>⚠️</span>}
             {formTotal}{T.boxes}
             {totalBoxes != null && (
               <span className="font-normal text-gray-400">/ {totalBoxes}{T.boxes}</span>
@@ -550,6 +648,93 @@ export default function DeliveryPlan({ batchId, batchName, totalBoxes, records, 
 
   return (
     <div className="space-y-2">
+      {/* Three-way verification modal */}
+      {pendingGenerateRound !== null && (() => {
+        const rows = buildVerificationRows(pendingGenerateRound)
+        const hasMismatch = rows.some(r => r.status !== 'ok')
+        const excelTotal = rows.reduce((s, r) => s + (r.excelBoxes ?? 0), 0)
+        const notionTotal = rows.reduce((s, r) => s + (r.notionBoxes ?? 0), 0)
+        return (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-gray-900/50">
+            <div className="bg-white rounded-xl shadow-2xl w-full max-w-lg overflow-hidden">
+              <div className={`px-5 py-4 border-b border-gray-200 ${hasMismatch ? 'bg-orange-50' : 'bg-white'}`}>
+                <div className="flex items-start justify-between">
+                  <div>
+                    <p className="text-sm font-bold text-gray-900">{T.verifyModalTitle}</p>
+                    <p className="text-xs text-gray-500 mt-0.5">{batchName} · {T.roundNo}{pendingGenerateRound}{T.roundSuffix}</p>
+                  </div>
+                  <button onClick={() => setPendingGenerateRound(null)} className="text-gray-400 hover:text-gray-600 text-lg leading-none cursor-pointer">✕</button>
+                </div>
+              </div>
+              <div className="px-5 py-4">
+                {hasMismatch ? (
+                  <div className="flex items-center gap-2 mb-3 px-3 py-2 bg-orange-50 border border-orange-200 rounded-lg text-xs text-orange-800">
+                    <span>⚠️</span>
+                    <span>{rows.filter(r => r.status !== 'ok').length} {T.verifyHasMismatch}</span>
+                  </div>
+                ) : (
+                  <div className="flex items-center gap-2 mb-3 px-3 py-2 bg-emerald-50 border border-emerald-200 rounded-lg text-xs text-emerald-800">
+                    <span>✅</span>
+                    <span>{T.verifyAllMatch}</span>
+                  </div>
+                )}
+                <table className="w-full text-xs border-collapse">
+                  <thead>
+                    <tr className="bg-gray-50">
+                      <th className="text-left py-1.5 px-2 text-[10px] font-semibold text-gray-400 uppercase tracking-wide border-b border-gray-200">門市</th>
+                      <th className="text-right py-1.5 px-2 text-[10px] font-semibold text-gray-400 uppercase tracking-wide border-b border-gray-200">{T.verifyExcel}</th>
+                      <th className="text-right py-1.5 px-2 text-[10px] font-semibold text-gray-400 uppercase tracking-wide border-b border-gray-200">{T.verifyNotion}</th>
+                      <th className="text-center py-1.5 px-2 text-[10px] font-semibold text-gray-400 uppercase tracking-wide border-b border-gray-200">{T.verifyDiff}</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {rows.map(row => (
+                      <tr key={row.store} className={row.status !== 'ok' ? 'bg-orange-50' : ''}>
+                        <td className="py-1.5 px-2 border-b border-gray-100 text-gray-700">{row.store}</td>
+                        <td className={`py-1.5 px-2 border-b border-gray-100 text-right font-medium ${row.status === 'mismatch' ? 'text-orange-600 font-bold' : row.excelBoxes === null ? 'text-gray-300' : 'text-gray-700'}`}>
+                          {row.excelBoxes !== null ? `${row.excelBoxes}` : '—'}
+                        </td>
+                        <td className={`py-1.5 px-2 border-b border-gray-100 text-right font-medium ${row.status === 'mismatch' ? 'text-orange-600 font-bold' : row.notionBoxes === null ? 'text-gray-300' : 'text-gray-700'}`}>
+                          {row.notionBoxes !== null ? `${row.notionBoxes}` : '—'}
+                        </td>
+                        <td className={`py-1.5 px-2 border-b border-gray-100 text-center font-semibold ${row.status === 'ok' ? 'text-emerald-600' : row.status === 'mismatch' ? 'text-orange-500' : 'text-gray-400'}`}>
+                          {row.status === 'ok' ? '✓' : row.status === 'mismatch' ? `⚠ ${(row.excelBoxes ?? 0) - (row.notionBoxes ?? 0) > 0 ? '+' : ''}${(row.excelBoxes ?? 0) - (row.notionBoxes ?? 0)}` : '❓'}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+                <div className="flex gap-4 mt-3 px-3 py-2 bg-gray-50 rounded-lg text-xs text-gray-600">
+                  <span>Excel: <strong className="text-gray-900">{excelTotal} 箱</strong></span>
+                  <span>Notion: <strong className="text-gray-900">{notionTotal} 箱</strong></span>
+                  {excelTotal !== notionTotal && (
+                    <span className="ml-auto font-semibold text-orange-500">差異 {excelTotal - notionTotal > 0 ? '+' : ''}{excelTotal - notionTotal} 箱 ⚠</span>
+                  )}
+                  {excelTotal === notionTotal && (
+                    <span className="ml-auto font-semibold text-emerald-600">差異 0 箱 ✓</span>
+                  )}
+                </div>
+              </div>
+              <div className="px-5 py-3 border-t border-gray-200 bg-gray-50 flex justify-end gap-2">
+                <button
+                  onClick={() => setPendingGenerateRound(null)}
+                  className="px-4 py-1.5 text-xs font-semibold text-gray-600 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors cursor-pointer"
+                >
+                  {T.verifyBack}
+                </button>
+                <button
+                  onClick={() => { setPendingGenerateRound(null); doGenerateOrder(pendingGenerateRound!) }}
+                  className={`px-4 py-1.5 text-xs font-semibold text-white rounded-lg transition-colors cursor-pointer ${
+                    hasMismatch ? 'bg-orange-500 hover:bg-orange-600' : 'bg-emerald-500 hover:bg-emerald-600'
+                  }`}
+                >
+                  {hasMismatch ? `⚠ ${T.verifyConfirm}` : `✓ ${T.verifyConfirm}`}
+                </button>
+              </div>
+            </div>
+          </div>
+        )
+      })()}
 
       {/* Password modal */}
       {showPassword && (
@@ -572,14 +757,22 @@ export default function DeliveryPlan({ batchId, batchName, totalBoxes, records, 
         onChange={handleXlsUpdateFile}
       />
 
+      {/* Hidden 優儲出庫單 input */}
+      <input
+        ref={chukuFileRef}
+        type="file"
+        accept=".xlsx,.xls"
+        className="hidden"
+        onChange={handleChukuFile}
+      />
 
-      {/* Header â always visible, click label to toggle */}
+      {/* Header — always visible, click label to toggle */}
       <div className="flex items-center justify-between gap-2 flex-wrap">
         <button
           onClick={() => setCollapsed(c => !c)}
           className="flex items-center gap-1.5 group min-h-[44px] px-1 -ml-1 cursor-pointer"
         >
-          <span className={`text-gray-300 text-xs transition-transform duration-200 ${collapsed ? '' : 'rotate-90'}`}>â¶</span>
+          <span className={`text-gray-300 text-xs transition-transform duration-200 ${collapsed ? '' : 'rotate-90'}`}>▶</span>
           <span className="text-xs text-gray-500 font-medium group-hover:text-gray-700 transition-colors">
             {T.deliveryPlan}
             {roundGroups.length > 0 && collapsed && (
@@ -595,8 +788,8 @@ export default function DeliveryPlan({ batchId, batchName, totalBoxes, records, 
               className="flex items-center gap-1 text-xs px-2 py-1 bg-orange-50 text-orange-600 border border-orange-200 rounded-lg hover:bg-orange-100 font-medium transition-colors disabled:opacity-50"
             >
               {xlsUpdateParsing
-                ? <><span className="animate-spin inline-block text-xs">â³</span> {T.parsing}</>
-                : <>ð¤ {T.updateXls}</>}
+                ? <><span className="animate-spin inline-block text-xs">⟳</span> {T.parsing}</>
+                : <>📤 {T.updateXls}</>}
             </button>
           )}
           <button onClick={startAdd} className="text-xs px-2 py-1 bg-lopia-red-light text-lopia-red rounded-lg hover:bg-red-100 font-medium transition-colors">
@@ -606,7 +799,7 @@ export default function DeliveryPlan({ batchId, batchName, totalBoxes, records, 
       </div>
 
       {xlsUpdateError && (
-        <p className="text-xs text-red-500 bg-red-50 px-2.5 py-1.5 rounded-lg">â  {xlsUpdateError}</p>
+        <p className="text-xs text-red-500 bg-red-50 px-2.5 py-1.5 rounded-lg">⚠ {xlsUpdateError}</p>
       )}
 
       {/* Collapsible content */}
@@ -626,14 +819,14 @@ export default function DeliveryPlan({ batchId, batchName, totalBoxes, records, 
         </div>
       )}
 
-      {/* ââ Rounds table (collapsible) ââ */}
+      {/* ── Rounds table (collapsible) ── */}
       {roundGroups.length > 0 && (
         <div className="rounded-lg border border-gray-200 overflow-hidden">
           {roundGroups.map((g, i) => {
             const isExpanded = expandedRound === g.roundNo
             return (
               <div key={g.roundNo} className={i > 0 ? 'border-t border-gray-100' : ''}>
-                {/* Row header â click to expand */}
+                {/* Row header — click to expand */}
                 <div
                   className={`flex items-center gap-2 px-2 py-2 cursor-pointer select-none transition-colors ${
                     isExpanded ? 'bg-red-50' : i % 2 === 0 ? 'bg-white hover:bg-gray-50' : 'bg-gray-50/50 hover:bg-gray-100/50'
@@ -641,7 +834,7 @@ export default function DeliveryPlan({ batchId, batchName, totalBoxes, records, 
                   onClick={() => setExpandedRound(isExpanded ? null : g.roundNo)}
                 >
                   {/* Chevron */}
-                  <span className={`text-gray-400 text-xs transition-transform duration-150 flex-shrink-0 ${isExpanded ? 'rotate-90' : ''}`}>â¶</span>
+                  <span className={`text-gray-400 text-xs transition-transform duration-150 flex-shrink-0 ${isExpanded ? 'rotate-90' : ''}`}>▶</span>
 
                   <span className="text-gray-500 font-medium text-xs whitespace-nowrap flex-shrink-0">
                     {T.roundNo}{g.roundNo}{T.roundSuffix}
@@ -668,7 +861,30 @@ export default function DeliveryPlan({ batchId, batchName, totalBoxes, records, 
                   <span className="text-gray-700 font-semibold text-xs whitespace-nowrap flex-shrink-0 ml-auto">
                     {g.totalBoxes}{T.boxes}
                   </span>
-                  
+                  <div className="flex gap-1 flex-shrink-0" onClick={e => e.stopPropagation()}>
+                    {supplierExcelId && (
+                      <button
+                        onClick={() => handleGenerateClick(g.roundNo)}
+                        disabled={generatingRound === g.roundNo}
+                        title={lang === 'ja' ? '出荷伝票を生成' : '產生出貨單'}
+                        className="text-blue-400 hover:text-blue-600 transition-colors text-xs disabled:opacity-40"
+                      >
+                        {generatingRound === g.roundNo ? '⟳' : '📄'}
+                      </button>
+                    )}
+                    <button
+                      onClick={() => handleChukuClick(g.roundNo, g.date)}
+                      disabled={chukuGeneratingRound === g.roundNo}
+                      title="優儲出庫單"
+                      className="text-emerald-500 hover:text-emerald-700 transition-colors text-xs disabled:opacity-40"
+                    >
+                      {chukuGeneratingRound === g.roundNo ? '⟳' : '🏭'}
+                    </button>
+                    <button onClick={() => startEdit(g)} className="transition-colors text-xs text-gray-400 hover:text-lopia-red">✏</button>
+                    <button onClick={() => handleDeleteRound(g)} disabled={deletingRound === g.roundNo} className="transition-colors text-xs text-gray-400 hover:text-red-500 disabled:opacity-40">
+                      {deletingRound === g.roundNo ? '…' : '✕'}
+                    </button>
+                  </div>
                 </div>
 
                 {/* Expanded detail */}
@@ -684,7 +900,45 @@ export default function DeliveryPlan({ batchId, batchName, totalBoxes, records, 
                       <span>{T.subtotal}</span>
                       <span>{g.totalBoxes}{T.boxes}</span>
                     </div>
-
+                    {/* Generate buttons */}
+                    <div className="pt-1.5 border-t border-gray-100 space-y-1.5">
+                      <div className="flex gap-2">
+                        {supplierExcelId ? (
+                          <button
+                            onClick={() => handleGenerateClick(g.roundNo)}
+                            disabled={generatingRound === g.roundNo}
+                            className="flex-1 py-1.5 bg-blue-50 text-blue-600 text-xs font-medium rounded-lg hover:bg-blue-100 disabled:opacity-40 transition-colors flex items-center justify-center gap-1"
+                          >
+                            {generatingRound === g.roundNo
+                              ? <><span className="animate-spin inline-block">⟳</span> {lang === 'ja' ? '生成中...' : '產生中...'}</>
+                              : <>📄 {lang === 'ja' ? '出荷伝票を生成' : '產生出貨單'}</>}
+                          </button>
+                        ) : (
+                          <p className="flex-1 text-xs text-gray-400 text-center py-1.5">
+                            {lang === 'ja' ? '※先にExcelをアップロード' : '※ 需先上傳供應商Excel'}
+                          </p>
+                        )}
+                        <button
+                          onClick={() => handleChukuClick(g.roundNo, g.date)}
+                          disabled={chukuGeneratingRound === g.roundNo}
+                          className="flex-1 py-1.5 bg-emerald-50 text-emerald-700 text-xs font-medium rounded-lg hover:bg-emerald-100 disabled:opacity-40 transition-colors flex items-center justify-center gap-1"
+                        >
+                          {chukuGeneratingRound === g.roundNo
+                            ? <><span className="animate-spin inline-block">⟳</span> 產生中...</>
+                            : <>🏭 優儲出庫單</>}
+                        </button>
+                      </div>
+                      {generateMsg?.roundNo === g.roundNo && (
+                        <p className={`text-xs text-center ${generateMsg.type === 'ok' ? 'text-green-600' : 'text-red-500'}`}>
+                          {generateMsg.type === 'ok' ? '✓' : '⚠'} {generateMsg.text}
+                        </p>
+                      )}
+                      {chukuMsg?.roundNo === g.roundNo && (
+                        <p className={`text-xs text-center ${chukuMsg.type === 'ok' ? 'text-green-600' : 'text-red-500'}`}>
+                          {chukuMsg.type === 'ok' ? '✓' : '⚠'} {chukuMsg.text}
+                        </p>
+                      )}
+                    </div>
                   </div>
                 )}
               </div>
@@ -701,16 +955,16 @@ export default function DeliveryPlan({ batchId, batchName, totalBoxes, records, 
         </div>
       )}
 
-      {/* ââ XLS Update diff panel ââ */}
+      {/* ── XLS Update diff panel ── */}
       {showXlsUpdate && diffRounds.length > 0 && (
         <div className="bg-orange-50 border border-orange-200 rounded-xl p-3 space-y-3">
           {/* Header */}
           <div className="flex items-start justify-between gap-2">
             <div>
-              <p className="text-xs font-bold text-orange-800">ð¤ {T.updateXls}</p>
-              <p className="text-xs text-orange-600 mt-0.5 truncate">ð {xlsUpdateFileName}</p>
+              <p className="text-xs font-bold text-orange-800">📤 {T.updateXls}</p>
+              <p className="text-xs text-orange-600 mt-0.5 truncate">📊 {xlsUpdateFileName}</p>
             </div>
-            <button onClick={cancelXlsUpdate} className="text-gray-400 hover:text-gray-600 text-sm flex-shrink-0">â</button>
+            <button onClick={cancelXlsUpdate} className="text-gray-400 hover:text-gray-600 text-sm flex-shrink-0">✕</button>
           </div>
 
           {/* Summary badges */}
@@ -722,22 +976,22 @@ export default function DeliveryPlan({ batchId, batchName, totalBoxes, records, 
               return <>
                 {changed > 0 && (
                   <span className="px-2 py-0.5 bg-orange-100 text-orange-700 text-xs rounded-full font-medium border border-orange-200">
-                    â¡ {changed} {T.diffChanged}
+                    ⚡ {changed} {T.diffChanged}
                   </span>
                 )}
                 {unchanged > 0 && (
                   <span className="px-2 py-0.5 bg-gray-100 text-gray-500 text-xs rounded-full border border-gray-200">
-                    â {unchanged} {T.diffUnchanged}
+                    ✓ {unchanged} {T.diffUnchanged}
                   </span>
                 )}
                 {lockedSkipped > 0 && (
                   <span className="px-2 py-0.5 bg-amber-100 text-amber-700 text-xs rounded-full font-medium border border-amber-200">
-                    ð {lockedSkipped} {lang === 'ja' ? 'ã­ãã¯æ¸ã¿ï¼ã¹ã­ããï¼' : 'å·²éå®ï¼è·³éï¼'}
+                    🔒 {lockedSkipped} {lang === 'ja' ? 'ロック済み（スキップ）' : '已鎖定（跳過）'}
                   </span>
                 )}
                 {changed === 0 && lockedSkipped === 0 && (
                   <span className="px-2 py-0.5 bg-green-100 text-green-700 text-xs rounded-full font-medium border border-green-200">
-                    â {T.diffNone}
+                    ✓ {T.diffNone}
                   </span>
                 )}
               </>
@@ -770,12 +1024,12 @@ export default function DeliveryPlan({ batchId, batchName, totalBoxes, records, 
                           d.existingGroup?.locked ? 'text-amber-600' : isStale ? 'text-red-600' : d.hasChanges ? 'text-orange-600' : 'text-gray-400'
                         }`}>
                           {d.existingGroup?.locked
-                            ? `ð ${lang === 'ja' ? 'ã­ãã¯æ¸ã¿ï¼å¤æ´ä¸å¯ï¼' : 'å·²éå®ï¼ä¸ææ´åï¼'}`
+                            ? `🔒 ${lang === 'ja' ? 'ロック済み（変更不可）' : '已鎖定（不會更動）'}`
                             : isStale
-                              ? `ð ${T.deletedRound}`
+                              ? `🗑 ${T.deletedRound}`
                               : d.hasChanges
-                                ? (d.existingGroup ? `â¡ ${T.changedRound}` : `ð ${T.newRound}`)
-                                : `â ${T.unchangedRound}`}
+                                ? (d.existingGroup ? `⚡ ${T.changedRound}` : `🆕 ${T.newRound}`)
+                                : `✓ ${T.unchangedRound}`}
                         </span>
                       </div>
 
@@ -794,7 +1048,7 @@ export default function DeliveryPlan({ batchId, batchName, totalBoxes, records, 
                                 <span className="font-medium">{sd.name}</span>
                                 <span className="flex items-center gap-1.5">
                                   {sd.status === 'changed' && (
-                                    <><span className="line-through text-red-400">{sd.oldBoxes}{T.boxes}</span> â</>
+                                    <><span className="line-through text-red-400">{sd.oldBoxes}{T.boxes}</span> →</>
                                   )}
                                   {sd.status === 'removed'
                                     ? <span>{sd.oldBoxes}{T.boxes}</span>
@@ -810,10 +1064,10 @@ export default function DeliveryPlan({ batchId, batchName, totalBoxes, records, 
                             ))}
                           </div>
 
-                          {/* Date selection â not shown for stale (delete-only) rounds */}
+                          {/* Date selection — not shown for stale (delete-only) rounds */}
                           {!isStale && (
                             <div className="pt-1.5 border-t border-orange-100 space-y-1.5">
-                              <p className="text-xs text-gray-500 font-medium">ð {T.deliveryDate}</p>
+                              <p className="text-xs text-gray-500 font-medium">📅 {T.deliveryDate}</p>
                               {d.existingGroup?.date ? (
                                 <div className="space-y-1">
                                   <label className="flex items-center gap-2 cursor-pointer">
@@ -872,7 +1126,7 @@ export default function DeliveryPlan({ batchId, batchName, totalBoxes, records, 
 
           {/* Apply error */}
           {applyError && (
-            <div className="px-2.5 py-2 bg-red-50 border border-red-200 rounded-lg text-xs text-red-600">â  {applyError}</div>
+            <div className="px-2.5 py-2 bg-red-50 border border-red-200 rounded-lg text-xs text-red-600">⚠ {applyError}</div>
           )}
 
           {/* Action buttons */}
@@ -904,7 +1158,7 @@ export default function DeliveryPlan({ batchId, batchName, totalBoxes, records, 
         </div>
       )}
 
-      {/* ââ Form panel ââ */}
+      {/* ── Form panel ── */}
       {showForm && (
         <div className="bg-gray-50 border border-gray-200 rounded-xl p-3 space-y-3 mt-2">
 
@@ -932,7 +1186,7 @@ export default function DeliveryPlan({ batchId, batchName, totalBoxes, records, 
                 {xlsResult ? (
                   <div className="flex items-center gap-1.5">
                     <span className="flex items-center gap-1 px-2 py-1 bg-green-50 text-green-700 rounded-lg text-xs font-medium">
-                      â {xlsResult.length}{T.rounds}
+                      ✓ {xlsResult.length}{T.rounds}
                     </span>
                     <button onClick={clearExcel} className="text-xs px-2 py-1 bg-gray-100 text-gray-500 rounded-lg hover:bg-gray-200 transition-colors">
                       {T.clear}
@@ -941,18 +1195,18 @@ export default function DeliveryPlan({ batchId, batchName, totalBoxes, records, 
                 ) : (
                   <button onClick={() => fileRef.current?.click()} disabled={xlsParsing}
                     className="flex items-center gap-1 text-xs px-2 py-1 bg-blue-50 text-blue-600 rounded-lg hover:bg-blue-100 font-medium transition-colors disabled:opacity-50">
-                    {xlsParsing ? <><span className="animate-spin inline-block">â³</span> {T.parsing}</> : <>ð {T.excelImport}</>}
+                    {xlsParsing ? <><span className="animate-spin inline-block">⟳</span> {T.parsing}</> : <>📊 {T.excelImport}</>}
                   </button>
                 )}
               </div>
 
-              {xlsError && <p className="text-xs text-red-500 bg-red-50 px-2.5 py-1.5 rounded-lg">â  {xlsError}</p>}
+              {xlsError && <p className="text-xs text-red-500 bg-red-50 px-2.5 py-1.5 rounded-lg">⚠ {xlsError}</p>}
 
               {xlsResult && xlsFileName && (
                 <div className="px-2.5 py-1.5 bg-blue-50 border border-blue-100 rounded-lg">
-                  <p className="text-xs text-blue-700 font-medium truncate">ð {xlsFileName}</p>
+                  <p className="text-xs text-blue-700 font-medium truncate">📊 {xlsFileName}</p>
                   <p className="text-xs text-blue-500 mt-0.5">
-                    {xlsResult.length}{T.rounds} ï¼ {xlsResult.reduce((n, r) => n + r.stores.length, 0)}{T.stores2}
+                    {xlsResult.length}{T.rounds} ／ {xlsResult.reduce((n, r) => n + r.stores.length, 0)}{T.stores2}
                     {T.excelLoaded}
                   </p>
                 </div>
@@ -978,7 +1232,7 @@ export default function DeliveryPlan({ batchId, batchName, totalBoxes, records, 
                             : 'bg-gray-50 text-gray-400 border-gray-200 hover:border-amber-300 hover:text-amber-600'
                         }`}
                       >
-                        {round.dateTbd ? `â ${T.dateTbd}` : T.dateTbd}
+                        {round.dateTbd ? `✕ ${T.dateTbd}` : T.dateTbd}
                       </button>
                     </div>
                     <StoreChecklist selectedStores={round.stores}
@@ -992,14 +1246,14 @@ export default function DeliveryPlan({ batchId, batchName, totalBoxes, records, 
                 </button>
               </div>
 
-              {/* ââ Pre-save summary ââ */}
+              {/* ── Pre-save summary ── */}
               <FormSummary />
             </>
           )}
 
           {/* Save error */}
           {saveError && (
-            <div className="px-2.5 py-2 bg-red-50 border border-red-200 rounded-lg text-xs text-red-600 font-medium">â  {saveError}</div>
+            <div className="px-2.5 py-2 bg-red-50 border border-red-200 rounded-lg text-xs text-red-600 font-medium">⚠ {saveError}</div>
           )}
 
           {/* Save / Cancel */}
