@@ -1088,8 +1088,8 @@ function recalc() {
     return {
       name: p.name, qty, purch, dtyAmt, vatAmt, goods,
       jpPer, ocPer, twPer, saPer, total,
-      p5:  m1>=100 ? null : total/(1-m1/100),
-      p10: m2>=100 ? null : total/(1-m2/100),
+      p5:  m1>=100 ? null : (window._priceMode==='markup' ? total*(1+m1/100) : total/(1-m1/100)),
+      p10: m2>=100 ? null : (window._priceMode==='markup' ? total*(1+m2/100) : total/(1-m2/100)),
       totalAll: total*qty
     };
   });
