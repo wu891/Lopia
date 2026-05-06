@@ -3,12 +3,12 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>TMJ 進口報價試算工具 v2</title>
+<title>TMJ é²å£å ±å¹è©¦ç®å·¥å· v2</title>
 <style>
 * { box-sizing: border-box; margin: 0; padding: 0; }
 body { font-family: 'Segoe UI','Noto Sans TC',sans-serif; background:#f0f2f5; color:#1a1a2e; font-size:14px; }
 
-/* ── Header ── */
+/* ââ Header ââ */
 .header {
   background:linear-gradient(135deg,#1a1a2e 0%,#16213e 60%,#0f3460 100%);
   color:white; padding:18px 32px; display:flex; align-items:center; gap:16px;
@@ -23,7 +23,7 @@ body { font-family: 'Segoe UI','Noto Sans TC',sans-serif; background:#f0f2f5; co
 .badge-mode.air { background:#ffe0e0;color:#c53030; }
 .badge-mode.sea { background:#dbeafe;color:#1e40af; }
 
-/* ── Layout ── */
+/* ââ Layout ââ */
 .container { max-width:1440px;margin:0 auto;padding:22px 18px; }
 
 .card { background:white;border-radius:12px;padding:18px 22px;margin-bottom:18px;box-shadow:0 1px 4px rgba(0,0,0,.08); }
@@ -34,7 +34,7 @@ body { font-family: 'Segoe UI','Noto Sans TC',sans-serif; background:#f0f2f5; co
 }
 .card-title .dot { width:8px;height:8px;border-radius:50%;background:#e94560; }
 
-/* ── Global params ── */
+/* ââ Global params ââ */
 .params-row { display:flex;flex-wrap:wrap;gap:14px; }
 .param-box { flex:1;min-width:170px; }
 .param-box label { display:block;font-size:11px;font-weight:700;color:#718096;margin-bottom:5px;text-transform:uppercase;letter-spacing:.04em; }
@@ -48,7 +48,7 @@ body { font-family: 'Segoe UI','Noto Sans TC',sans-serif; background:#f0f2f5; co
 .param-box.sea-only { display:none; }
 .param-box.sea-only.visible { display:block; }
 
-/* ── Logistics accordion ── */
+/* ââ Logistics accordion ââ */
 .logistics-grid { display:grid;grid-template-columns:repeat(3,1fr);gap:14px;margin-bottom:18px; }
 .logistics-grid.sea-mode { grid-template-columns:repeat(2,1fr); }
 @media(max-width:900px){ .logistics-grid{grid-template-columns:1fr;} }
@@ -74,7 +74,7 @@ body { font-family: 'Segoe UI','Noto Sans TC',sans-serif; background:#f0f2f5; co
 .log-body { border-top:1px solid #edf2f7;padding:0; }
 .log-body.hidden { display:none; }
 
-/* ── GW / CBM helper row ── */
+/* ââ GW / CBM helper row ââ */
 .gw-row {
   display:flex;align-items:center;gap:10px;padding:10px 14px;
   background:#fffbeb;border-bottom:1px solid #fef3c7;font-size:12px;
@@ -93,7 +93,7 @@ body { font-family: 'Segoe UI','Noto Sans TC',sans-serif; background:#f0f2f5; co
 .cbm-row .cbm-val { font-size:16px;font-weight:800;color:#1e40af; }
 .cbm-row span { color:#a0aec0;font-size:11px; }
 
-/* ── Item table ── */
+/* ââ Item table ââ */
 .item-table { width:100%;border-collapse:collapse;font-size:12px; }
 .item-table thead th {
   background:#f1f5f9;padding:7px 10px;text-align:left;font-size:11px;
@@ -127,7 +127,7 @@ body { font-family: 'Segoe UI','Noto Sans TC',sans-serif; background:#f0f2f5; co
 .log-footer .footer-total { font-size:16px;font-weight:800;color:#e94560; }
 .log-footer .tax-note { font-size:11px;color:#a0aec0; }
 
-/* ── Product table ── */
+/* ââ Product table ââ */
 table.prod-table { width:100%;border-collapse:collapse;font-size:13px; }
 .prod-table thead th {
   background:#f7fafc;padding:9px 11px;text-align:left;font-size:11px;
@@ -156,7 +156,7 @@ table.prod-table { width:100%;border-collapse:collapse;font-size:13px; }
 .del-btn { background:none;border:none;cursor:pointer;color:#fc8181;font-size:15px;padding:2px 6px;border-radius:4px; }
 .del-btn:hover { background:#fff5f5; }
 
-/* ── Result section ── */
+/* ââ Result section ââ */
 .summary-row { display:grid;grid-template-columns:repeat(auto-fill,minmax(190px,1fr));gap:12px;margin-bottom:18px; }
 .sum-card { background:#f7fafc;border-radius:9px;padding:12px 14px;border:1px solid #edf2f7; }
 .sum-card .lbl { font-size:11px;color:#718096;font-weight:600;margin-bottom:3px; }
@@ -200,7 +200,7 @@ table.res-table { width:100%;border-collapse:collapse;font-size:12px; }
   body{background:white;} .no-print{display:none!important;} .card{box-shadow:none;border:1px solid #e2e8f0;}
 }
 
-/* ── Language Toggle Button ── */
+/* ââ Language Toggle Button ââ */
 .lang-toggle-btn {
   display: inline-flex; align-items: center; gap: 6px;
   padding: 6px 14px; background: rgba(255,255,255,0.12);
@@ -234,6 +234,8 @@ table.res-table { width:100%;border-collapse:collapse;font-size:12px; }
 #batch-records-table .record-batch-id { font-weight: 700; color: #e94560; font-size: 13px; }
 #batch-records-table .record-cost { font-weight: 700; color: #2b6cb0; }
 #batch-records-table .btn-del-record { padding: 2px 8px; background: #fff5f5; border: 1px solid #fed7d7; color: #c53030; border-radius: 4px; cursor: pointer; font-size: 11px; }
+.btn-excel-record{background:#1d6f42;color:#fff;border:none;padding:3px 8px;border-radius:3px;cursor:pointer;font-size:11px;margin-left:4px;}
+.btn-excel-record:hover{background:#155232;}
 #batch-records-table .btn-del-record:hover { background: #fed7d7; }
 .btn-view-record { padding: 2px 8px; background: #ebf8ff; border: 1px solid #bee3f8; color: #2b6cb0; border-radius: 4px; cursor: pointer; font-size: 11px; margin-right: 4px; }
 .btn-view-record:hover { background: #bee3f8; }
@@ -262,7 +264,7 @@ table.res-table { width:100%;border-collapse:collapse;font-size:12px; }
 .save-toast { position: fixed; bottom: 30px; right: 30px; background: #276749; color: white; padding: 12px 22px; border-radius: 10px; font-size: 13px; font-weight: 600; box-shadow: 0 4px 20px rgba(0,0,0,0.2); z-index: 9999; opacity: 0; transition: opacity 0.3s; pointer-events: none; }
 .save-toast.show { opacity: 1; }
 
-/* ── Markup / Margin Toggle ── */
+/* ââ Markup / Margin Toggle ââ */
 .price-mode-toggle {
   display: inline-flex;
   align-items: center;
@@ -309,227 +311,227 @@ table.res-table { width:100%;border-collapse:collapse;font-size:12px; }
 <div class="header">
   <div class="header-logo">TM</div>
   <div>
-    <h1>進口報價試算工具</h1>
-    <p>Trade Media Japan Co., Ltd — Taiwan Branch</p>
+    <h1>é²å£å ±å¹è©¦ç®å·¥å·</h1>
+    <p>Trade Media Japan Co., Ltd â Taiwan Branch</p>
   </div>
   <div class="header-right">
     <div class="date" id="hdr-date"></div>
     <div class="badge-gm">
-      毛利目標：<span id="hdr-m1">5</span>% ～ <span id="hdr-m2">10</span>%
-      <span class="badge-mode air" id="hdr-mode-badge">✈ 空運</span>
+      æ¯å©ç®æ¨ï¼<span id="hdr-m1">5</span>% ï½ <span id="hdr-m2">10</span>%
+      <span class="badge-mode air" id="hdr-mode-badge">â ç©ºé</span>
     </div>
-    <button class="lang-toggle-btn" id="lang-toggle-btn" onclick="toggleLanguage()" title="日本語に切り替え / 切換為日文">
-    <span class="lang-flag">🇯🇵</span><span class="lang-label">日本語</span>
+    <button class="lang-toggle-btn" id="lang-toggle-btn" onclick="toggleLanguage()" title="æ¥æ¬èªã«åãæ¿ã / åæçºæ¥æ">
+    <span class="lang-flag">ð¯ðµ</span><span class="lang-label">æ¥æ¬èª</span>
   </button>
   </div>
 </div>
 
 <div class="container">
 
-  <!-- ① 全局參數 -->
+  <!-- â  å¨å±åæ¸ -->
   <div class="card">
-    <div class="card-title"><span class="dot"></span>① 全局參數</div>
+    <div class="card-title"><span class="dot"></span>â  å¨å±åæ¸</div>
     <div class="params-row">
       <div class="param-box">
-        <label>運輸模式</label>
+        <label>éè¼¸æ¨¡å¼</label>
         <select id="transport_mode" onchange="switchMode()">
-          <option value="air">✈ 空運 AIR</option>
-          <option value="sea">🚢 海運 SEA</option>
+          <option value="air">â ç©ºé AIR</option>
+          <option value="sea">ð¢ æµ·é SEA</option>
         </select>
-        <div class="param-hint">切換後物流費欄位自動更新</div>
+        <div class="param-hint">åæå¾ç©æµè²»æ¬ä½èªåæ´æ°</div>
       </div>
       <div class="param-box">
-        <label>匯率（JPY → TWD）</label>
+        <label>å¯çï¼JPY â TWDï¼</label>
         <input type="number" id="exchange_rate" value="0.21" step="0.001" min="0.001" oninput="recalc()">
-        <div class="param-hint">1 JPY = 0.21 NTD（可修改）</div>
+        <div class="param-hint">1 JPY = 0.21 NTDï¼å¯ä¿®æ¹ï¼</div>
       </div>
       <div class="param-box sea-only" id="usd-rate-box">
-        <label>匯率（USD → TWD）</label>
+        <label>å¯çï¼USD â TWDï¼</label>
         <input type="number" id="usd_rate" value="32" step="0.1" min="1" oninput="recalc()">
-        <div class="param-hint">海運費以 USD 計，需設定</div>
+        <div class="param-hint">æµ·éè²»ä»¥ USD è¨ï¼éè¨­å®</div>
       </div>
       <div class="param-box">
-        <label>加工品消費稅（%）</label>
+        <label>å å·¥åæ¶è²»ç¨ï¼%ï¼</label>
         <input type="number" id="tw_tax" value="5" step="0.1" oninput="recalc()">
-        <div class="param-hint">加工品 5%，蔬果 0%</div>
+        <div class="param-hint">å å·¥å 5%ï¼è¬æ 0%</div>
       </div>
       <div class="param-box">
-        <label>物流費分攤方式</label>
+        <label>ç©æµè²»åæ¤æ¹å¼</label>
         <select id="alloc_method" onchange="recalc()">
-          <option value="box">依箱數比例</option>
-          <option value="gw">依 GW 比例</option>
+          <option value="box">ä¾ç®±æ¸æ¯ä¾</option>
+          <option value="gw">ä¾ GW æ¯ä¾</option>
         </select>
-        <div class="param-hint">GW 比例需填各商品 GW/箱</div>      </div>
+        <div class="param-hint">GW æ¯ä¾éå¡«ååå GW/ç®±</div>      </div>
     </div>
   </div>
 
-  <!-- ② 物流費明細 -->
+  <!-- â¡ ç©æµè²»æç´° -->
   <div class="card">
-    <div class="card-title"><span class="dot"></span>② 物流費明細（點擊展開微調）</div>
+    <div class="card-title"><span class="dot"></span>â¡ ç©æµè²»æç´°ï¼é»æå±éå¾®èª¿ï¼</div>
     <div class="logistics-grid" id="logistics-grid">
 
-      <!-- 日本輸出費 (AIR / SEA 共用面板，內容依模式切換) -->
+      <!-- æ¥æ¬è¼¸åºè²» (AIR / SEA å±ç¨é¢æ¿ï¼å§å®¹ä¾æ¨¡å¼åæ) -->
       <div class="log-panel" id="panel-jp">
         <div class="log-header" onclick="togglePanel('jp')">
-          <div class="flag flag-jp">🇯🇵</div>
+          <div class="flag flag-jp">ð¯ðµ</div>
           <div>
-            <div class="log-title">日本輸出費</div>
-            <div class="log-sub" id="jp-sub">見積書 AIR — JPY</div>
+            <div class="log-title">æ¥æ¬è¼¸åºè²»</div>
+            <div class="log-sub" id="jp-sub">è¦ç©æ¸ AIR â JPY</div>
           </div>
           <div>
-            <div class="log-total" id="jp-total-disp">¥0</div>
+            <div class="log-total" id="jp-total-disp">Â¥0</div>
             <div class="log-sub" id="jp-twd-disp"></div>
           </div>
-          <div class="chevron" id="chev-jp">▼</div>
+          <div class="chevron" id="chev-jp">â¼</div>
         </div>
         <div class="log-body hidden" id="body-jp">
           <!-- AIR: GW input -->
           <div class="gw-row" id="gw-row-air">
-            <label>GW（kg）：</label>
+            <label>GWï¼kgï¼ï¼</label>
             <input type="number" id="jp-gw" value="250" oninput="updateWeightRows(); recalc()">
-            <span>重量連動項目自動更新</span>
+            <span>ééé£åé ç®èªåæ´æ°</span>
           </div>
           <!-- SEA: CBM display -->
           <div class="cbm-row" id="cbm-row-jp">
-            <label>總體積（CBM）：</label>
+            <label>ç¸½é«ç©ï¼CBMï¼ï¼</label>
             <span class="cbm-val" id="cbm-disp-jp">0.000</span>
-            <span>m³　由商品尺寸自動累算</span>
+            <span>mÂ³ãç±ååå°ºå¯¸èªåç´¯ç®</span>
           </div>
           <table class="item-table">
             <thead><tr>
-              <th>項目</th>
-              <th class="r">単価</th>
-              <th class="r">數量</th>
-              <th>単位</th>
-              <th class="r" id="jp-amt-hdr">金額（¥）</th>
-              <th>含</th>
+              <th>é ç®</th>
+              <th class="r">åä¾¡</th>
+              <th class="r">æ¸é</th>
+              <th>åä½</th>
+              <th class="r" id="jp-amt-hdr">éé¡ï¼Â¥ï¼</th>
+              <th>å«</th>
             </tr></thead>
             <tbody id="rows-jp"></tbody>
           </table>
           <div class="log-footer">
-            <span class="footer-label" id="jp-foot-label">日本費合計 (JPY)</span>
+            <span class="footer-label" id="jp-foot-label">æ¥æ¬è²»åè¨ (JPY)</span>
             <div>
-              <span class="footer-total" id="jp-foot-total">¥0</span>
-              <span class="tax-note" style="margin-left:6px">→ <span id="jp-foot-twd">0</span> TWD</span>
+              <span class="footer-total" id="jp-foot-total">Â¥0</span>
+              <span class="tax-note" style="margin-left:6px">â <span id="jp-foot-twd">0</span> TWD</span>
             </div>
           </div>
         </div>
       </div>
 
-      <!-- 海上運費（海運模式專用，預設隱藏） -->
+      <!-- æµ·ä¸éè²»ï¼æµ·éæ¨¡å¼å°ç¨ï¼é è¨­é±èï¼ -->
       <div class="log-panel" id="panel-oc" style="display:none">
         <div class="log-header" onclick="togglePanel('oc')">
-          <div class="flag flag-oc">🚢</div>
+          <div class="flag flag-oc">ð¢</div>
           <div>
-            <div class="log-title">海上運費</div>
-            <div class="log-sub">Ocean Freight — USD</div>
+            <div class="log-title">æµ·ä¸éè²»</div>
+            <div class="log-sub">Ocean Freight â USD</div>
           </div>
           <div>
             <div class="log-total" id="oc-total-disp" style="color:#1e40af">$0</div>
             <div class="log-sub" id="oc-twd-disp"></div>
           </div>
-          <div class="chevron" id="chev-oc">▼</div>
+          <div class="chevron" id="chev-oc">â¼</div>
         </div>
         <div class="log-body hidden" id="body-oc">
           <div class="cbm-row" style="display:flex">
-            <label style="color:#1e40af">總體積（CBM）：</label>
+            <label style="color:#1e40af">ç¸½é«ç©ï¼CBMï¼ï¼</label>
             <span class="cbm-val" id="cbm-disp-oc" style="color:#1e40af">0.000</span>
-            <span>m³　運費連動項目自動更新</span>
+            <span>mÂ³ãéè²»é£åé ç®èªåæ´æ°</span>
           </div>
           <table class="item-table">
             <thead><tr>
-              <th>項目</th>
-              <th class="r">単価（USD）</th>
-              <th class="r">數量</th>
-              <th>単位</th>
-              <th class="r">金額（USD）</th>
-              <th>含</th>
+              <th>é ç®</th>
+              <th class="r">åä¾¡ï¼USDï¼</th>
+              <th class="r">æ¸é</th>
+              <th>åä½</th>
+              <th class="r">éé¡ï¼USDï¼</th>
+              <th>å«</th>
             </tr></thead>
             <tbody id="rows-oc"></tbody>
           </table>
           <div class="log-footer">
-            <span class="footer-label">海運費合計 (USD)</span>
+            <span class="footer-label">æµ·éè²»åè¨ (USD)</span>
             <div>
               <span class="footer-total" id="oc-foot-total" style="color:#1e40af">$0</span>
-              <span class="tax-note" style="margin-left:6px">→ <span id="oc-foot-twd">0</span> TWD</span>
+              <span class="tax-note" style="margin-left:6px">â <span id="oc-foot-twd">0</span> TWD</span>
             </div>
           </div>
         </div>
       </div>
 
-      <!-- 台灣進口費 (AIR / SEA 共用面板) -->
+      <!-- å°ç£é²å£è²» (AIR / SEA å±ç¨é¢æ¿) -->
       <div class="log-panel" id="panel-tw">
         <div class="log-header" onclick="togglePanel('tw')">
-          <div class="flag flag-tw">🇹🇼</div>
+          <div class="flag flag-tw">ð¹ð¼</div>
           <div>
-            <div class="log-title">台灣進口費</div>
-            <div class="log-sub" id="tw-sub">NX Taiwan AIR — TWD（未含稅）</div>
+            <div class="log-title">å°ç£é²å£è²»</div>
+            <div class="log-sub" id="tw-sub">NX Taiwan AIR â TWDï¼æªå«ç¨ï¼</div>
           </div>
           <div>
             <div class="log-total" id="tw-total-disp">NT$0</div>
             <div class="log-sub" id="tw-tax-disp"></div>
           </div>
-          <div class="chevron" id="chev-tw">▼</div>
+          <div class="chevron" id="chev-tw">â¼</div>
         </div>
         <div class="log-body hidden" id="body-tw">
           <!-- SEA: CBM display for TW -->
           <div class="cbm-row" id="cbm-row-tw">
-            <label>總體積（CBM）：</label>
+            <label>ç¸½é«ç©ï¼CBMï¼ï¼</label>
             <span class="cbm-val" id="cbm-disp-tw">0.000</span>
-            <span>m³　THC/CFS 連動項目自動更新</span>
+            <span>mÂ³ãTHC/CFS é£åé ç®èªåæ´æ°</span>
           </div>
           <table class="item-table">
             <thead><tr>
-              <th>項目</th>
-              <th class="r">単価（NT$）</th>
-              <th class="r">數量</th>
-              <th>単位</th>
-              <th class="r">金額（NT$）</th>
-              <th>含</th>
+              <th>é ç®</th>
+              <th class="r">åä¾¡ï¼NT$ï¼</th>
+              <th class="r">æ¸é</th>
+              <th>åä½</th>
+              <th class="r">éé¡ï¼NT$ï¼</th>
+              <th>å«</th>
             </tr></thead>
             <tbody id="rows-tw"></tbody>
           </table>
           <div class="log-footer">
-            <span class="footer-label">台灣費合計（未含稅）</span>
+            <span class="footer-label">å°ç£è²»åè¨ï¼æªå«ç¨ï¼</span>
             <div>
               <span class="footer-total" id="tw-foot-total">NT$0</span>
-              <span class="tax-note" style="margin-left:6px">含5%稅 → <span id="tw-foot-taxed">0</span> TWD</span>
+              <span class="tax-note" style="margin-left:6px">å«5%ç¨ â <span id="tw-foot-taxed">0</span> TWD</span>
             </div>
           </div>
         </div>
       </div>
 
-      <!-- 倉儲配送費（不分模式） -->
+      <!-- åå²ééè²»ï¼ä¸åæ¨¡å¼ï¼ -->
       <div class="log-panel" id="panel-sa">
         <div class="log-header" onclick="togglePanel('sa')">
-          <div class="flag flag-sa">🚚</div>
+          <div class="flag flag-sa">ð</div>
           <div>
-            <div class="log-title">優儲倉儲費</div>
-            <div class="log-sub">倉儲＋配送 — TWD（未含稅）</div>
+            <div class="log-title">åªå²åå²è²»</div>
+            <div class="log-sub">åå²ï¼éé â TWDï¼æªå«ç¨ï¼</div>
           </div>
           <div>
             <div class="log-total" id="sa-total-disp">NT$0</div>
             <div class="log-sub" id="sa-tax-disp"></div>
           </div>
-          <div class="chevron" id="chev-sa">▼</div>
+          <div class="chevron" id="chev-sa">â¼</div>
         </div>
         <div class="log-body hidden" id="body-sa">
           <table class="item-table">
             <thead><tr>
-              <th>項目</th>
-              <th class="r">単価（NT$）</th>
-              <th class="r">數量</th>
-              <th>単位</th>
-              <th class="r">金額（NT$）</th>
-              <th>含</th>
+              <th>é ç®</th>
+              <th class="r">åä¾¡ï¼NT$ï¼</th>
+              <th class="r">æ¸é</th>
+              <th>åä½</th>
+              <th class="r">éé¡ï¼NT$ï¼</th>
+              <th>å«</th>
             </tr></thead>
             <tbody id="rows-sa"></tbody>
           </table>
           <div class="log-footer">
-            <span class="footer-label">三義費合計（未含稅）</span>
+            <span class="footer-label">ä¸ç¾©è²»åè¨ï¼æªå«ç¨ï¼</span>
             <div>
               <span class="footer-total" id="sa-foot-total">NT$0</span>
-              <span class="tax-note" style="margin-left:6px">含5%稅 → <span id="sa-foot-taxed">0</span> TWD</span>
+              <span class="tax-note" style="margin-left:6px">å«5%ç¨ â <span id="sa-foot-taxed">0</span> TWD</span>
             </div>
           </div>
         </div>
@@ -538,33 +540,33 @@ table.res-table { width:100%;border-collapse:collapse;font-size:12px; }
     </div><!-- /logistics-grid -->
   </div><!-- /card -->
 
-  <!-- ③ 商品明細 -->
+  <!-- â¢ ååæç´° -->
   <div class="card">
-    <div class="card-title"><span class="dot"></span>③ 商品明細</div>
+    <div class="card-title"><span class="dot"></span>â¢ ååæç´°</div>
     <div style="overflow-x:auto">
       <table class="prod-table">
         <thead id="prod-head"><tr>
-          <th style="min-width:180px">商品名稱</th>
-          <th class="r" style="width:120px">仕入単価（JPY/箱）</th>
-          <th class="r" style="width:80px">數量（箱）</th>
-          <th class="r" style="width:85px">GW（kg/箱）</th>
-          <th class="r" style="width:85px">NW（kg/箱）</th>
-          <th class="r sea-col" style="width:70px">長(cm)</th>
-          <th class="r sea-col" style="width:70px">寬(cm)</th>
-          <th class="r sea-col" style="width:70px">高(cm)</th>
-          <th class="r sea-col" style="width:85px">CBM/箱</th>
-          <th class="r" style="width:85px">關稅率（%）</th>
+          <th style="min-width:180px">åååç¨±</th>
+          <th class="r" style="width:120px">ä»å¥åä¾¡ï¼JPY/ç®±ï¼</th>
+          <th class="r" style="width:80px">æ¸éï¼ç®±ï¼</th>
+          <th class="r" style="width:85px">GWï¼kg/ç®±ï¼</th>
+          <th class="r" style="width:85px">NWï¼kg/ç®±ï¼</th>
+          <th class="r sea-col" style="width:70px">é·(cm)</th>
+          <th class="r sea-col" style="width:70px">å¯¬(cm)</th>
+          <th class="r sea-col" style="width:70px">é«(cm)</th>
+          <th class="r sea-col" style="width:85px">CBM/ç®±</th>
+          <th class="r" style="width:85px">éç¨çï¼%ï¼</th>
           <th style="width:36px" class="no-print"></th>
         </tr></thead>
         <tbody id="prod-body"></tbody>
       </table>
     </div>
-    <div class="add-btn no-print" onclick="addProd()">＋ 新增商品</div>
+    <div class="add-btn no-print" onclick="addProd()">ï¼ æ°å¢åå</div>
   </div>
 
-  <!-- ④ 試算結果 -->
+  <!-- â£ è©¦ç®çµæ -->
   <div class="card">
-    <div class="card-title"><span class="dot"></span>④ 試算結果</div>
+    <div class="card-title"><span class="dot"></span>â£ è©¦ç®çµæ</div>
     <div class="summary-row" id="summary-cards"></div>
     <div class="res-wrap">
       <table class="res-table">
@@ -574,7 +576,7 @@ table.res-table { width:100%;border-collapse:collapse;font-size:12px; }
       </table>
     </div>
     <div class="note-bar" id="note-bar">
-      <strong>公式：</strong>建議售價 = 總成本/箱 ÷ (1 − 毛利率)　|　關稅稅基 = 仕入TWD　|　消費稅稅基 = 仕入 + 關稅　|　台灣進口費＆配送費自動加算 5% 消費稅
+      <strong>å¬å¼ï¼</strong>å»ºè­°å®å¹ = ç¸½ææ¬/ç®± Ã· (1 â æ¯å©ç)ã|ãéç¨ç¨åº = ä»å¥TWDã|ãæ¶è²»ç¨ç¨åº = ä»å¥ + éç¨ã|ãå°ç£é²å£è²»ï¼ééè²»èªåå ç® 5% æ¶è²»ç¨
     </div>
   </div>
 
@@ -582,29 +584,29 @@ table.res-table { width:100%;border-collapse:collapse;font-size:12px; }
 
 <div class="container" style="margin-top:0; padding-bottom:32px">
 <div id="batch-save-section">
-    <h3>📦 批號紀錄</h3>
+    <h3>ð¦ æ¹èç´é</h3>
     <div class="batch-input-row">
       <div class="batch-input-group">
-        <label id="batch-id-label">批號（Lot No.）</label>
-        <input type="text" id="batch-id-input" name="batchId" placeholder="例：2026-05-001" autocomplete="off">
+        <label id="batch-id-label">æ¹èï¼Lot No.ï¼</label>
+        <input type="text" id="batch-id-input" name="batchId" placeholder="ä¾ï¼2026-05-001" autocomplete="off">
       </div>
       <div class="batch-input-group">
-        <label id="batch-remark-label">備注</label>
-        <textarea id="batch-remark-input" placeholder="可輸入備注（選填）..."></textarea>
+        <label id="batch-remark-label">åæ³¨</label>
+        <textarea id="batch-remark-input" placeholder="å¯è¼¸å¥åæ³¨ï¼é¸å¡«ï¼..."></textarea>
       </div>
-      <button class="btn-save-batch" id="btn-save-batch" onclick="saveBatchRecord()">💾 保存本次試算</button>
+      <button class="btn-save-batch" id="btn-save-batch" onclick="saveBatchRecord()">ð¾ ä¿å­æ¬æ¬¡è©¦ç®</button>
     </div>
     <div id="batch-records-wrap">
       <h4>
-        <span id="batch-history-title">歷史紀錄 </span>
-        <button class="btn-clear-records" onclick="clearAllRecords()">清除全部</button>
+        <span id="batch-history-title">æ­·å²ç´é </span>
+        <button class="btn-clear-records" onclick="clearAllRecords()">æ¸é¤å¨é¨</button>
       </h4>
       <table id="batch-records-table">
         <thead>
           <tr>
-            <th>批號</th><th>保存時間</th><th>模式</th>
-            <th class="r">總箱數</th><th class="r">全批成本(TWD)</th>
-            <th>商品</th><th>操作</th>
+            <th>æ¹è</th><th>ä¿å­æé</th><th>æ¨¡å¼</th>
+            <th class="r">ç¸½ç®±æ¸</th><th class="r">å¨æ¹ææ¬(TWD)</th>
+            <th>åå</th><th>æä½</th>
           </tr>
         </thead>
         <tbody id="batch-records-tbody"></tbody>
@@ -614,8 +616,8 @@ table.res-table { width:100%;border-collapse:collapse;font-size:12px; }
   <div class="batch-detail-overlay" id="batch-detail-overlay" onclick="if(event.target===this)closeBatchDetail()">
   <div class="batch-detail-modal">
     <div class="modal-header">
-      <h3 id="batch-detail-title">📦 批號詳細試算</h3>
-      <button class="modal-close" onclick="closeBatchDetail()">✕</button>
+      <h3 id="batch-detail-title">ð¦ æ¹èè©³ç´°è©¦ç®</h3>
+      <button class="modal-close" onclick="closeBatchDetail()">â</button>
     </div>
     <div class="modal-body" id="batch-detail-body"></div>
   </div>
@@ -624,95 +626,95 @@ table.res-table { width:100%;border-collapse:collapse;font-size:12px; }
 </div>
 
 <script>
-// ══════════════════════════════════════════════════════
-//  資料定義
-// ══════════════════════════════════════════════════════
+// ââââââââââââââââââââââââââââââââââââââââââââââââââââââ
+//  è³æå®ç¾©
+// ââââââââââââââââââââââââââââââââââââââââââââââââââââââ
 
-// 空運：日本輸出費
+// ç©ºéï¼æ¥æ¬è¼¸åºè²»
 const jpItems = [
-  {id:'jp01', name:'輸出通関料',        rate:5900,  qty:1,   unit:'Sheet', isWeight:false, isVol:false, en:true},
-  {id:'jp02', name:'取扱料',            rate:5000,  qty:1,   unit:'件',    isWeight:false, isVol:false, en:true},
-  {id:'jp03', name:'保冷梱包料',        rate:16000, qty:1,   unit:'Pallet',isWeight:false, isVol:false, en:true},
-  {id:'jp04', name:'ドライアイス',      rate:280,   qty:20,  unit:'kg',    isWeight:false, isVol:false, en:true},
-  {id:'jp05', name:'搬入作業料',        rate:18,    qty:250, unit:'kg',    isWeight:true,  isVol:false, en:true},
-  {id:'jp06', name:'ターミナルチャージ', rate:20,    qty:250, unit:'kg',    isWeight:true,  isVol:false, en:true},
-  {id:'jp07', name:'爆発物検査（Min）',  rate:3000,  qty:1,   unit:'Min',   isWeight:false, isVol:false, en:true},
-  {id:'jp08', name:'爆発物検査（追加）', rate:300,   qty:2,   unit:'pkg',   isWeight:false, isVol:false, en:true},
+  {id:'jp01', name:'è¼¸åºéé¢æ',        rate:5900,  qty:1,   unit:'Sheet', isWeight:false, isVol:false, en:true},
+  {id:'jp02', name:'åæ±æ',            rate:5000,  qty:1,   unit:'ä»¶',    isWeight:false, isVol:false, en:true},
+  {id:'jp03', name:'ä¿å·æ¢±åæ',        rate:16000, qty:1,   unit:'Pallet',isWeight:false, isVol:false, en:true},
+  {id:'jp04', name:'ãã©ã¤ã¢ã¤ã¹',      rate:280,   qty:20,  unit:'kg',    isWeight:false, isVol:false, en:true},
+  {id:'jp05', name:'æ¬å¥ä½æ¥­æ',        rate:18,    qty:250, unit:'kg',    isWeight:true,  isVol:false, en:true},
+  {id:'jp06', name:'ã¿ã¼ããã«ãã£ã¼ã¸', rate:20,    qty:250, unit:'kg',    isWeight:true,  isVol:false, en:true},
+  {id:'jp07', name:'ççºç©æ¤æ»ï¼Minï¼',  rate:3000,  qty:1,   unit:'Min',   isWeight:false, isVol:false, en:true},
+  {id:'jp08', name:'ççºç©æ¤æ»ï¼è¿½å ï¼', rate:300,   qty:2,   unit:'pkg',   isWeight:false, isVol:false, en:true},
   {id:'jp09', name:'AWB Fee',           rate:200,   qty:1,   unit:'AWB',   isWeight:false, isVol:false, en:true},
   {id:'jp10', name:'Air Freight',       rate:230,   qty:250, unit:'kg',    isWeight:true,  isVol:false, en:true},
   {id:'jp11', name:'Fuel Surcharge',    rate:42,    qty:250, unit:'kg',    isWeight:true,  isVol:false, en:true},
   {id:'jp12', name:'Security Charge',   rate:500,   qty:1,   unit:'AWB',   isWeight:false, isVol:false, en:true},
 ];
 
-// 海運：日本輸出費（JPY）
+// æµ·éï¼æ¥æ¬è¼¸åºè²»ï¼JPYï¼
 const seaJpItems = [
-  {id:'sj01', name:'輸出通関料',   rate:15000, qty:1,   unit:'件',  isWeight:false, isVol:false, en:true},
-  {id:'sj02', name:'取扱料',       rate:5000,  qty:1,   unit:'件',  isWeight:false, isVol:false, en:true},
+  {id:'sj01', name:'è¼¸åºéé¢æ',   rate:15000, qty:1,   unit:'ä»¶',  isWeight:false, isVol:false, en:true},
+  {id:'sj02', name:'åæ±æ',       rate:5000,  qty:1,   unit:'ä»¶',  isWeight:false, isVol:false, en:true},
   {id:'sj03', name:'CFS Charge',   rate:3000,  qty:0,   unit:'CBM', isWeight:false, isVol:true,  en:true},
   {id:'sj04', name:'BL Fee',       rate:3000,  qty:1,   unit:'BL',  isWeight:false, isVol:false, en:true},
 ];
 
-// 海運：海上運費（USD）
+// æµ·éï¼æµ·ä¸éè²»ï¼USDï¼
 const oceanItems = [
   {id:'oc01', name:'Ocean Freight',  rate:90,  qty:0, unit:'CBM', isWeight:false, isVol:true,  en:true},
-  {id:'oc02', name:'BAF 燃油附加費', rate:15,  qty:0, unit:'CBM', isWeight:false, isVol:true,  en:true},
-  {id:'oc03', name:'GRI 旺季附加費', rate:0,   qty:0, unit:'CBM', isWeight:false, isVol:false, en:false},
-  {id:'oc04', name:'THC（日本）',    rate:100, qty:0, unit:'CBM', isWeight:false, isVol:true,  en:true},
+  {id:'oc02', name:'BAF çæ²¹éå è²»', rate:15,  qty:0, unit:'CBM', isWeight:false, isVol:true,  en:true},
+  {id:'oc03', name:'GRI æºå­£éå è²»', rate:0,   qty:0, unit:'CBM', isWeight:false, isVol:false, en:false},
+  {id:'oc04', name:'THCï¼æ¥æ¬ï¼',    rate:100, qty:0, unit:'CBM', isWeight:false, isVol:true,  en:true},
 ];
 
   
-// 空運：台灣進口費
+// ç©ºéï¼å°ç£é²å£è²»
 const twItems = [
   {id:'tw01', name:'Customs Clearance Fee',  rate:2500, qty:1, unit:'BL',   isVol:false, en:true},
   {id:'tw02', name:'Handling Charge',        rate:1000, qty:1, unit:'BL',   isVol:false, en:true},
   {id:'tw03', name:'EDI Entry Fee',          rate:200,  qty:1, unit:'BL',   isVol:false, en:true},
   {id:'tw04', name:'Labour Charge at CKS',   rate:1500, qty:1, unit:'SHPT', isVol:false, en:true},
-  {id:'tw05', name:'Terminal（0〜8hrs）',     rate:2560, qty:1, unit:'式',   isVol:false, en:true},
-  {id:'tw06', name:'Terminal（8〜16hrs）',    rate:2482, qty:1, unit:'式',   isVol:false, en:true},
-  {id:'tw07', name:'Terminal（16〜96hrs）',   rate:18250,qty:1, unit:'式',   isVol:false, en:true},
-  {id:'tw08', name:'Truck Charge（3.5ton）',  rate:2500, qty:1, unit:'SHPT', isVol:false, en:true},
+  {id:'tw05', name:'Terminalï¼0ã8hrsï¼',     rate:2560, qty:1, unit:'å¼',   isVol:false, en:true},
+  {id:'tw06', name:'Terminalï¼8ã16hrsï¼',    rate:2482, qty:1, unit:'å¼',   isVol:false, en:true},
+  {id:'tw07', name:'Terminalï¼16ã96hrsï¼',   rate:18250,qty:1, unit:'å¼',   isVol:false, en:true},
+  {id:'tw08', name:'Truck Chargeï¼3.5tonï¼',  rate:2500, qty:1, unit:'SHPT', isVol:false, en:true},
   {id:'tw09', name:'Forklift Fee',           rate:250,  qty:1, unit:'10min',isVol:false, en:true},
   {id:'tw10', name:'Food Inspection Fee',    rate:3000, qty:1, unit:'item', isVol:false, en:true},
-  {id:'tw11', name:'Customs Inspection Fee', rate:500,  qty:1, unit:'次',   isVol:false, en:true},
+  {id:'tw11', name:'Customs Inspection Fee', rate:500,  qty:1, unit:'æ¬¡',   isVol:false, en:true},
   {id:'tw12', name:'NETW Handling Fee',      rate:3000, qty:1, unit:'SHPT', isVol:false, en:true},
-  {id:'tw13', name:'Overtime（平日）',        rate:4000, qty:1, unit:'次',   isVol:false, en:false},
-  {id:'tw14', name:'Overtime（假日）',        rate:6000, qty:1, unit:'次',   isVol:false, en:false},
+  {id:'tw13', name:'Overtimeï¼å¹³æ¥ï¼',        rate:4000, qty:1, unit:'æ¬¡',   isVol:false, en:false},
+  {id:'tw14', name:'Overtimeï¼åæ¥ï¼',        rate:6000, qty:1, unit:'æ¬¡',   isVol:false, en:false},
 ];
 
-// 海運：台灣進口費（TWD）
+// æµ·éï¼å°ç£é²å£è²»ï¼TWDï¼
 const seaTwItems = [
   {id:'st01', name:'Customs Clearance Fee', rate:3500, qty:1, unit:'BL',   isVol:false, en:true},
   {id:'st02', name:'Handling Charge',       rate:1000, qty:1, unit:'BL',   isVol:false, en:true},
   {id:'st03', name:'EDI Entry Fee',         rate:200,  qty:1, unit:'BL',   isVol:false, en:true},
-  {id:'st04', name:'THC（台灣）',           rate:500,  qty:0, unit:'CBM',  isVol:true,  en:true},
+  {id:'st04', name:'THCï¼å°ç£ï¼',           rate:500,  qty:0, unit:'CBM',  isVol:true,  en:true},
   {id:'st05', name:'CFS Fee',              rate:600,  qty:0, unit:'CBM',  isVol:true,  en:true},
   {id:'st06', name:'Food Inspection Fee',  rate:3000, qty:1, unit:'item', isVol:false, en:true},
   {id:'st07', name:'Truck Charge',         rate:3000, qty:1, unit:'SHPT', isVol:false, en:true},
-  {id:'st08', name:'Customs Inspection Fee',rate:500, qty:1, unit:'次',   isVol:false, en:true},
+  {id:'st08', name:'Customs Inspection Fee',rate:500, qty:1, unit:'æ¬¡',   isVol:false, en:true},
 ];
 
-// 倉儲配送費（不分模式）
+// åå²ééè²»ï¼ä¸åæ¨¡å¼ï¼
 const saItems = [
-  {id:'sa01', name:'入庫費',              rate:150,  qty:3,   unit:'板',    en:true},
-  {id:'sa02', name:'拆櫃費',             rate:6000, qty:1,   unit:'貨櫃',  en:false},
-  {id:'sa03', name:'翻版',               rate:7000, qty:1,   unit:'貨櫃',  en:false},
-  {id:'sa04', name:'倉租（40/板/天）',   rate:40,   qty:540, unit:'板·天', en:true},
-  {id:'sa05', name:'揀貨費',             rate:15,   qty:199, unit:'箱',    en:true},
-  {id:'sa06', name:'運費',               rate:150,  qty:199, unit:'門市',  en:true},
-  {id:'sa07', name:'基本管理費',         rate:2000, qty:1,   unit:'月',    en:true},
+  {id:'sa01', name:'å¥åº«è²»',              rate:150,  qty:3,   unit:'æ¿',    en:true},
+  {id:'sa02', name:'ææ«è²»',             rate:6000, qty:1,   unit:'è²¨æ«',  en:false},
+  {id:'sa03', name:'ç¿»ç',               rate:7000, qty:1,   unit:'è²¨æ«',  en:false},
+  {id:'sa04', name:'åç§ï¼40/æ¿/å¤©ï¼',   rate:40,   qty:540, unit:'æ¿Â·å¤©', en:true},
+  {id:'sa05', name:'æè²¨è²»',             rate:15,   qty:199, unit:'ç®±',    en:true},
+  {id:'sa06', name:'éè²»',               rate:150,  qty:199, unit:'éå¸',  en:true},
+  {id:'sa07', name:'åºæ¬ç®¡çè²»',         rate:2000, qty:1,   unit:'æ',    en:true},
 ];
 
-// 商品
+// åå
 let products = [
-  {name:'紅はるか大学芋',          price:4100, qty:36, gw:'', nw:'', duty:25, l:'', w:'', h:''},
-  {name:'元祖大学芋',              price:4005, qty:36, gw:'', nw:'', duty:25, l:'', w:'', h:''},
-  {name:'燒番薯スイートポテト',    price:2640, qty:87, gw:'', nw:'', duty:25, l:'', w:'', h:''},
-  {name:'カリカリスティックポテト', price:5100, qty:40, gw:'', nw:'', duty:25, l:'', w:'', h:''},
+  {name:'ç´ã¯ããå¤§å­¦è',          price:4100, qty:36, gw:'', nw:'', duty:25, l:'', w:'', h:''},
+  {name:'åç¥å¤§å­¦è',              price:4005, qty:36, gw:'', nw:'', duty:25, l:'', w:'', h:''},
+  {name:'ççªè¯ã¹ã¤ã¼ãããã',    price:2640, qty:87, gw:'', nw:'', duty:25, l:'', w:'', h:''},
+  {name:'ã«ãªã«ãªã¹ãã£ãã¯ããã', price:5100, qty:40, gw:'', nw:'', duty:25, l:'', w:'', h:''},
 ];
 
-// ══════════════════════════════════════════════════════
-//  初始化
-// ══════════════════════════════════════════════════════
+// ââââââââââââââââââââââââââââââââââââââââââââââââââââââ
+//  åå§å
+// ââââââââââââââââââââââââââââââââââââââââââââââââââââââ
 window.onload = () => {
   document.getElementById('hdr-date').textContent =
     new Date().toLocaleDateString('zh-TW',{year:'numeric',month:'long',day:'numeric'});
@@ -723,13 +725,13 @@ window.onload = () => {
   renderProdTable();
   renderResultHead(false, 5, 10);
   recalc();
-  // 初始化 Markup/Margin toggle 按鈕狀態
+  // åå§å Markup/Margin toggle æéçæ
   window.setPriceMode(window._priceMode || 'margin');
 };
 
-// ══════════════════════════════════════════════════════
-//  模式切換
-// ══════════════════════════════════════════════════════
+// ââââââââââââââââââââââââââââââââââââââââââââââââââââââ
+//  æ¨¡å¼åæ
+// ââââââââââââââââââââââââââââââââââââââââââââââââââââââ
 function switchMode() {
   const isSea = document.getElementById('transport_mode').value === 'sea';
   const grid = document.getElementById('logistics-grid');
@@ -740,14 +742,14 @@ function switchMode() {
   // Panel visibility
   document.getElementById('panel-oc').style.display = isSea ? '' : 'none';
 
-  // GW row ↔ CBM row in JP panel
+  // GW row â CBM row in JP panel
   document.getElementById('gw-row-air').style.display = isSea ? 'none' : '';
   document.getElementById('cbm-row-jp').style.display = isSea ? 'flex' : 'none';
   document.getElementById('cbm-row-tw').style.display = isSea ? 'flex' : 'none';
 
   // Panel subtitles
-  document.getElementById('jp-sub').textContent = isSea ? '見積書 SEA — JPY' : '見積書 AIR — JPY';
-  document.getElementById('tw-sub').textContent = isSea ? '台灣 SEA 進口費 — TWD（未含稅）' : 'NX Taiwan AIR — TWD（未含稅）';
+  document.getElementById('jp-sub').textContent = isSea ? 'è¦ç©æ¸ SEA â JPY' : 'è¦ç©æ¸ AIR â JPY';
+  document.getElementById('tw-sub').textContent = isSea ? 'å°ç£ SEA é²å£è²» â TWDï¼æªå«ç¨ï¼' : 'NX Taiwan AIR â TWDï¼æªå«ç¨ï¼';
 
   // USD rate box
   const usdBox = document.getElementById('usd-rate-box');
@@ -756,7 +758,7 @@ function switchMode() {
 
   // Mode badge
   const badge = document.getElementById('hdr-mode-badge');
-  badge.textContent = isSea ? '🚢 海運' : '✈ 空運';
+  badge.textContent = isSea ? 'ð¢ æµ·é' : 'â ç©ºé';
   badge.className = 'badge-mode ' + (isSea ? 'sea' : 'air');
 
   // Re-render logistics sections
@@ -771,9 +773,9 @@ function switchMode() {
   recalc();
 }
 
-// ══════════════════════════════════════════════════════
-//  面板切換
-// ══════════════════════════════════════════════════════
+// ââââââââââââââââââââââââââââââââââââââââââââââââââââââ
+//  é¢æ¿åæ
+// ââââââââââââââââââââââââââââââââââââââââââââââââââââââ
 function togglePanel(id) {
   const body = document.getElementById('body-'+id);
   const chev = document.getElementById('chev-'+id);
@@ -781,9 +783,9 @@ function togglePanel(id) {
   chev.classList.toggle('open');
 }
 
-// ══════════════════════════════════════════════════════
-//  物流明細表格渲染
-// ══════════════════════════════════════════════════════
+// ââââââââââââââââââââââââââââââââââââââââââââââââââââââ
+//  ç©æµæç´°è¡¨æ ¼æ¸²æ
+// ââââââââââââââââââââââââââââââââââââââââââââââââââââââ
 function renderLogSection(sid, items) {
   const tbody = document.getElementById('rows-'+sid);
   if (!tbody) return;
@@ -839,7 +841,7 @@ function updateLogItem(sid, itemId, key, val) {
   recalc();
 }
 
-// ── GW 連動（空運）──
+// ââ GW é£åï¼ç©ºéï¼ââ
 function updateWeightRows() {
   const gw = +document.getElementById('jp-gw').value || 0;
   jpItems.forEach(item => {
@@ -856,7 +858,7 @@ function updateWeightRows() {
   });
 }
 
-// ── CBM 連動（海運）──
+// ââ CBM é£åï¼æµ·éï¼ââ
 function computeTotalCBM() {
   return products.reduce((s, p) => {
     const l = p.l || 0, w = p.w || 0, h = p.h || 0;
@@ -882,9 +884,9 @@ function updateVolRows(items, totalCBM) {
   });
 }
 
-// ══════════════════════════════════════════════════════
-//  商品表格
-// ══════════════════════════════════════════════════════
+// ââââââââââââââââââââââââââââââââââââââââââââââââââââââ
+//  ååè¡¨æ ¼
+// ââââââââââââââââââââââââââââââââââââââââââââââââââââââ
 function renderProdTable() {
   const body = document.getElementById('prod-body');
   body.innerHTML = '';
@@ -894,22 +896,22 @@ function renderProdTable() {
     tr.innerHTML = `
       <td><input type="text" value="${p.name}" oninput="products[${i}].name=this.value;recalc()"></td>
       <td><input type="number" value="${p.price}" oninput="products[${i}].price=+this.value;recalc()"></td>
-      <td><input type="number" value="${p.qty}"   oninput="products[${i}].qty=+this.value;recalc()" placeholder="—"></td>
-      <td><input type="number" value="${p.gw}"    oninput="products[${i}].gw=+this.value;recalc()" placeholder="—"></td>
-      <td><input type="number" value="${p.nw}"    oninput="products[${i}].nw=+this.value;recalc()" placeholder="—"></td>
-      <td><input type="number" value="${p.l}" style="width:65px" oninput="products[${i}].l=+this.value;recalc()" placeholder="—"></td>
-      <td><input type="number" value="${p.w}" style="width:65px" oninput="products[${i}].w=+this.value;recalc()" placeholder="—"></td>
-      <td><input type="number" value="${p.h}" style="width:65px" oninput="products[${i}].h=+this.value;recalc()" placeholder="—"></td>
-      <td class="cbm-cell">${cbmPerBox !== null ? cbmPerBox.toFixed(4) + ' m³' : '—'}</td>
+      <td><input type="number" value="${p.qty}"   oninput="products[${i}].qty=+this.value;recalc()" placeholder="â"></td>
+      <td><input type="number" value="${p.gw}"    oninput="products[${i}].gw=+this.value;recalc()" placeholder="â"></td>
+      <td><input type="number" value="${p.nw}"    oninput="products[${i}].nw=+this.value;recalc()" placeholder="â"></td>
+      <td><input type="number" value="${p.l}" style="width:65px" oninput="products[${i}].l=+this.value;recalc()" placeholder="â"></td>
+      <td><input type="number" value="${p.w}" style="width:65px" oninput="products[${i}].w=+this.value;recalc()" placeholder="â"></td>
+      <td><input type="number" value="${p.h}" style="width:65px" oninput="products[${i}].h=+this.value;recalc()" placeholder="â"></td>
+      <td class="cbm-cell">${cbmPerBox !== null ? cbmPerBox.toFixed(4) + ' mÂ³' : 'â'}</td>
       <td><input type="number" value="${p.duty}"  oninput="products[${i}].duty=+this.value;recalc()"></td>
-      <td class="no-print"><button class="del-btn" onclick="delProd(${i})">✕</button></td>
+      <td class="no-print"><button class="del-btn" onclick="delProd(${i})">â</button></td>
     `;
     body.appendChild(tr);
   });
 }
 
 function addProd() {
-  products.push({name:'新商品', price:0, qty:0, gw:'', nw:'', duty:25, l:'', w:'', h:''});
+  products.push({name:'æ°åå', price:0, qty:0, gw:'', nw:'', duty:25, l:'', w:'', h:''});
   renderProdTable(); recalc();
 }
 function delProd(i) {
@@ -917,47 +919,47 @@ function delProd(i) {
   products.splice(i,1); renderProdTable(); recalc();
 }
 
-// ══════════════════════════════════════════════════════
-//  結果表格 Header（模式切換時重繪）
-// ══════════════════════════════════════════════════════
+// ââââââââââââââââââââââââââââââââââââââââââââââââââââââ
+//  çµæè¡¨æ ¼ Headerï¼æ¨¡å¼åææéç¹ªï¼
+// ââââââââââââââââââââââââââââââââââââââââââââââââââââââ
 function renderResultHead(isSea, m1, m2) {
   const logCols = isSea
-    ? `<th class="th-log r">日本出口費</th>
-       <th class="th-oc r">海上運費</th>
-       <th class="th-log r">台灣進口費</th>
-       <th class="th-log r">配送費</th>`
-    : `<th class="th-log r">日本費</th>
-       <th class="th-log r">台灣費</th>
-       <th class="th-log r">配送費</th>`;
+    ? `<th class="th-log r">æ¥æ¬åºå£è²»</th>
+       <th class="th-oc r">æµ·ä¸éè²»</th>
+       <th class="th-log r">å°ç£é²å£è²»</th>
+       <th class="th-log r">ééè²»</th>`
+    : `<th class="th-log r">æ¥æ¬è²»</th>
+       <th class="th-log r">å°ç£è²»</th>
+       <th class="th-log r">ééè²»</th>`;
   const logColspan = isSea ? 4 : 3;
 
   document.getElementById('res-head').innerHTML = `
     <tr>
-      <th rowspan="2" class="th-dark" style="min-width:150px">商品名稱</th>
-      <th rowspan="2" class="th-dark r" style="width:50px">箱</th>
-      <th colspan="4" class="th-goods" style="text-align:center">商品成本／箱（TWD）</th>
-      <th colspan="${logColspan}" class="th-log" style="text-align:center">物流分攤／箱（TWD）</th>
-      <th rowspan="2" class="r" style="background:#2a1a1e;color:#fc8181;min-width:80px">總成本/箱</th>
+      <th rowspan="2" class="th-dark" style="min-width:150px">åååç¨±</th>
+      <th rowspan="2" class="th-dark r" style="width:50px">ç®±</th>
+      <th colspan="4" class="th-goods" style="text-align:center">ååææ¬ï¼ç®±ï¼TWDï¼</th>
+      <th colspan="${logColspan}" class="th-log" style="text-align:center">ç©æµåæ¤ï¼ç®±ï¼TWDï¼</th>
+      <th rowspan="2" class="r" style="background:#2a1a1e;color:#fc8181;min-width:80px">ç¸½ææ¬/ç®±</th>
       <th colspan="2" class="th-price" style="text-align:center;min-width:180px">
         <div style="display:flex;flex-direction:column;align-items:center;gap:1px;">
-          建議售價/箱（TWD）
+          å»ºè­°å®å¹/ç®±ï¼TWDï¼
           <div class="price-mode-toggle">
-            <button class="pm-btn" id="btn-markup" onclick="setPriceMode('markup')" title="Markup = 利潤 / 成本（加成率）">Markup</button>
-            <button class="pm-btn" id="btn-margin" onclick="setPriceMode('margin')" title="Margin = 利潤 / 售價（毛利率）">Margin</button>
+            <button class="pm-btn" id="btn-markup" onclick="setPriceMode('markup')" title="Markup = å©æ½¤ / ææ¬ï¼å æçï¼">Markup</button>
+            <button class="pm-btn" id="btn-margin" onclick="setPriceMode('margin')" title="Margin = å©æ½¤ / å®å¹ï¼æ¯å©çï¼">Margin</button>
           </div>
-          <span class="price-mode-desc" id="price-mode-desc">售價 = 成本 ÷ (1 − 毛利%)</span>
+          <span class="price-mode-desc" id="price-mode-desc">å®å¹ = ææ¬ Ã· (1 â æ¯å©%)</span>
         </div>
       </th>
     </tr>
     <tr>
-      <th class="th-goods r">仕入</th>
-      <th class="th-goods r">關稅</th>
-      <th class="th-goods r">消費稅</th>
-      <th class="th-goods r">小計</th>
+      <th class="th-goods r">ä»å¥</th>
+      <th class="th-goods r">éç¨</th>
+      <th class="th-goods r">æ¶è²»ç¨</th>
+      <th class="th-goods r">å°è¨</th>
       ${logCols}
       <th class="th-price r">
         <div class="margin-input-wrap">
-          毛利
+          æ¯å©
           <input type="number" id="margin1" class="margin-input" value="${m1}" min="0" max="99" step="0.5"
             oninput="syncMarginHeader();recalc()">
           %
@@ -965,7 +967,7 @@ function renderResultHead(isSea, m1, m2) {
       </th>
       <th class="th-price r">
         <div class="margin-input-wrap">
-          毛利
+          æ¯å©
           <input type="number" id="margin2" class="margin-input" value="${m2}" min="0" max="99" step="0.5"
             oninput="syncMarginHeader();recalc()">
           %
@@ -973,19 +975,19 @@ function renderResultHead(isSea, m1, m2) {
       </th>
     </tr>
   `;
-  // 更新 toggle 按鈕狀態
+  // æ´æ° toggle æéçæ
   const mode = window._priceMode || 'margin';
   const btnMu = document.getElementById('btn-markup');
   const btnMg = document.getElementById('btn-margin');
   if (btnMu) btnMu.className = 'pm-btn' + (mode === 'markup' ? ' pm-markup-on' : '');
   if (btnMg) btnMg.className = 'pm-btn' + (mode === 'margin' ? ' pm-margin-on' : '');
   const desc = document.getElementById('price-mode-desc');
-  if (desc) desc.textContent = mode === 'markup' ? '售價 = 成本 × (1 + 毛利%)' : '售價 = 成本 ÷ (1 − 毛利%)';
+  if (desc) desc.textContent = mode === 'markup' ? 'å®å¹ = ææ¬ Ã (1 + æ¯å©%)' : 'å®å¹ = ææ¬ Ã· (1 â æ¯å©%)';
 }
 
-// ══════════════════════════════════════════════════════
-//  核心計算
-// ══════════════════════════════════════════════════════
+// ââââââââââââââââââââââââââââââââââââââââââââââââââââââ
+//  æ ¸å¿è¨ç®
+// ââââââââââââââââââââââââââââââââââââââââââââââââââââââ
 function sectionTotal(items) {
   return items.reduce((s,x) => s + (x.en ? x.rate*x.qty : 0), 0);
 }
@@ -1006,7 +1008,7 @@ function recalc() {
   const m2       = +document.getElementById('margin2')?.value || 10;
   const isSea    = document.getElementById('transport_mode').value === 'sea';
 
-  // ── CBM（海運模式）──
+  // ââ CBMï¼æµ·éæ¨¡å¼ï¼ââ
   const totalCBM = computeTotalCBM();
   if (isSea) {
     const cbmStr = totalCBM.toFixed(3);
@@ -1019,7 +1021,7 @@ function recalc() {
     updateVolRows(seaTwItems, totalCBM);
   }
 
-  // ── 物流費計算 ──
+  // ââ ç©æµè²»è¨ç® ââ
   const activeJp = isSea ? seaJpItems : jpItems;
   const activeTw = isSea ? seaTwItems : twItems;
 
@@ -1035,8 +1037,8 @@ function recalc() {
 
   const totalLog = jpTWD + oceanTWD + twTWD + saTWD;
 
-  // ── 更新面板顯示 ──
-  const jpPrefix = isSea ? '¥' : '¥';
+  // ââ æ´æ°é¢æ¿é¡¯ç¤º ââ
+  const jpPrefix = isSea ? 'Â¥' : 'Â¥';
   document.getElementById('jp-total-disp').textContent = jpPrefix + fmt(jpJPY);
   document.getElementById('jp-twd-disp').textContent   = 'TWD ' + fmt(jpTWD);
   document.getElementById('jp-foot-total').textContent  = jpPrefix + fmt(jpJPY);
@@ -1050,21 +1052,21 @@ function recalc() {
   }
 
   document.getElementById('tw-total-disp').textContent = 'NT$' + fmt(twBase);
-  document.getElementById('tw-tax-disp').textContent   = '含稅 ' + fmt(twTWD);
+  document.getElementById('tw-tax-disp').textContent   = 'å«ç¨ ' + fmt(twTWD);
   document.getElementById('tw-foot-total').textContent  = 'NT$' + fmt(twBase);
   document.getElementById('tw-foot-taxed').textContent  = fmt(twTWD);
 
   document.getElementById('sa-total-disp').textContent = 'NT$' + fmt(saBase);
-  document.getElementById('sa-tax-disp').textContent   = '含稅 ' + fmt(saTWD);
+  document.getElementById('sa-tax-disp').textContent   = 'å«ç¨ ' + fmt(saTWD);
   document.getElementById('sa-foot-total').textContent  = 'NT$' + fmt(saBase);
   document.getElementById('sa-foot-taxed').textContent  = fmt(saTWD);
 
-  // ── 分攤基數 ──
+  // ââ åæ¤åºæ¸ ââ
   const totalBoxes = products.reduce((s,p) => s + (p.qty||0), 0);
   const totalGW    = products.reduce((s,p) => s + (p.qty||0)*(p.gw||0), 0);
   const allocBase  = allocBy==='gw' ? totalGW : totalBoxes;
 
-  // ── 每品計算 ──
+  // ââ æ¯åè¨ç® ââ
   const rows = products.map(p => {
     const qty  = p.qty   || 0;
     const gw   = p.gw    || 0;
@@ -1086,47 +1088,47 @@ function recalc() {
     return {
       name: p.name, qty, purch, dtyAmt, vatAmt, goods,
       jpPer, ocPer, twPer, saPer, total,
-      p5:  m1>=100 ? null : total/(1-m1/100),
-      p10: m2>=100 ? null : total/(1-m2/100),
+      p5:  m1>=100 ? null : (window._priceMode==='markup' ? total*(1+m1/100) : total/(1-m1/100)),
+      p10: m2>=100 ? null : (window._priceMode==='markup' ? total*(1+m2/100) : total/(1-m2/100)),
       totalAll: total*qty
     };
   });
 
-  // ── 摘要卡片 ──
+  // ââ æè¦å¡ç ââ
   const grandCost = rows.reduce((s,r)=>s+r.totalAll, 0);
   const cbmCard = isSea
     ? `<div class="sum-card" style="border-color:#bfdbfe">
-        <div class="lbl">總體積（CBM）</div>
-        <div class="val" style="color:#1e40af">${totalCBM.toFixed(3)} m³</div>
-        <div class="sub">依商品尺寸自動計算</div>
+        <div class="lbl">ç¸½é«ç©ï¼CBMï¼</div>
+        <div class="val" style="color:#1e40af">${totalCBM.toFixed(3)} mÂ³</div>
+        <div class="sub">ä¾ååå°ºå¯¸èªåè¨ç®</div>
        </div>`
     : '';
 
   document.getElementById('summary-cards').innerHTML = `
     <div class="sum-card">
-      <div class="lbl">總箱數</div>
-      <div class="val">${totalBoxes} 箱</div>
-      <div class="sub">本批合計</div>
+      <div class="lbl">ç¸½ç®±æ¸</div>
+      <div class="val">${totalBoxes} ç®±</div>
+      <div class="sub">æ¬æ¹åè¨</div>
     </div>
     ${cbmCard}
     <div class="sum-card">
-      <div class="lbl">物流費合計（TWD）</div>
+      <div class="lbl">ç©æµè²»åè¨ï¼TWDï¼</div>
       <div class="val">${fmt(totalLog)}</div>
-      <div class="sub">${isSea?'日本出口＋海運＋台灣進口＋配送（含稅）':'日本＋台灣＋配送（含稅）'}</div>
+      <div class="sub">${isSea?'æ¥æ¬åºå£ï¼æµ·éï¼å°ç£é²å£ï¼ééï¼å«ç¨ï¼':'æ¥æ¬ï¼å°ç£ï¼ééï¼å«ç¨ï¼'}</div>
     </div>
     <div class="sum-card">
-      <div class="lbl">物流費 / 箱平均（TWD）</div>
+      <div class="lbl">ç©æµè²» / ç®±å¹³åï¼TWDï¼</div>
       <div class="val">${fmt(allocBase>0 ? totalLog/totalBoxes : 0)}</div>
-      <div class="sub">依${allocBy==='gw'?'GW':'箱數'}分攤</div>
+      <div class="sub">ä¾${allocBy==='gw'?'GW':'ç®±æ¸'}åæ¤</div>
     </div>
     <div class="sum-card" style="border-color:#fed7d7">
-      <div class="lbl">全批總成本（TWD）</div>
+      <div class="lbl">å¨æ¹ç¸½ææ¬ï¼TWDï¼</div>
       <div class="val" style="color:#e94560">${fmt(grandCost)}</div>
-      <div class="sub">商品＋物流全部含稅</div>
+      <div class="sub">ååï¼ç©æµå¨é¨å«ç¨</div>
     </div>
   `;
 
-  // ── 結果表格 tbody ──
+  // ââ çµæè¡¨æ ¼ tbody ââ
   const tbody = document.getElementById('res-body');
   tbody.innerHTML = '';
   rows.forEach(r => {
@@ -1148,8 +1150,8 @@ function recalc() {
       <td class="r" style="font-weight:700">${fmt(r.goods)}</td>
       ${logCells}
       <td class="r cost-total">${fmt(r.total)}</td>
-      <td class="r"><span class="chip-low">▸ ${fmt(r.p5)}</span></td>
-      <td class="r"><span class="chip-high">▸ ${fmt(r.p10)}</span></td>
+      <td class="r"><span class="chip-low">â¸ ${fmt(r.p5)}</span></td>
+      <td class="r"><span class="chip-high">â¸ ${fmt(r.p10)}</span></td>
     `;
     tbody.appendChild(tr);
   });
@@ -1159,22 +1161,22 @@ function recalc() {
     <tr style="background:#f0f4f8;font-weight:700">
       <td colspan="${footColspan}" style="padding:9px 10px;color:#4a5568;font-size:11px">
         JPY/TWD ${jpyRate}${isSea ? ' | USD/TWD '+usdRate+' | CBM '+totalCBM.toFixed(3) : ''}
-        | 總箱數 ${totalBoxes} | 物流 ${fmt(totalLog)} TWD
+        | ç¸½ç®±æ¸ ${totalBoxes} | ç©æµ ${fmt(totalLog)} TWD
       </td>
-      <td class="r cost-total" style="padding:9px 10px">全批</td>
+      <td class="r cost-total" style="padding:9px 10px">å¨æ¹</td>
       <td colspan="2" class="r" style="padding:9px 10px;color:#e94560;font-size:13px">${fmt(grandCost)} TWD</td>
     </tr>
   `;
 
-  // ── 備註欄 ──
+  // ââ åè¨»æ¬ ââ
   document.getElementById('note-bar').innerHTML = isSea
-    ? '<strong>海運公式：</strong>建議售價 = 總成本/箱 ÷ (1 − 毛利率)　|　海上運費以 USD 計，乘以 USD/TWD 匯率後納入成本　|　CBM 依商品長×寬×高自動累算　|　THC / CFS 連動 CBM 自動更新'
-    : '<strong>公式：</strong>建議售價 = 總成本/箱 ÷ (1 − 毛利率)　|　關稅稅基 = 仕入TWD　|　消費稅稅基 = 仕入 + 關稅　|　台灣進口費＆配送費自動加算 5% 消費稅';
+    ? '<strong>æµ·éå¬å¼ï¼</strong>å»ºè­°å®å¹ = ç¸½ææ¬/ç®± Ã· (1 â æ¯å©ç)ã|ãæµ·ä¸éè²»ä»¥ USD è¨ï¼ä¹ä»¥ USD/TWD å¯çå¾ç´å¥ææ¬ã|ãCBM ä¾ååé·Ãå¯¬Ãé«èªåç´¯ç®ã|ãTHC / CFS é£å CBM èªåæ´æ°'
+    : '<strong>å¬å¼ï¼</strong>å»ºè­°å®å¹ = ç¸½ææ¬/ç®± Ã· (1 â æ¯å©ç)ã|ãéç¨ç¨åº = ä»å¥TWDã|ãæ¶è²»ç¨ç¨åº = ä»å¥ + éç¨ã|ãå°ç£é²å£è²»ï¼ééè²»èªåå ç® 5% æ¶è²»ç¨';
 }
 
-// ── 格式化 ──
+// ââ æ ¼å¼å ââ
 function fmt(n) {
-  if (!n && n!==0) return '—';
+  if (!n && n!==0) return 'â';
   return Math.round(n).toLocaleString('zh-TW');
 }
 function fmtDec(n) {
@@ -1182,91 +1184,91 @@ function fmtDec(n) {
   return n.toFixed(2);
 }
 
-// ══════════════════════════════════════════════════════
-// ① 日文切換功能
-// ══════════════════════════════════════════════════════
+// ââââââââââââââââââââââââââââââââââââââââââââââââââââââ
+// â  æ¥æåæåè½
+// ââââââââââââââââââââââââââââââââââââââââââââââââââââââ
 window._langMode = 'zh';
 window._originalTexts = new WeakMap();
 window._jaDict = {
-  '進口報價試算工具':'輸入見積計算ツール',
-  '① 全局參數':'① 全体パラメータ',
-  '運輸模式':'輸送モード',
-  '切換後物流費欄位自動更新':'切替後に物流費欄が自動更新',
-  '匯率（JPY → TWD）':'為替レート（JPY → TWD）',
-  '1 JPY = 0.21 NTD（可修改）':'1 JPY = 0.21 NTD（変更可）',
-  '匯率（USD → TWD）':'為替レート（USD → TWD）',
-  '海運費以 USD 計，需設定':'海運費はUSD建て、要設定',
-  '加工品消費稅（%）':'加工品消費税（%）',
-  '加工品 5%，蔬果 0%':'加工品 5%、青果 0%',
-  '物流費分攤方式':'物流費配分方式',
-  '依箱數比例':'箱数比例',
-  '依 GW 比例':'GW比例',
-  'GW 比例需填各商品 GW/箱':'GW比例は各商品GW/箱入力必須',
-  '② 物流費明細（點擊展開微調）':'② 物流費明細（クリックで展開・微調整）',
-  '見積書 SEA — JPY':'見積書 SEA — JPY',
-  '見積書 AIR — JPY':'見積書 AIR — JPY',
-  'NX Taiwan AIR — TWD（未含稅）':'NX Taiwan AIR — TWD（税別）',
-  '台灣 SEA 進口費 — TWD（未含稅）':'台湾 SEA 輸入費 — TWD（税別）',
-  'GW（kg）：':'GW（kg）：',
-  '重量連動項目自動更新':'重量連動項目が自動更新',
-  '總體積（CBM）：':'総体積（CBM）：',
-  '由商品尺寸自動累算':'商品サイズから自動累計',
-  'THC/CFS 連動項目自動更新':'THC/CFS 連動項目が自動更新',
-  '運費連動項目自動更新':'運賃連動項目が自動更新',
-  '項目':'項目',
-  '単価':'単価',
-  '數量':'数量',
-  '単位':'単位',
-  '金額（¥）':'金額（¥）',
-  '含':'含',
-  '日本費合計 (JPY)':'日本費合計 (JPY)',
-  '海運費合計 (USD)':'海運費合計 (USD)',
-  '台灣費合計（未含稅）':'台湾費合計（税別）',
-  '三義費合計（未含稅）':'三義費合計（税別）',
-  '含5%稅':'税5%込',
-  '③ 商品明細':'③ 商品明細',
-  '商品名稱':'商品名',
-  '仕入単価（JPY/箱）':'仕入単価（JPY/箱）',
-  '數量（箱）':'数量（箱）',
-  'GW（kg/箱）':'GW（kg/箱）',
-  'NW（kg/箱）':'NW（kg/箱）',
-  '長(cm)':'長(cm)','寬(cm)':'幅(cm)','高(cm)':'高(cm)',
-  'CBM/箱':'CBM/箱',
-  '關稅率（%）':'関税率（%）',
-  '＋ 新增商品':'＋ 商品を追加',
-  '④ 試算結果':'④ 試算結果',
-  '本批合計':'今回合計',
-  '依商品尺寸自動計算':'商品サイズから自動計算',
-  '物流費合計（TWD）':'物流費合計（TWD）',
-  '日本出口＋海運＋台灣進口＋配送（含稅）':'日本輸出＋海運＋台湾輸入＋配送（税込）',
-  '日本＋台灣＋配送（含稅）':'日本＋台湾＋配送（税込）',
-  '物流費 / 箱平均（TWD）':'物流費 / 箱平均（TWD）',
-  '依箱數分攤':'箱数で配分',
-  '依GW分攤':'GWで配分',
-  '全批總成本（TWD）':'全体総コスト（TWD）',
-  '商品＋物流全部含稅':'商品＋物流全額税込',
-  '商品成本／箱（TWD）':'商品コスト／箱（TWD）',
-  '物流分攤／箱（TWD）':'物流配分／箱（TWD）',
-  '建議售價/箱（TWD）':'推奨販売価格/箱（TWD）',
-  '仕入':'仕入','關稅':'関税','消費稅':'消費税','小計':'小計',
-  '日本出口費':'日本輸出費','海上運費':'海上運賃',
-  '台灣進口費':'台湾輸入費','配送費':'配送費',
-  '總成本/箱':'総コスト/箱','毛利':'粗利',
-  '海運公式：':'海運計算式：',
-  '建議售價 = 總成本/箱 ÷ (1 − 毛利率)':'推奨販売価格 = 総コスト/箱 ÷ (1 − 粗利率)',
-  '海上運費以 USD 計，乘以 USD/TWD 匯率後納入成本':'海上運賃はUSD建て、USD/TWD為替レートを乗じてコストに算入',
-  'CBM 依商品長×寬×高自動累算':'CBMは商品の長×幅×高さから自動累計',
-  'THC / CFS 連動 CBM 自動更新':'THC / CFS はCBM連動で自動更新',
-  '公式：':'計算式：',
-  '關稅稅基 = 仕入TWD':'関税課税標準 = 仕入TWD',
-  '消費稅稅基 = 仕入 + 關稅':'消費税課税標準 = 仕入 + 関税',
-  '台灣進口費＆配送費自動加算 5% 消費稅':'台湾輸入費＆配送費に5%消費税を自動加算',
-  '📦 批號紀錄':'📦 ロット番号記録',
-  '批號（Lot No.）':'ロット番号','備注':'メモ',
-  '💾 保存本次試算':'💾 今回の試算を保存',
-  '歷史紀錄':'履歴','清除全部':'全件削除',
-  '批號':'ロット番号','保存時間':'保存日時',
-  '全批成本(TWD)':'全体コスト(TWD)','操作':'操作','刪除':'削除',
+  'é²å£å ±å¹è©¦ç®å·¥å·':'è¼¸å¥è¦ç©è¨ç®ãã¼ã«',
+  'â  å¨å±åæ¸':'â  å¨ä½ãã©ã¡ã¼ã¿',
+  'éè¼¸æ¨¡å¼':'è¼¸éã¢ã¼ã',
+  'åæå¾ç©æµè²»æ¬ä½èªåæ´æ°':'åæ¿å¾ã«ç©æµè²»æ¬ãèªåæ´æ°',
+  'å¯çï¼JPY â TWDï¼':'çºæ¿ã¬ã¼ãï¼JPY â TWDï¼',
+  '1 JPY = 0.21 NTDï¼å¯ä¿®æ¹ï¼':'1 JPY = 0.21 NTDï¼å¤æ´å¯ï¼',
+  'å¯çï¼USD â TWDï¼':'çºæ¿ã¬ã¼ãï¼USD â TWDï¼',
+  'æµ·éè²»ä»¥ USD è¨ï¼éè¨­å®':'æµ·éè²»ã¯USDå»ºã¦ãè¦è¨­å®',
+  'å å·¥åæ¶è²»ç¨ï¼%ï¼':'å å·¥åæ¶è²»ç¨ï¼%ï¼',
+  'å å·¥å 5%ï¼è¬æ 0%':'å å·¥å 5%ãéæ 0%',
+  'ç©æµè²»åæ¤æ¹å¼':'ç©æµè²»éåæ¹å¼',
+  'ä¾ç®±æ¸æ¯ä¾':'ç®±æ°æ¯ä¾',
+  'ä¾ GW æ¯ä¾':'GWæ¯ä¾',
+  'GW æ¯ä¾éå¡«ååå GW/ç®±':'GWæ¯ä¾ã¯åååGW/ç®±å¥åå¿é ',
+  'â¡ ç©æµè²»æç´°ï¼é»æå±éå¾®èª¿ï¼':'â¡ ç©æµè²»æç´°ï¼ã¯ãªãã¯ã§å±éã»å¾®èª¿æ´ï¼',
+  'è¦ç©æ¸ SEA â JPY':'è¦ç©æ¸ SEA â JPY',
+  'è¦ç©æ¸ AIR â JPY':'è¦ç©æ¸ AIR â JPY',
+  'NX Taiwan AIR â TWDï¼æªå«ç¨ï¼':'NX Taiwan AIR â TWDï¼ç¨å¥ï¼',
+  'å°ç£ SEA é²å£è²» â TWDï¼æªå«ç¨ï¼':'å°æ¹¾ SEA è¼¸å¥è²» â TWDï¼ç¨å¥ï¼',
+  'GWï¼kgï¼ï¼':'GWï¼kgï¼ï¼',
+  'ééé£åé ç®èªåæ´æ°':'ééé£åé ç®ãèªåæ´æ°',
+  'ç¸½é«ç©ï¼CBMï¼ï¼':'ç·ä½ç©ï¼CBMï¼ï¼',
+  'ç±ååå°ºå¯¸èªåç´¯ç®':'ååãµã¤ãºããèªåç´¯è¨',
+  'THC/CFS é£åé ç®èªåæ´æ°':'THC/CFS é£åé ç®ãèªåæ´æ°',
+  'éè²»é£åé ç®èªåæ´æ°':'éè³é£åé ç®ãèªåæ´æ°',
+  'é ç®':'é ç®',
+  'åä¾¡':'åä¾¡',
+  'æ¸é':'æ°é',
+  'åä½':'åä½',
+  'éé¡ï¼Â¥ï¼':'éé¡ï¼Â¥ï¼',
+  'å«':'å«',
+  'æ¥æ¬è²»åè¨ (JPY)':'æ¥æ¬è²»åè¨ (JPY)',
+  'æµ·éè²»åè¨ (USD)':'æµ·éè²»åè¨ (USD)',
+  'å°ç£è²»åè¨ï¼æªå«ç¨ï¼':'å°æ¹¾è²»åè¨ï¼ç¨å¥ï¼',
+  'ä¸ç¾©è²»åè¨ï¼æªå«ç¨ï¼':'ä¸ç¾©è²»åè¨ï¼ç¨å¥ï¼',
+  'å«5%ç¨':'ç¨5%è¾¼',
+  'â¢ ååæç´°':'â¢ ååæç´°',
+  'åååç¨±':'ååå',
+  'ä»å¥åä¾¡ï¼JPY/ç®±ï¼':'ä»å¥åä¾¡ï¼JPY/ç®±ï¼',
+  'æ¸éï¼ç®±ï¼':'æ°éï¼ç®±ï¼',
+  'GWï¼kg/ç®±ï¼':'GWï¼kg/ç®±ï¼',
+  'NWï¼kg/ç®±ï¼':'NWï¼kg/ç®±ï¼',
+  'é·(cm)':'é·(cm)','å¯¬(cm)':'å¹(cm)','é«(cm)':'é«(cm)',
+  'CBM/ç®±':'CBM/ç®±',
+  'éç¨çï¼%ï¼':'é¢ç¨çï¼%ï¼',
+  'ï¼ æ°å¢åå':'ï¼ ååãè¿½å ',
+  'â£ è©¦ç®çµæ':'â£ è©¦ç®çµæ',
+  'æ¬æ¹åè¨':'ä»ååè¨',
+  'ä¾ååå°ºå¯¸èªåè¨ç®':'ååãµã¤ãºããèªåè¨ç®',
+  'ç©æµè²»åè¨ï¼TWDï¼':'ç©æµè²»åè¨ï¼TWDï¼',
+  'æ¥æ¬åºå£ï¼æµ·éï¼å°ç£é²å£ï¼ééï¼å«ç¨ï¼':'æ¥æ¬è¼¸åºï¼æµ·éï¼å°æ¹¾è¼¸å¥ï¼ééï¼ç¨è¾¼ï¼',
+  'æ¥æ¬ï¼å°ç£ï¼ééï¼å«ç¨ï¼':'æ¥æ¬ï¼å°æ¹¾ï¼ééï¼ç¨è¾¼ï¼',
+  'ç©æµè²» / ç®±å¹³åï¼TWDï¼':'ç©æµè²» / ç®±å¹³åï¼TWDï¼',
+  'ä¾ç®±æ¸åæ¤':'ç®±æ°ã§éå',
+  'ä¾GWåæ¤':'GWã§éå',
+  'å¨æ¹ç¸½ææ¬ï¼TWDï¼':'å¨ä½ç·ã³ã¹ãï¼TWDï¼',
+  'ååï¼ç©æµå¨é¨å«ç¨':'ååï¼ç©æµå¨é¡ç¨è¾¼',
+  'ååææ¬ï¼ç®±ï¼TWDï¼':'ååã³ã¹ãï¼ç®±ï¼TWDï¼',
+  'ç©æµåæ¤ï¼ç®±ï¼TWDï¼':'ç©æµéåï¼ç®±ï¼TWDï¼',
+  'å»ºè­°å®å¹/ç®±ï¼TWDï¼':'æ¨å¥¨è²©å£²ä¾¡æ ¼/ç®±ï¼TWDï¼',
+  'ä»å¥':'ä»å¥','éç¨':'é¢ç¨','æ¶è²»ç¨':'æ¶è²»ç¨','å°è¨':'å°è¨',
+  'æ¥æ¬åºå£è²»':'æ¥æ¬è¼¸åºè²»','æµ·ä¸éè²»':'æµ·ä¸éè³',
+  'å°ç£é²å£è²»':'å°æ¹¾è¼¸å¥è²»','ééè²»':'ééè²»',
+  'ç¸½ææ¬/ç®±':'ç·ã³ã¹ã/ç®±','æ¯å©':'ç²å©',
+  'æµ·éå¬å¼ï¼':'æµ·éè¨ç®å¼ï¼',
+  'å»ºè­°å®å¹ = ç¸½ææ¬/ç®± Ã· (1 â æ¯å©ç)':'æ¨å¥¨è²©å£²ä¾¡æ ¼ = ç·ã³ã¹ã/ç®± Ã· (1 â ç²å©ç)',
+  'æµ·ä¸éè²»ä»¥ USD è¨ï¼ä¹ä»¥ USD/TWD å¯çå¾ç´å¥ææ¬':'æµ·ä¸éè³ã¯USDå»ºã¦ãUSD/TWDçºæ¿ã¬ã¼ããä¹ãã¦ã³ã¹ãã«ç®å¥',
+  'CBM ä¾ååé·Ãå¯¬Ãé«èªåç´¯ç®':'CBMã¯ååã®é·Ãå¹Ãé«ãããèªåç´¯è¨',
+  'THC / CFS é£å CBM èªåæ´æ°':'THC / CFS ã¯CBMé£åã§èªåæ´æ°',
+  'å¬å¼ï¼':'è¨ç®å¼ï¼',
+  'éç¨ç¨åº = ä»å¥TWD':'é¢ç¨èª²ç¨æ¨æº = ä»å¥TWD',
+  'æ¶è²»ç¨ç¨åº = ä»å¥ + éç¨':'æ¶è²»ç¨èª²ç¨æ¨æº = ä»å¥ + é¢ç¨',
+  'å°ç£é²å£è²»ï¼ééè²»èªåå ç® 5% æ¶è²»ç¨':'å°æ¹¾è¼¸å¥è²»ï¼ééè²»ã«5%æ¶è²»ç¨ãèªåå ç®',
+  'ð¦ æ¹èç´é':'ð¦ ã­ããçªå·è¨é²',
+  'æ¹èï¼Lot No.ï¼':'ã­ããçªå·','åæ³¨':'ã¡ã¢',
+  'ð¾ ä¿å­æ¬æ¬¡è©¦ç®':'ð¾ ä»åã®è©¦ç®ãä¿å­',
+  'æ­·å²ç´é':'å±¥æ­´','æ¸é¤å¨é¨':'å¨ä»¶åé¤',
+  'æ¹è':'ã­ããçªå·','ä¿å­æé':'ä¿å­æ¥æ',
+  'å¨æ¹ææ¬(TWD)':'å¨ä½ã³ã¹ã(TWD)','æä½':'æä½','åªé¤':'åé¤',
 };
 window.applyLanguage = function(lang) {
   const dict = window._jaDict;
@@ -1295,18 +1297,18 @@ window.applyLanguage = function(lang) {
   const h1 = document.querySelector('.header h1');
   if (h1) {
     if (!window._originalTexts.has(h1.childNodes[0])) window._originalTexts.set(h1.childNodes[0], h1.textContent);
-    h1.textContent = lang==='ja'?'輸入見積計算ツール':(window._originalTexts.get(h1.childNodes[0])||'進口報價試算工具');
+    h1.textContent = lang==='ja'?'è¼¸å¥è¦ç©è¨ç®ãã¼ã«':(window._originalTexts.get(h1.childNodes[0])||'é²å£å ±å¹è©¦ç®å·¥å·');
   }
   const bt = document.querySelector('#batch-save-section h3');
-  if (bt) bt.innerHTML = lang==='ja'?'📦 ロット番号記録':'📦 批號紀錄';
+  if (bt) bt.innerHTML = lang==='ja'?'ð¦ ã­ããçªå·è¨é²':'ð¦ æ¹èç´é';
   refreshBatchLabels(lang);
 };
 window.refreshBatchLabels = function(lang) {
   const L = {
-    zh:{idLabel:'批號（Lot No.）',remarkLabel:'備注',saveBtn:'💾 保存本次試算',historyTitle:'歷史紀錄',clearBtn:'清除全部',
-        thLabels:['批號','保存時間','模式','總箱數','全批成本(TWD)','商品','操作']},
-    ja:{idLabel:'ロット番号',remarkLabel:'メモ',saveBtn:'💾 今回の試算を保存',historyTitle:'履歴',clearBtn:'全件削除',
-        thLabels:['ロット番号','保存日時','輸送モード','総箱数','全体コスト(TWD)','商品','操作']},
+    zh:{idLabel:'æ¹èï¼Lot No.ï¼',remarkLabel:'åæ³¨',saveBtn:'ð¾ ä¿å­æ¬æ¬¡è©¦ç®',historyTitle:'æ­·å²ç´é',clearBtn:'æ¸é¤å¨é¨',
+        thLabels:['æ¹è','ä¿å­æé','æ¨¡å¼','ç¸½ç®±æ¸','å¨æ¹ææ¬(TWD)','åå','æä½']},
+    ja:{idLabel:'ã­ããçªå·',remarkLabel:'ã¡ã¢',saveBtn:'ð¾ ä»åã®è©¦ç®ãä¿å­',historyTitle:'å±¥æ­´',clearBtn:'å¨ä»¶åé¤',
+        thLabels:['ã­ããçªå·','ä¿å­æ¥æ','è¼¸éã¢ã¼ã','ç·ç®±æ°','å¨ä½ã³ã¹ã(TWD)','åå','æä½']},
   }[lang]||{};
   const e=id=>document.getElementById(id);
   if(e('batch-id-label')) e('batch-id-label').textContent=L.idLabel;
@@ -1316,7 +1318,7 @@ window.refreshBatchLabels = function(lang) {
   const cb=document.querySelector('.btn-clear-records'); if(cb) cb.textContent=L.clearBtn;
   const ths=document.querySelectorAll('#batch-records-table thead th');
   ths.forEach((th,i)=>{if(L.thLabels&&L.thLabels[i]) th.textContent=L.thLabels[i];});
-  const ri=e('batch-remark-input'); if(ri) ri.placeholder=lang==='ja'?'メモを入力（任意）...':'可輸入備注（選填）...';
+  const ri=e('batch-remark-input'); if(ri) ri.placeholder=lang==='ja'?'ã¡ã¢ãå¥åï¼ä»»æï¼...':'å¯è¼¸å¥åæ³¨ï¼é¸å¡«ï¼...';
   renderBatchRecords();
 };
 window.toggleLanguage = function() {
@@ -1324,18 +1326,18 @@ window.toggleLanguage = function() {
   const btn=document.getElementById('lang-toggle-btn'), lang=window._langMode;
   if(lang==='ja'){
     btn.classList.add('ja-active');
-    btn.innerHTML='<span class="lang-flag">🇹🇼</span><span class="lang-label">中文</span>';
-    btn.title='中国語に切り替え';
+    btn.innerHTML='<span class="lang-flag">ð¹ð¼</span><span class="lang-label">ä¸­æ</span>';
+    btn.title='ä¸­å½èªã«åãæ¿ã';
   } else {
     btn.classList.remove('ja-active');
-    btn.innerHTML='<span class="lang-flag">🇯🇵</span><span class="lang-label">日本語</span>';
-    btn.title='日本語に切り替え / 切換為日文';
+    btn.innerHTML='<span class="lang-flag">ð¯ðµ</span><span class="lang-label">æ¥æ¬èª</span>';
+    btn.title='æ¥æ¬èªã«åãæ¿ã / åæçºæ¥æ';
   }
   window.applyLanguage(lang);
 };
-// ══════════════════════════════════════════════════════
-// ② 批號紀錄功能
-// ══════════════════════════════════════════════════════
+// ââââââââââââââââââââââââââââââââââââââââââââââââââââââ
+// â¡ æ¹èç´éåè½
+// ââââââââââââââââââââââââââââââââââââââââââââââââââââââ
 const BATCH_STORAGE_KEY='tmj_batch_records';
 function getBatchRecords(){try{return JSON.parse(localStorage.getItem(BATCH_STORAGE_KEY)||'[]');}catch(e){return[];}}
 function saveBatchRecords(r){localStorage.setItem(BATCH_STORAGE_KEY,JSON.stringify(r));}
@@ -1345,29 +1347,60 @@ window.renderBatchRecords=function(){
   const records=getBatchRecords(),tbody=document.getElementById('batch-records-tbody');
   if(!tbody)return;
   const lang=window._langMode||'zh';
-  const noMsg=lang==='ja'?'記録がありません。試算後に保存してください。':'暫無紀錄，試算後保存以供日後查閱';
-  const del=lang==='ja'?'削除':'刪除';
-  const detail=lang==='ja'?'詳細':'詳細';
+  const noMsg=lang==='ja'?'è¨é²ãããã¾ãããè©¦ç®å¾ã«ä¿å­ãã¦ãã ããã':'æ«ç¡ç´éï¼è©¦ç®å¾ä¿å­ä»¥ä¾æ¥å¾æ¥é±';
+  const del=lang==='ja'?'åé¤':'åªé¤';
+  const detail=lang==='ja'?'è©³ç´°':'è©³ç´°';
   if(!records.length){tbody.innerHTML='<tr><td colspan="7" class="no-records-msg">'+noMsg+'</td></tr>';return;}
   tbody.innerHTML='';
   [...records].reverse().forEach((r,i)=>{
-    const idx=records.length-1-i, mode=r.mode==='sea'?'🚢 海運':'✈ 空運', tr=document.createElement('tr');
+    const idx=records.length-1-i, mode=r.mode==='sea'?'ð¢ æµ·é':'â ç©ºé', tr=document.createElement('tr');
     tr.innerHTML='<td class="record-batch-id">'+escHtml(r.batchId)+'</td>'+
       '<td style="color:#718096;font-size:11px">'+r.savedAt+'</td>'+
-      '<td>'+mode+'</td><td class="r">'+r.totalBoxes+'箱</td>'+
+      '<td>'+mode+'</td><td class="r">'+r.totalBoxes+'ç®±</td>'+
       '<td class="r record-cost">'+Number(r.grandCost).toLocaleString('zh-TW')+' TWD</td>'+
       '<td class="record-products">'+escHtml(r.productNames)+'</td>'+
       '<td>'+
         '<button class="btn-view-record" onclick="viewBatchDetail('+idx+')">'+detail+'</button>'+
         '<button class="btn-del-record" onclick="deleteRecord('+idx+')">'+del+'</button>'+
+        '<button class="btn-excel-record" onclick="downloadBatchExcel('+idx+')">Excel</button>'+
       '</td>';
     tbody.appendChild(tr);
   });
 };
+window.downloadBatchExcel=function(idx){
+  const records=getBatchRecords();
+  const r=records[idx];
+  if(!r)return;
+  const m1=r.margin1||5, m2=r.margin2||10;
+  const mode=r.priceMode||'margin';
+  const rows=[];
+  rows.push(['批號','保存時間','運輸模式','僷格模式','掘厅1%','掘厅2%']);
+  rows.push([r.batchId,r.savedAt,r.mode==='sea'?'海運 SEA':'空運 AIR',mode==='markup'?'Markup':' Margin',m1+'%',m2+'%']);
+  rows.push([]);
+  rows.push(['商品名稱','符1(符1)','仕入(TWD/符1)','關稅(TWD/符1)','消費稅(TWD/符1)','商品成本小計','日本出口費','海上運費','台灣進口費','配送費','總成本/符1','建議售價①('+m1+'%)','建議售價②('+m2+'%)']);
+  (r.productRows||[]).forEach(function(p){
+    rows.push([p.name,p.qty,p.purch,p.dtyAmt,p.vatAmt,p.goods,p.jpPer,p.ocPer,p.twPer,p.saPer,p.total,p.p5,p.p10]);
+  });
+  rows.push([]);
+  rows.push(['全批總成本(TWD)',r.grandCost||'']);
+  const csv=rows.map(function(row){
+    return row.map(function(cell){
+      const s=cell===null||cell===undefined?'':String(cell);
+      return (s.indexOf(',')>=0||s.indexOf('"')>=0||s.indexOf('\n')>=0)?'"'+s.replace(/"/g,'""')+'"':s;
+    }).join(',');
+  }).join('\n');
+  const blob=new Blob(['\uFEFF'+csv],{type:'text/csv;charset=utf-8;'});
+  const url=URL.createObjectURL(blob);
+  const a=document.createElement('a');
+  a.href=url;
+  a.download='批號_'+(r.batchId||idx)+'_'+((r.savedAt||'').replace(/[\/: ]/g,'-'))+'.csv';
+  document.body.appendChild(a);a.click();document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+};
 window.deleteRecord=function(idx){const r=getBatchRecords();r.splice(idx,1);saveBatchRecords(r);renderBatchRecords();};
 window.clearAllRecords=function(){
   const lang=window._langMode||'zh';
-  if(confirm(lang==='ja'?'全ての履歴を削除しますか？':'確定要清除所有紀錄？')){saveBatchRecords([]);renderBatchRecords();}
+  if(confirm(lang==='ja'?'å¨ã¦ã®å±¥æ­´ãåé¤ãã¾ããï¼':'ç¢ºå®è¦æ¸é¤ææç´éï¼')){saveBatchRecords([]);renderBatchRecords();}
 }
 window.viewBatchDetail=function(idx){
   const records=getBatchRecords();
@@ -1377,40 +1410,40 @@ window.viewBatchDetail=function(idx){
   const title=document.getElementById('batch-detail-title');
   const body=document.getElementById('batch-detail-body');
   if(!overlay||!body)return;
-  const mode=r.mode==='sea'?'🚢 海運':'✈ 空運';
-  title.textContent='📦 批號詳細試算 — '+escHtml(r.batchId);
+  const mode=r.mode==='sea'?'ð¢ æµ·é':'â ç©ºé';
+  title.textContent='ð¦ æ¹èè©³ç´°è©¦ç® â '+escHtml(r.batchId);
   let html='<div class="detail-meta-cards">';
-  html+='<div class="detail-meta-card"><div class="dm-label">批號</div><div class="dm-val">'+escHtml(r.batchId)+'</div></div>';
-  html+='<div class="detail-meta-card"><div class="dm-label">保存時間</div><div class="dm-val" style="font-size:12px">'+r.savedAt+'</div></div>';
-  html+='<div class="detail-meta-card"><div class="dm-label">運輸模式</div><div class="dm-val">'+mode+'</div></div>';
-  html+='<div class="detail-meta-card"><div class="dm-label">總箱數</div><div class="dm-val">'+r.totalBoxes+' 箱</div></div>';
-  html+='<div class="detail-meta-card" style="border-left:3px solid #e94560"><div class="dm-label">全批總成本</div><div class="dm-val" style="color:#e94560">'+Number(r.grandCost).toLocaleString('zh-TW')+' TWD</div></div>';
+  html+='<div class="detail-meta-card"><div class="dm-label">æ¹è</div><div class="dm-val">'+escHtml(r.batchId)+'</div></div>';
+  html+='<div class="detail-meta-card"><div class="dm-label">ä¿å­æé</div><div class="dm-val" style="font-size:12px">'+r.savedAt+'</div></div>';
+  html+='<div class="detail-meta-card"><div class="dm-label">éè¼¸æ¨¡å¼</div><div class="dm-val">'+mode+'</div></div>';
+  html+='<div class="detail-meta-card"><div class="dm-label">ç¸½ç®±æ¸</div><div class="dm-val">'+r.totalBoxes+' ç®±</div></div>';
+  html+='<div class="detail-meta-card" style="border-left:3px solid #e94560"><div class="dm-label">å¨æ¹ç¸½ææ¬</div><div class="dm-val" style="color:#e94560">'+Number(r.grandCost).toLocaleString('zh-TW')+' TWD</div></div>';
   if(r.jpyRate) html+='<div class="detail-meta-card"><div class="dm-label">JPY/TWD</div><div class="dm-val">'+r.jpyRate+'</div></div>';
   if(r.usdRate&&r.mode==='sea') html+='<div class="detail-meta-card"><div class="dm-label">USD/TWD</div><div class="dm-val">'+r.usdRate+'</div></div>';
-  if(r.remark) html+='<div class="detail-meta-card" style="flex:1"><div class="dm-label">備注</div><div class="dm-val" style="font-size:12px">'+escHtml(r.remark)+'</div></div>';
+  if(r.remark) html+='<div class="detail-meta-card" style="flex:1"><div class="dm-label">åæ³¨</div><div class="dm-val" style="font-size:12px">'+escHtml(r.remark)+'</div></div>';
   html+='</div>';
   if(r.logistics){
-    html+='<div class="detail-section-title">物流費明細</div><div class="detail-logistics-grid">';
-    if(r.logistics.jpJPY!==undefined) html+='<div class="detail-log-block"><h5>🇯🇵 日本費 (JPY→TWD)</h5><div>¥'+Number(r.logistics.jpJPY||0).toLocaleString()+' → TWD '+Number(r.logistics.jpTWD||0).toLocaleString()+'</div></div>';
-    if(r.mode==='sea'&&r.logistics.oceanUSD!==undefined) html+='<div class="detail-log-block"><h5>🚢 海上運費 (USD→TWD)</h5><div>$'+Number(r.logistics.oceanUSD||0).toFixed(2)+' → TWD '+Number(r.logistics.oceanTWD||0).toLocaleString()+'</div></div>';
-    if(r.logistics.twBase!==undefined) html+='<div class="detail-log-block"><h5>🇹🇼 台灣進口費 (TWD含稅)</h5><div>NT$'+Number(r.logistics.twBase||0).toLocaleString()+' → TWD '+Number(r.logistics.twTWD||0).toLocaleString()+'</div></div>';
-    if(r.logistics.saBase!==undefined) html+='<div class="detail-log-block"><h5>🚚 倉儲配送費 (TWD含稅)</h5><div>NT$'+Number(r.logistics.saBase||0).toLocaleString()+' → TWD '+Number(r.logistics.saTWD||0).toLocaleString()+'</div></div>';
+    html+='<div class="detail-section-title">ç©æµè²»æç´°</div><div class="detail-logistics-grid">';
+    if(r.logistics.jpJPY!==undefined) html+='<div class="detail-log-block"><h5>ð¯ðµ æ¥æ¬è²» (JPYâTWD)</h5><div>Â¥'+Number(r.logistics.jpJPY||0).toLocaleString()+' â TWD '+Number(r.logistics.jpTWD||0).toLocaleString()+'</div></div>';
+    if(r.mode==='sea'&&r.logistics.oceanUSD!==undefined) html+='<div class="detail-log-block"><h5>ð¢ æµ·ä¸éè²» (USDâTWD)</h5><div>$'+Number(r.logistics.oceanUSD||0).toFixed(2)+' â TWD '+Number(r.logistics.oceanTWD||0).toLocaleString()+'</div></div>';
+    if(r.logistics.twBase!==undefined) html+='<div class="detail-log-block"><h5>ð¹ð¼ å°ç£é²å£è²» (TWDå«ç¨)</h5><div>NT$'+Number(r.logistics.twBase||0).toLocaleString()+' â TWD '+Number(r.logistics.twTWD||0).toLocaleString()+'</div></div>';
+    if(r.logistics.saBase!==undefined) html+='<div class="detail-log-block"><h5>ð åå²ééè²» (TWDå«ç¨)</h5><div>NT$'+Number(r.logistics.saBase||0).toLocaleString()+' â TWD '+Number(r.logistics.saTWD||0).toLocaleString()+'</div></div>';
     html+='</div>';
-    if(r.logistics.totalLog!==undefined) html+='<div style="text-align:right;font-size:13px;font-weight:700;color:#e94560;margin-bottom:12px">物流費合計：'+Number(r.logistics.totalLog||0).toLocaleString()+' TWD</div>';
+    if(r.logistics.totalLog!==undefined) html+='<div style="text-align:right;font-size:13px;font-weight:700;color:#e94560;margin-bottom:12px">ç©æµè²»åè¨ï¼'+Number(r.logistics.totalLog||0).toLocaleString()+' TWD</div>';
   }
   if(r.productRows&&r.productRows.length){
-    html+='<div class="detail-section-title">商品試算明細（每箱）</div>';
+    html+='<div class="detail-section-title">ååè©¦ç®æç´°ï¼æ¯ç®±ï¼</div>';
     const isSea=r.mode==='sea';
-    html+='<table class="detail-table"><thead><tr><th>商品名稱</th><th class="r">箱</th><th class="r">仕入/箱</th><th class="r">關稅/箱</th><th class="r">消費稅/箱</th><th class="r">商品小計</th>';
-    if(isSea) html+='<th class="r">日本費/箱</th><th class="r">海運費/箱</th><th class="r">台灣費/箱</th><th class="r">配送費/箱</th>';
-    else html+='<th class="r">日本費/箱</th><th class="r">台灣費/箱</th><th class="r">配送費/箱</th>';
-    html+='<th class="r" style="color:#e94560">總成本/箱</th><th class="r" style="color:#2b6cb0">建議售價①</th><th class="r" style="color:#276749">建議售價②</th></tr></thead><tbody>';
+    html+='<table class="detail-table"><thead><tr><th>åååç¨±</th><th class="r">ç®±</th><th class="r">ä»å¥/ç®±</th><th class="r">éç¨/ç®±</th><th class="r">æ¶è²»ç¨/ç®±</th><th class="r">ååå°è¨</th>';
+    if(isSea) html+='<th class="r">æ¥æ¬è²»/ç®±</th><th class="r">æµ·éè²»/ç®±</th><th class="r">å°ç£è²»/ç®±</th><th class="r">ééè²»/ç®±</th>';
+    else html+='<th class="r">æ¥æ¬è²»/ç®±</th><th class="r">å°ç£è²»/ç®±</th><th class="r">ééè²»/ç®±</th>';
+    html+='<th class="r" style="color:#e94560">ç¸½ææ¬/ç®±</th><th class="r" style="color:#2b6cb0">å»ºè­°å®å¹â </th><th class="r" style="color:#276749">å»ºè­°å®å¹â¡</th></tr></thead><tbody>';
     r.productRows.forEach(function(row){
       html+='<tr><td style="font-weight:600">'+escHtml(row.name||'')+'</td><td class="r">'+row.qty+'</td><td class="r">'+Math.round(row.purch||0).toLocaleString()+'</td><td class="r">'+Math.round(row.dtyAmt||0).toLocaleString()+'</td><td class="r">'+Math.round(row.vatAmt||0).toLocaleString()+'</td><td class="r" style="font-weight:700">'+Math.round(row.goods||0).toLocaleString()+'</td><td class="r">'+Math.round(row.jpPer||0).toLocaleString()+'</td>';
       if(isSea) html+='<td class="r" style="color:#1e40af">'+Math.round(row.ocPer||0).toLocaleString()+'</td>';
-      html+='<td class="r">'+Math.round(row.twPer||0).toLocaleString()+'</td><td class="r">'+Math.round(row.saPer||0).toLocaleString()+'</td><td class="r" style="font-weight:700;color:#e94560">'+Math.round(row.total||0).toLocaleString()+'</td><td class="r" style="color:#2b6cb0">▸ '+Math.round(row.p5||0).toLocaleString()+'</td><td class="r" style="color:#276749">▸ '+Math.round(row.p10||0).toLocaleString()+'</td></tr>';
+      html+='<td class="r">'+Math.round(row.twPer||0).toLocaleString()+'</td><td class="r">'+Math.round(row.saPer||0).toLocaleString()+'</td><td class="r" style="font-weight:700;color:#e94560">'+Math.round(row.total||0).toLocaleString()+'</td><td class="r" style="color:#2b6cb0">â¸ '+Math.round(row.p5||0).toLocaleString()+'</td><td class="r" style="color:#276749">â¸ '+Math.round(row.p10||0).toLocaleString()+'</td></tr>';
     });
-    html+='</tbody></table><div style="font-size:10px;color:#a0aec0;margin-top:4px">① 毛利'+r.margin1+'% 建議售價　② 毛利'+r.margin2+'% 建議售價</div>';
+    html+='</tbody></table><div style="font-size:10px;color:#a0aec0;margin-top:4px">â  æ¯å©'+r.margin1+'% å»ºè­°å®å¹ãâ¡ æ¯å©'+r.margin2+'% å»ºè­°å®å¹</div>';
   }
   body.innerHTML=html;
   overlay.classList.add('active');
@@ -1422,7 +1455,7 @@ window.closeBatchDetail=function(){
 window.saveBatchRecord=function(){
   const bi=document.getElementById('batch-id-input'),ri=document.getElementById('batch-remark-input');
   const batchId=bi.value.trim(),lang=window._langMode||'zh';
-  if(!batchId){alert(lang==='ja'?'ロット番号を入力してください':'請輸入批號');bi.focus();return;}
+  if(!batchId){alert(lang==='ja'?'ã­ããçªå·ãå¥åãã¦ãã ãã':'è«è¼¸å¥æ¹è');bi.focus();return;}
   const isSea=document.getElementById('transport_mode').value==='sea';
   const jpyRate=+document.getElementById('exchange_rate').value||0.21;
   const usdRate=+document.getElementById('usd_rate').value||32;
@@ -1436,7 +1469,7 @@ window.saveBatchRecord=function(){
     const lbl=c.querySelector('.lbl')?c.querySelector('.lbl').textContent:'';
     const val=c.querySelector('.val')?c.querySelector('.val').textContent:'';
     if(i===0)totalBoxes=val.replace(/[^0-9]/g,'');
-    if(lbl.includes('總成本')||lbl.includes('全批')||lbl.includes('全体'))grandCost=val.replace(/[^0-9]/g,'');
+    if(lbl.includes('ç¸½ææ¬')||lbl.includes('å¨æ¹')||lbl.includes('å¨ä½'))grandCost=val.replace(/[^0-9]/g,'');
   });
   const prods=Array.from(document.querySelectorAll('#prod-body td:first-child input[type="text"]')).map(function(x){return x.value;}).join(', ');
   const now=new Date(),savedAt=now.toLocaleString('zh-TW',{year:'numeric',month:'2-digit',day:'2-digit',hour:'2-digit',minute:'2-digit'});
@@ -1457,24 +1490,23 @@ window.saveBatchRecord=function(){
     const total=goods+jpPer+ocPer+twPer+saPer;
     return {name:p.name,qty:qty,purch:purch,dtyAmt:dtyAmt,vatAmt:vatAmt,goods:goods,
       jpPer:jpPer,ocPer:ocPer,twPer:twPer,saPer:saPer,total:total,
-      p5:m1>=100?null:total/(1-m1/100),p10:m2>=100?null:total/(1-m2/100)};
+      p5:m1>=100?null:(window._priceMode==='markup'?total*(1+m1/100):total/(1-m1/100)),p10:m2>=100?null:(window._priceMode==='markup'?total*(1+m2/100):total/(1-m2/100))};
   });
   const rec={batchId:batchId,remark:ri.value.trim(),savedAt:savedAt,mode:isSea?'sea':'air',
     totalBoxes:totBoxes,grandCost:Math.round(productRows.reduce(function(s,r){return s+r.total*r.qty;},0)),
-    productNames:prods,jpyRate:jpyRate,usdRate:usdRate,margin1:m1,margin2:m2,
+    productNames:prods,jpyRate:jpyRate,usdRate:usdRate,margin1:m1,margin2:m2,priceMode:window._priceMode||'margin',
     logistics:{jpJPY:Math.round(jpJPY),jpTWD:Math.round(jpTWD),oceanUSD:Math.round(oceanUSD*100)/100,
       oceanTWD:Math.round(oceanTWD),twBase:Math.round(twBase),twTWD:Math.round(twTWD),
       saBase:Math.round(saBase),saTWD:Math.round(saTWD),totalLog:Math.round(totalLog)},
     productRows:productRows};
   const recs=getBatchRecords(); recs.push(rec); saveBatchRecords(recs);
   bi.value=''; ri.value=''; renderBatchRecords();
-  showToast(lang==='ja'?'✅ 保存しました！ロット番号：'+batchId:'✅ 試算已保存！批號：'+batchId);
+  showToast(lang==='ja'?'â ä¿å­ãã¾ããï¼ã­ããçªå·ï¼'+batchId:'â è©¦ç®å·²ä¿å­ï¼æ¹èï¼'+batchId);
 };;
 
-  // ══════════════════════════════════════════════════════
+  // ââââââââââââââââââââââââââââââââââââââââââââââââââââââ
   // Markup / Margin Toggle
-  // ══════════════════════════════════════════════════════
-  window._priceMode = 'margin'; // 預設 margin 模式
+  // ââââââââââââââââââââââââââââââââââââââââââââââââââââââ
 
   window.setPriceMode = function(mode) {
     window._priceMode = mode;
@@ -1483,7 +1515,7 @@ window.saveBatchRecord=function(){
     if (btnMu) btnMu.className = 'pm-btn' + (mode === 'markup' ? ' pm-markup-on' : '');
     if (btnMg) btnMg.className = 'pm-btn' + (mode === 'margin' ? ' pm-margin-on' : '');
     const desc = document.getElementById('price-mode-desc');
-    if (desc) desc.textContent = mode === 'markup' ? '售價 = 成本 × (1 + 毛利%)' : '售價 = 成本 ÷ (1 − 毛利%)';
+    if (desc) desc.textContent = mode === 'markup' ? 'å®å¹ = ææ¬ Ã (1 + æ¯å©%)' : 'å®å¹ = ææ¬ Ã· (1 â æ¯å©%)';
     recalc();
   };
 
