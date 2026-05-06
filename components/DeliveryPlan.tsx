@@ -191,7 +191,6 @@ export default function DeliveryPlan({ batchId, batchName, totalBoxes, records, 
   }
 
   // ââ åªå²åºåº«å® âââââââââââââââââââââââââââââââââââââââ
-  function 
   // ââ XLS Update âââââââââââââââââââââââââââââââââââââââ
   function computeDiff(parsed: ParsedDeliveryRound[]): DiffRound[] {
     const excelCount = parsed.length
@@ -459,7 +458,6 @@ export default function DeliveryPlan({ batchId, batchName, totalBoxes, records, 
     })
   }
 
-  function 
   const addSaveDisabled  = saving || rounds.every(r => !r.date || !r.stores.some(s => s.boxes && Number(s.boxes) > 0))
   const editSaveDisabled = saving || !editRound?.date || !editRound?.stores.some(s => s.boxes && Number(s.boxes) > 0)
 
