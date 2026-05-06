@@ -1374,10 +1374,10 @@ window.downloadBatchExcel=function(idx){
   const m1=r.margin1||5, m2=r.margin2||10;
   const mode=r.priceMode||'margin';
   const rows=[];
-  rows.push(['批號','保存時間','運輸模式','僷格模式','掘厅1%','掘厅2%']);
+  rows.push(['批號','保存時間','運輸模式','價格模式','毛利1%','毛利2%']);
   rows.push([r.batchId,r.savedAt,r.mode==='sea'?'海運 SEA':'空運 AIR',mode==='markup'?'Markup':' Margin',m1+'%',m2+'%']);
   rows.push([]);
-  rows.push(['商品名稱','符1(符1)','仕入(TWD/符1)','關稅(TWD/符1)','消費稅(TWD/符1)','商品成本小計','日本出口費','海上運費','台灣進口費','配送費','總成本/符1','建議售價①('+m1+'%)','建議售價②('+m2+'%)']);
+  rows.push(['商品名稱','數量(件)','仕入(TWD/件)','關稅(TWD/件)','消費稅(TWD/件)','商品成本小計','日本出口費','海上運費','台灣進口費','配送費','總成本/件','建議售價①('+m1+'%)','建議售價②('+m2+'%)']);
   (r.productRows||[]).forEach(function(p){
     rows.push([p.name,p.qty,p.purch,p.dtyAmt,p.vatAmt,p.goods,p.jpPer,p.ocPer,p.twPer,p.saPer,p.total,p.p5,p.p10]);
   });
@@ -1515,7 +1515,7 @@ window.saveBatchRecord=function(){
     if (btnMu) btnMu.className = 'pm-btn' + (mode === 'markup' ? ' pm-markup-on' : '');
     if (btnMg) btnMg.className = 'pm-btn' + (mode === 'margin' ? ' pm-margin-on' : '');
     const desc = document.getElementById('price-mode-desc');
-    if (desc) desc.textContent = mode === 'markup' ? 'å®å¹ = ææ¬ Ã (1 + æ¯å©%)' : 'å®å¹ = ææ¬ Ã· (1 â æ¯å©%)';
+    if (desc) desc.textContent = mode === 'markup' ? '售價 = 成本 × (1 + 毛利%)' : '售價 = 成本 ÷ (1 − 毛利%)';
     recalc();
   };
 
