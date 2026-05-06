@@ -52,35 +52,22 @@ export async function POST(req: NextRequest) {
       // 4. Parse supplier Excel (include 0-box products per skill spec)
       const parsed = await parseDeliveryExcel(supplierBuffer, true)
           const roundData = parsed.find(r => r.roundNo === roundNo)
+          if (!roundData) {
+                  return NextResponse.json({ error: `找不到第 ${roundNo} 回目的資料，請確認 Excel 格式` }, { status: 404 })
+          }
 
-      // 5. Build store orders
+      // 5. Build store orders (Excel-driven, matching generate-order-free auto mode)
       const storeOrders: StoreOrder[] = []
             for (const record of roundRecords) {
                     if (!record.store) continue
-
-            // Find matching product data from supplier Excel
-            let products = roundData?.stores.find(s => s.name === record.store)?.products
-                    if (!products || products.length === 0) {
-                              // Try fuzzy match via EXCEL_STORE_MAP
-                      const shortName = Object.entries(EXCEL_STORE_MAP).find(([, full]) => full === record.store)?.[0]
-                              if (shortName) {
-                                          products = roundData?.stores.find(s =>
-                                                        s.name === shortName || s.name === record.store
-                                                                                      )?.products
-                              }
-                    }
-
-            storeOrders.push({
-                      storeName: record.store,
-                      products: products ?? [{
-                                  name: batch.productSummary ?? batch.ivName,
-                                  boxSpec: '',
-                                  quantity: record.boxes ?? 0,
-                                  unitPrice: 0,
-                                  category: '水果',
-                      }],
-                deliveryDate,
-            })
+                    const storeName = record.store
+                    const storeCode = Object.entries(EXCEL_STORE_MAP).find(([, full]) => full === storeName)?.[0]
+                    const storeData = roundData.stores.find(s => s.name === storeName || s.name === storeCode)
+                    storeOrders.push({
+                              storeName,
+                              products: storeData?.products ?? [],
+                              deliveryDate: record.date ?? deliveryDate,
+                    })
             }
 
       // 6. Generate shipment number

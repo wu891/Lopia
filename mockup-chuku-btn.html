@@ -1,0 +1,199 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>優儲出庫單按鈕 — 模擬圖</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<style>
+  body { font-family: 'Microsoft JhengHei', sans-serif; background: #f5f5f5; }
+  .lopia-red { color: #e53e3e; }
+  .bg-lopia-red { background: #e53e3e; }
+</style>
+</head>
+<body class="p-8">
+
+<h1 class="text-lg font-bold text-gray-700 mb-2">UI 模擬圖 — 優儲出庫單按鈕</h1>
+<p class="text-sm text-gray-500 mb-8">對比：移除鎖定按鈕 / 新增優儲出庫單按鈕</p>
+
+<!-- ===== BEFORE ===== -->
+<div class="mb-10">
+  <div class="text-xs font-bold text-gray-400 uppercase tracking-widest mb-3">BEFORE（現在）</div>
+  <div class="bg-white rounded-xl shadow border border-gray-100 overflow-hidden w-full max-w-lg">
+    <!-- 批次標題 -->
+    <div class="px-3 py-2 bg-red-50 border-b border-red-100">
+      <span class="text-xs font-semibold text-red-700">2026年3月 第10批</span>
+    </div>
+
+    <!-- 第3次 列 -->
+    <div class="flex items-center gap-2 px-3 py-2.5 bg-white hover:bg-gray-50 cursor-pointer border-b border-gray-100">
+      <span class="text-gray-400 text-xs">▶</span>
+      <span class="text-xs font-medium text-gray-700">第3次</span>
+      <span class="text-xs text-gray-400">5/8</span>
+      <div class="flex gap-1 flex-wrap ml-1">
+        <span class="px-1.5 py-0.5 bg-red-50 text-red-600 rounded text-xs">高雄夢時代店 8箱</span>
+        <span class="px-1.5 py-0.5 bg-red-50 text-red-600 rounded text-xs">台南三井 Outlet 7箱</span>
+        <span class="px-1.5 py-0.5 bg-red-50 text-red-600 rounded text-xs">台北大巨蛋 52箱</span>
+        <span class="px-1.5 py-0.5 bg-gray-100 text-gray-500 rounded text-xs">+9</span>
+      </div>
+      <span class="text-gray-700 font-semibold text-xs whitespace-nowrap ml-auto">137箱</span>
+      <!-- 按鈕群 -->
+      <div class="flex gap-1 flex-shrink-0">
+        <!-- 產生出貨單 -->
+        <button class="text-blue-400 hover:text-blue-600 text-xs" title="產生出貨單">📄</button>
+        <!-- 鎖定（即將移除） -->
+        <button class="text-gray-400 hover:text-amber-500 text-xs" title="鎖定">🔓</button>
+        <!-- 編輯 -->
+        <button class="text-gray-400 hover:text-red-500 text-xs">✏</button>
+        <!-- 刪除 -->
+        <button class="text-gray-400 hover:text-red-500 text-xs">✕</button>
+      </div>
+    </div>
+
+    <!-- 第4次 列 -->
+    <div class="flex items-center gap-2 px-3 py-2.5 bg-white hover:bg-gray-50 cursor-pointer">
+      <span class="text-gray-400 text-xs">▶</span>
+      <span class="text-xs font-medium text-gray-700">第4次</span>
+      <span class="text-xs text-gray-400">5/15</span>
+      <div class="flex gap-1 flex-wrap ml-1">
+        <span class="px-1.5 py-0.5 bg-red-50 text-red-600 rounded text-xs">南港 LaLaport 9箱</span>
+        <span class="px-1.5 py-0.5 bg-red-50 text-red-600 rounded text-xs">IKEA台中 7箱</span>
+        <span class="px-1.5 py-0.5 bg-gray-100 text-gray-500 rounded text-xs">+9</span>
+      </div>
+      <span class="text-gray-700 font-semibold text-xs whitespace-nowrap ml-auto">105箱</span>
+      <div class="flex gap-1 flex-shrink-0">
+        <button class="text-blue-400 hover:text-blue-600 text-xs" title="產生出貨單">📄</button>
+        <button class="text-amber-500 text-xs" title="解鎖">🔒</button>
+        <button class="text-gray-300 cursor-not-allowed text-xs">✏</button>
+        <button class="text-gray-300 cursor-not-allowed text-xs">✕</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ===== AFTER ===== -->
+<div class="mb-10">
+  <div class="text-xs font-bold text-green-600 uppercase tracking-widest mb-3">AFTER（修改後）</div>
+  <div class="bg-white rounded-xl shadow border border-gray-100 overflow-hidden w-full max-w-lg">
+    <div class="px-3 py-2 bg-red-50 border-b border-red-100">
+      <span class="text-xs font-semibold text-red-700">2026年3月 第10批</span>
+    </div>
+
+    <!-- 第3次 列（展開前） -->
+    <div class="flex items-center gap-2 px-3 py-2.5 bg-white hover:bg-gray-50 cursor-pointer border-b border-gray-100">
+      <span class="text-gray-400 text-xs">▶</span>
+      <span class="text-xs font-medium text-gray-700">第3次</span>
+      <span class="text-xs text-gray-400">5/8</span>
+      <div class="flex gap-1 flex-wrap ml-1">
+        <span class="px-1.5 py-0.5 bg-red-50 text-red-600 rounded text-xs">高雄夢時代店 8箱</span>
+        <span class="px-1.5 py-0.5 bg-red-50 text-red-600 rounded text-xs">台南三井 Outlet 7箱</span>
+        <span class="px-1.5 py-0.5 bg-red-50 text-red-600 rounded text-xs">台北大巨蛋 52箱</span>
+        <span class="px-1.5 py-0.5 bg-gray-100 text-gray-500 rounded text-xs">+9</span>
+      </div>
+      <span class="text-gray-700 font-semibold text-xs whitespace-nowrap ml-auto">137箱</span>
+      <!-- 按鈕群：鎖定移除，新增優儲 -->
+      <div class="flex gap-1 flex-shrink-0">
+        <button class="text-blue-400 hover:text-blue-600 text-xs" title="產生出貨單">📄</button>
+        <!-- 新增優儲出庫單按鈕 -->
+        <button class="text-emerald-500 hover:text-emerald-700 text-xs font-medium" title="優儲出庫單">🏭</button>
+        <button class="text-gray-400 hover:text-red-500 text-xs">✏</button>
+        <button class="text-gray-400 hover:text-red-500 text-xs">✕</button>
+      </div>
+    </div>
+
+    <!-- 第3次 展開後 -->
+    <div class="bg-white border-b border-gray-100">
+      <div class="flex items-center gap-2 px-3 py-2.5 bg-gray-50 cursor-pointer border-b border-gray-100">
+        <span class="text-gray-600 text-xs">▼</span>
+        <span class="text-xs font-medium text-gray-700">第3次</span>
+        <span class="text-xs text-gray-400">5/8</span>
+        <span class="text-gray-700 font-semibold text-xs whitespace-nowrap ml-auto">137箱</span>
+        <div class="flex gap-1 flex-shrink-0">
+          <button class="text-blue-400 hover:text-blue-600 text-xs" title="產生出貨單">📄</button>
+          <button class="text-emerald-500 hover:text-emerald-700 text-xs font-medium" title="優儲出庫單">🏭</button>
+          <button class="text-gray-400 hover:text-red-500 text-xs">✏</button>
+          <button class="text-gray-400 hover:text-red-500 text-xs">✕</button>
+        </div>
+      </div>
+      <!-- 展開的門市明細 -->
+      <div class="px-4 py-2.5 space-y-1 bg-white border-b border-red-100">
+        <div class="flex items-center justify-between text-xs">
+          <span class="text-gray-600">高雄夢時代店</span>
+          <span class="font-semibold text-gray-800">8箱</span>
+        </div>
+        <div class="flex items-center justify-between text-xs">
+          <span class="text-gray-600">台南三井 Outlet</span>
+          <span class="font-semibold text-gray-800">7箱</span>
+        </div>
+        <div class="flex items-center justify-between text-xs">
+          <span class="text-gray-600">台北大巨蛋</span>
+          <span class="font-semibold text-gray-800">52箱</span>
+        </div>
+        <div class="flex items-center justify-between text-xs pt-1.5 border-t border-gray-100 font-semibold text-gray-700">
+          <span>小計</span>
+          <span>137箱</span>
+        </div>
+        <!-- 底部按鈕區 -->
+        <div class="pt-1.5 border-t border-gray-100 flex gap-2">
+          <button class="flex-1 py-1.5 bg-blue-50 text-blue-600 text-xs font-medium rounded-lg hover:bg-blue-100 transition-colors flex items-center justify-center gap-1">
+            📄 產生出貨單
+          </button>
+          <button
+            onclick="this.textContent='選擇檔案中...'; setTimeout(()=>this.innerHTML='🏭 優儲出庫單', 1500)"
+            class="flex-1 py-1.5 bg-emerald-50 text-emerald-700 text-xs font-medium rounded-lg hover:bg-emerald-100 transition-colors flex items-center justify-center gap-1">
+            🏭 優儲出庫單
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- 第4次 列 -->
+    <div class="flex items-center gap-2 px-3 py-2.5 bg-white hover:bg-gray-50 cursor-pointer">
+      <span class="text-gray-400 text-xs">▶</span>
+      <span class="text-xs font-medium text-gray-700">第4次</span>
+      <span class="text-xs text-gray-400">5/15</span>
+      <div class="flex gap-1 flex-wrap ml-1">
+        <span class="px-1.5 py-0.5 bg-red-50 text-red-600 rounded text-xs">南港 LaLaport 9箱</span>
+        <span class="px-1.5 py-0.5 bg-gray-100 text-gray-500 rounded text-xs">+9</span>
+      </div>
+      <span class="text-gray-700 font-semibold text-xs whitespace-nowrap ml-auto">105箱</span>
+      <div class="flex gap-1 flex-shrink-0">
+        <button class="text-blue-400 hover:text-blue-600 text-xs" title="產生出貨單">📄</button>
+        <button class="text-emerald-500 hover:text-emerald-700 text-xs font-medium" title="優儲出庫單">🏭</button>
+        <button class="text-gray-400 hover:text-red-500 text-xs">✏</button>
+        <button class="text-gray-400 hover:text-red-500 text-xs">✕</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- File picker 流程說明 -->
+<div class="max-w-lg">
+  <div class="text-xs font-bold text-gray-400 uppercase tracking-widest mb-3">點擊「優儲出庫單」後的流程</div>
+  <div class="bg-white rounded-xl shadow border border-gray-100 p-4 space-y-3">
+    <div class="flex items-start gap-3">
+      <span class="flex-shrink-0 w-6 h-6 bg-emerald-100 text-emerald-700 rounded-full flex items-center justify-center text-xs font-bold">1</span>
+      <div>
+        <div class="text-xs font-semibold text-gray-700">跳出系統檔案選擇框</div>
+        <div class="text-xs text-gray-400 mt-0.5">選擇本機的 庫存管理表_v8.xlsx</div>
+      </div>
+    </div>
+    <div class="flex items-start gap-3">
+      <span class="flex-shrink-0 w-6 h-6 bg-emerald-100 text-emerald-700 rounded-full flex items-center justify-center text-xs font-bold">2</span>
+      <div>
+        <div class="text-xs font-semibold text-gray-700">系統自動讀取「第3回出貨明細」</div>
+        <div class="text-xs text-gray-400 mt-0.5">對應平台上的「第3次」輪次</div>
+      </div>
+    </div>
+    <div class="flex items-start gap-3">
+      <span class="flex-shrink-0 w-6 h-6 bg-emerald-100 text-emerald-700 rounded-full flex items-center justify-center text-xs font-bold">3</span>
+      <div>
+        <div class="text-xs font-semibold text-gray-700">直接下載出庫單 Excel</div>
+        <div class="text-xs text-gray-400 mt-0.5">格式：優儲出庫總單_第3回_20260508.xlsx</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+</body>
+</html>
