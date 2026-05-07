@@ -304,6 +304,25 @@ table.res-table { width:100%;border-collapse:collapse;font-size:12px; }
   text-align: center;
   white-space: nowrap;
 }
+.manual-jp-row {
+  display:flex;align-items:center;gap:10px;
+  padding:8px 12px;margin-bottom:8px;
+  background:#fff8f0;border:1px dashed #f6ad55;border-radius:8px;
+}
+.manual-jp-row label {
+  display:flex;align-items:center;gap:6px;
+  font-size:12px;font-weight:700;color:#92400e;white-space:nowrap;cursor:pointer;
+}
+.manual-jp-row input[type="number"] {
+  width:140px;padding:4px 8px;border:1px solid #f6ad55;border-radius:6px;
+  font-size:13px;font-weight:700;color:#c05621;text-align:right;
+  background:#fffaf3;
+}
+.manual-jp-row .manual-hint {
+  font-size:11px;color:#a0aec0;
+}
+.item-table.table-greyed tbody { opacity:0.35;pointer-events:none; }
+.item-table.table-greyed thead { opacity:0.5; }
 </style>
 </head>
 <body>
@@ -405,7 +424,17 @@ table.res-table { width:100%;border-collapse:collapse;font-size:12px; }
             <span class="cbm-val" id="cbm-disp-jp">0.000</span>
             <span>m³　由商品尺寸自動累算</span>
           </div>
-          <table class="item-table">
+          <!-- 手動輸入總費用 -->
+          <div class="manual-jp-row" id="manual-jp-row">
+            <label>
+              <input type="checkbox" id="jp-manual-toggle" onchange="toggleJpManual()">
+              手動輸入總費用
+            </label>
+            <input type="number" id="jp-manual-total" placeholder="輸入 JPY 總費用"
+                   style="display:none" oninput="recalc()">
+            <span class="manual-hint" id="jp-manual-hint" style="display:none">貨代提供報價，覆蓋細項計算</span>
+          </div>
+          <table class="item-table" id="table-jp">
             <thead><tr>
               <th>項目</th>
               <th class="r">単価</th>
@@ -1069,6 +1098,18 @@ function syncMarginHeader() {
   document.getElementById('hdr-m2').textContent = m2;
 }
 
+function toggleJpManual() {
+  const on     = document.getElementById('jp-manual-toggle').checked;
+  const input  = document.getElementById('jp-manual-total');
+  const hint   = document.getElementById('jp-manual-hint');
+  const table  = document.getElementById('table-jp');
+  input.style.display = on ? '' : 'none';
+  hint.style.display  = on ? '' : 'none';
+  table.classList.toggle('table-greyed', on);
+  if (!on) input.value = '';
+  recalc();
+}
+
 function recalc() {
   const jpyRate  = +document.getElementById('exchange_rate').value || 0.21;
   const usdRate  = +document.getElementById('usd_rate').value || 32;
@@ -1093,7 +1134,9 @@ function recalc() {
   const activeJp = isSea ? seaJpItems : jpItems;
   const activeTw = isSea ? seaTwItems : twItems;
 
-  const jpJPY   = sectionTotal(activeJp);
+  const jpManualOn  = document.getElementById('jp-manual-toggle')?.checked;
+  const jpManualVal = +document.getElementById('jp-manual-total')?.value || 0;
+  const jpJPY   = (jpManualOn && jpManualVal) ? jpManualVal : sectionTotal(activeJp);
   // seaTwItems 含 isUSD 項目（Low Sulphur），需乘 usdRate 換成 TWD
   const twBase  = isSea
     ? activeTw.reduce((s,x) => s + (x.en ? x.rate * x.qty * (x.isUSD ? usdRate : 1) : 0), 0)
