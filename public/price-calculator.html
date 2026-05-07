@@ -181,6 +181,31 @@ table.res-table { width:100%;border-collapse:collapse;font-size:12px; }
 
 .chip-low  { background:#f0fff4;color:#22543d;font-weight:700;padding:3px 8px;border-radius:5px;display:inline-block; }
 .chip-high { background:#ebf8ff;color:#1a365d;font-weight:700;padding:3px 8px;border-radius:5px;display:inline-block; }
+.price-cell-wrap { position:relative;display:inline-flex;align-items:center; }
+.price-cell-input {
+  width:78px;padding:4px 22px 4px 6px;border:1px solid #e2e8f0;border-radius:6px;
+  text-align:right;font-size:13px;font-weight:700;color:#22543d;background:#f0fff4;
+  outline:none;font-family:inherit;transition:border-color .15s,background .15s;
+}
+.price-cell-input:focus { border-color:#38a169;background:#fff; }
+.price-cell-input.manual { border-color:#3b82f6;background:#eff6ff;color:#1d4ed8; }
+.price-cell-input.manual:focus { border-color:#2563eb; }
+.price-cell-clear {
+  position:absolute;right:4px;border:none;background:none;cursor:pointer;
+  font-size:10px;color:#3b82f6;padding:0;line-height:1;font-weight:700;
+}
+.price-cell-clear:hover { color:#e74c3c; }
+.manual-reset-bar {
+  display:none;align-items:center;justify-content:flex-end;gap:10px;
+  padding:8px 16px;background:#eff6ff;border:1px solid #bfdbfe;
+  border-radius:8px;margin-top:10px;
+}
+.manual-count-badge { font-size:12px;color:#1d4ed8;font-weight:600; }
+.manual-reset-btn {
+  background:white;border:1px solid #3b82f6;color:#3b82f6;
+  padding:5px 14px;border-radius:7px;font-size:12px;cursor:pointer;font-family:inherit;font-weight:600;
+}
+.manual-reset-btn:hover { background:#dbeafe; }
 .margin-input-wrap { display:flex;align-items:center;justify-content:center;gap:4px;white-space:nowrap; }
 .margin-input {
   width:46px;padding:3px 5px;border:1px solid rgba(255,255,255,.3);border-radius:5px;
@@ -614,6 +639,10 @@ table.res-table { width:100%;border-collapse:collapse;font-size:12px; }
     </div>
     <div class="note-bar" id="note-bar">
       <strong>公式：</strong>建議售價 = 總成本/箱 ÷ (1 − 毛利率)　|　關稅稅基 = 仕入TWD　|　消費稅稅基 = 仕入 + 關稅　|　台灣進口費＆配送費自動加算 5% 消費稅
+    </div>
+    <div class="manual-reset-bar" id="manual-reset-bar">
+      <span class="manual-count-badge" id="manual-count-badge"></span>
+      <button class="manual-reset-btn" onclick="resetAllManualPrices()">↺ 重設全部為自動計算</button>
     </div>
   </div>
 
@@ -1245,7 +1274,12 @@ function recalc() {
   // ── 結果表格 tbody ──
   const tbody = document.getElementById('res-body');
   tbody.innerHTML = '';
-  rows.forEach(r => {
+  rows.forEach((r, idx) => {
+    const key5 = `${idx}_p5`, key10 = `${idx}_p10`;
+    const isM5 = window._manualPrices[key5] !== undefined;
+    const isM10 = window._manualPrices[key10] !== undefined;
+    const disp5  = isM5  ? window._manualPrices[key5]  : Math.round(r.p5);
+    const disp10 = isM10 ? window._manualPrices[key10] : Math.round(r.p10);
     const logCells = isSea
       ? `<td class="r">${fmt(r.jpPer)}</td>
          <td class="r" style="color:#1e40af">${fmt(r.ocPer)}</td>
@@ -1264,11 +1298,32 @@ function recalc() {
       <td class="r" style="font-weight:700">${fmt(r.goods)}</td>
       ${logCells}
       <td class="r cost-total">${fmt(r.total)}</td>
-      <td class="r"><span class="chip-low">▸ ${fmt(r.p5)}</span></td>
-      <td class="r"><span class="chip-high">▸ ${fmt(r.p10)}</span></td>
+      <td class="r">
+        <div class="price-cell-wrap">
+          <input type="number" class="price-cell-input${isM5?' manual':''}"
+            value="${disp5}" title="${isM5?'手動覆蓋中·點✕還原':'可手動輸入售價，毛利率自動反算'}"
+            oninput="onPriceInput(${idx},'p5',+this.value,${r.total})">
+          ${isM5?`<button class="price-cell-clear" onclick="clearManualPrice(${idx},'p5')" title="還原自動計算">✕</button>`:''}
+        </div>
+      </td>
+      <td class="r">
+        <div class="price-cell-wrap">
+          <input type="number" class="price-cell-input${isM10?' manual':''}"
+            value="${disp10}" title="${isM10?'手動覆蓋中·點✕還原':'可手動輸入售價，毛利率自動反算'}"
+            oninput="onPriceInput(${idx},'p10',+this.value,${r.total})">
+          ${isM10?`<button class="price-cell-clear" onclick="clearManualPrice(${idx},'p10')" title="還原自動計算">✕</button>`:''}
+        </div>
+      </td>
     `;
     tbody.appendChild(tr);
   });
+
+  // ── 更新重設列 ──
+  const manualCount = Object.keys(window._manualPrices).length;
+  const resetBar = document.getElementById('manual-reset-bar');
+  const countBadge = document.getElementById('manual-count-badge');
+  if (resetBar) resetBar.style.display = manualCount > 0 ? 'flex' : 'none';
+  if (countBadge) countBadge.textContent = `● ${manualCount} 格已手動覆蓋`;
 
   const footColspan = isSea ? 10 : 9;
   document.getElementById('res-foot').innerHTML = `
@@ -1688,6 +1743,33 @@ window.saveBatchRecord=async function(){
   // Markup / Margin Toggle
   // ══════════════════════════════════════════════════════
   window._priceMode = 'margin'; // 預設 margin 模式
+  window._manualPrices = {};
+
+  // ── 手動售價輸入：反算毛利率，兩欄聯動更新 ──
+  window.onPriceInput = function(idx, col, price, totalCost) {
+    if (!price || price <= 0 || !totalCost) return;
+    window._manualPrices[`${idx}_${col}`] = Math.round(price);
+    const marginInputId = col === 'p5' ? 'margin1' : 'margin2';
+    const mode = window._priceMode;
+    let newPct = mode === 'markup'
+      ? (price / totalCost - 1) * 100
+      : (1 - totalCost / price) * 100;
+    newPct = Math.round(newPct * 10) / 10;
+    const el = document.getElementById(marginInputId);
+    if (el) el.value = newPct;
+    syncMarginHeader();
+    recalc();
+  };
+
+  window.clearManualPrice = function(idx, col) {
+    delete window._manualPrices[`${idx}_${col}`];
+    recalc();
+  };
+
+  window.resetAllManualPrices = function() {
+    window._manualPrices = {};
+    recalc();
+  };
 
   window.setPriceMode = function(mode) {
     window._priceMode = mode;
