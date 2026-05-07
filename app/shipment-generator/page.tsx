@@ -718,10 +718,277 @@ function GeneratorPanel() {
   )
 }
 
+// ── 優儲出貨單 Panel ──────────────────────────────────────────────────────────
+
+type OutputType = 'store' | 'chuku' | 'both'
+
+function YushuPanel() {
+  const [kanriFile, setKanriFile]     = useState<File | null>(null)
+  const [planFile, setPlanFile]       = useState<File | null>(null)
+  const [availRounds, setAvailRounds] = useState<number[]>([])
+  const [round, setRound]             = useState<number | null>(null)
+  const [date, setDate]               = useState('')
+  const [suffix, setSuffix]           = useState('01')
+  const [batchLabel, setBatchLabel]   = useState('')
+  const [outputType, setOutputType]   = useState<OutputType>('both')
+  const [analyzing, setAnalyzing]     = useState(false)
+  const [generating, setGenerating]   = useState(false)
+  const [error, setError]             = useState<string | null>(null)
+  const [done, setDone]               = useState<string[]>([])
+
+  const kanriRef = useRef<HTMLInputElement>(null)
+  const planRef  = useRef<HTMLInputElement>(null)
+
+  async function handleKanri(f: File) {
+    setKanriFile(f)
+    setAvailRounds([])
+    setRound(null)
+    setAnalyzing(true)
+    try {
+      const XLSX = await import('xlsx')
+      const buf  = await f.arrayBuffer()
+      const wb   = XLSX.read(buf, { type: 'array' })
+      const rounds: number[] = []
+      for (const sn of wb.SheetNames) {
+        const m = sn.match(/第(\d+)回出貨明細/)
+        if (m) rounds.push(parseInt(m[1]))
+      }
+      const sorted = rounds.sort((a, b) => a - b)
+      setAvailRounds(sorted)
+      if (sorted.length === 1) setRound(sorted[0])
+    } catch { /* ignore */ } finally {
+      setAnalyzing(false)
+    }
+  }
+
+  const canGenerate = !!kanriFile && !!planFile && round !== null && !!date && !!suffix && !!batchLabel
+
+  async function handleGenerate() {
+    if (!canGenerate) return
+    setGenerating(true)
+    setError(null)
+    setDone([])
+    try {
+      const form = new FormData()
+      form.append('kanriFile',  kanriFile!)
+      form.append('planFile',   planFile!)
+      form.append('round',      String(round))
+      form.append('date',       date)
+      form.append('suffix',     suffix)
+      form.append('batchLabel', batchLabel)
+      form.append('outputType', outputType)
+
+      const res = await fetch('/api/generate-yushu-order', { method: 'POST', body: form })
+      if (!res.ok) {
+        const d = await res.json().catch(() => ({}))
+        setError(d.error ?? '產生失敗')
+        return
+      }
+
+      if (outputType === 'both') {
+        const json = await res.json()
+        const files: [string, string][] = [
+          [json.storeFile.name, json.storeFile.data],
+          [json.chukuFile.name, json.chukuFile.data],
+        ]
+        const downloaded: string[] = []
+        for (const [name, b64] of files) {
+          const bytes  = Uint8Array.from(atob(b64), c => c.charCodeAt(0))
+          const blob   = new Blob([bytes], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' })
+          const url    = URL.createObjectURL(blob)
+          const a      = document.createElement('a')
+          a.href       = url
+          a.download   = name
+          a.click()
+          URL.revokeObjectURL(url)
+          downloaded.push(name)
+          await new Promise(r => setTimeout(r, 300))
+        }
+        setDone(downloaded)
+      } else {
+        const blob = await res.blob()
+        const cd   = res.headers.get('Content-Disposition') ?? ''
+        const name = decodeURIComponent(cd.match(/filename\*=UTF-8''(.+)/)?.[1] ?? 'output.xlsx')
+        const url  = URL.createObjectURL(blob)
+        const a    = document.createElement('a')
+        a.href     = url
+        a.download = name
+        a.click()
+        URL.revokeObjectURL(url)
+        setDone([name])
+      }
+    } catch {
+      setError('網路錯誤，請稍後再試')
+    } finally {
+      setGenerating(false)
+    }
+  }
+
+  function FileZone({ label, file, onFile, inputRef, accept }: {
+    label: string; file: File | null
+    onFile: (f: File) => void; inputRef: React.RefObject<HTMLInputElement>; accept: string
+  }) {
+    return (
+      <div
+        onClick={() => inputRef.current?.click()}
+        className={`relative border-2 border-dashed rounded-xl p-5 text-center cursor-pointer transition-all ${
+          file ? 'border-emerald-300 bg-emerald-50' : 'border-gray-200 hover:border-lopia-red hover:bg-gray-50'
+        }`}
+      >
+        <input ref={inputRef} type="file" accept={accept} className="hidden"
+          onChange={e => { const f = e.target.files?.[0]; if (f) onFile(f); e.target.value = '' }} />
+        {file ? (
+          <>
+            <p className="font-semibold text-emerald-700 text-sm">{file.name}</p>
+            <p className="text-xs text-gray-400 mt-1">點擊重新選擇</p>
+          </>
+        ) : (
+          <>
+            <p className="font-semibold text-gray-600 text-sm">{label}</p>
+            <p className="text-xs text-gray-400 mt-1">點擊或拖曳 .xlsx / .xls</p>
+          </>
+        )}
+      </div>
+    )
+  }
+
+  return (
+    <div className="max-w-2xl mx-auto px-4 py-6 space-y-5">
+
+      {/* Step 1: Upload two files */}
+      <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
+        <div className="px-5 py-3.5 border-b border-gray-100 flex items-center gap-2">
+          <span className="w-5 h-5 rounded-full bg-lopia-red text-white text-[10px] font-bold flex items-center justify-center shrink-0">1</span>
+          <h2 className="font-semibold text-gray-800 text-sm">上傳檔案</h2>
+          {analyzing && <Spinner size={14} />}
+        </div>
+        <div className="px-5 py-4 grid grid-cols-1 sm:grid-cols-2 gap-3">
+          <div>
+            <p className="text-xs text-gray-500 font-medium mb-1.5">庫存管理表</p>
+            <FileZone label="上傳庫存管理表" file={kanriFile} onFile={handleKanri}
+              inputRef={kanriRef} accept=".xlsx,.xls" />
+            {availRounds.length > 0 && (
+              <p className="text-xs text-emerald-600 mt-1.5">
+                偵測到 {availRounds.length} 個回目：{availRounds.map(r => `第${r}回`).join('、')}
+              </p>
+            )}
+          </div>
+          <div>
+            <p className="text-xs text-gray-500 font-medium mb-1.5">計画書（台湾ロピアりんごXX）</p>
+            <FileZone label="上傳計画書" file={planFile} onFile={f => { setPlanFile(f); setError(null) }}
+              inputRef={planRef} accept=".xlsx,.xls" />
+          </div>
+        </div>
+      </div>
+
+      {/* Step 2: Settings */}
+      <div className={`bg-white rounded-xl border shadow-sm overflow-hidden transition-opacity ${!kanriFile || !planFile ? 'opacity-40 pointer-events-none' : 'border-gray-200'}`}>
+        <div className="px-5 py-3.5 border-b border-gray-100 flex items-center gap-2">
+          <span className="w-5 h-5 rounded-full bg-lopia-red text-white text-[10px] font-bold flex items-center justify-center shrink-0">2</span>
+          <h2 className="font-semibold text-gray-800 text-sm">設定出貨資訊</h2>
+        </div>
+        <div className="px-5 py-4 space-y-4">
+
+          {/* Round + Date */}
+          <div className="flex flex-wrap gap-3">
+            <div className="flex flex-col gap-1">
+              <label className="text-xs text-gray-500 font-medium">回目</label>
+              <div className="flex items-center gap-1.5 flex-wrap">
+                {availRounds.length > 0 ? availRounds.map(r => (
+                  <button key={r} onClick={() => setRound(r)}
+                    className={`px-3 py-2 rounded-lg text-sm font-medium border transition-colors ${
+                      round === r ? 'bg-lopia-red text-white border-lopia-red' : 'bg-white text-gray-600 border-gray-200 hover:border-lopia-red hover:text-lopia-red'
+                    }`}>第 {r} 回</button>
+                )) : (
+                  <input type="number" min="1" value={round ?? ''} onChange={e => setRound(parseInt(e.target.value) || null)}
+                    placeholder="例：3" className="w-24 border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-lopia-red" />
+                )}
+              </div>
+            </div>
+            <div className="flex flex-col gap-1">
+              <label className="text-xs text-gray-500 font-medium">配送日期</label>
+              <input type="date" value={date} onChange={e => setDate(e.target.value)}
+                className="border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-lopia-red" />
+            </div>
+          </div>
+
+          {/* Suffix + Batch label */}
+          <div className="flex flex-wrap gap-3">
+            <div className="flex flex-col gap-1">
+              <label className="text-xs text-gray-500 font-medium">出貨單號後兩碼</label>
+              <input type="text" maxLength={2} value={suffix} onChange={e => setSuffix(e.target.value)}
+                placeholder="01" className="w-24 border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-lopia-red font-mono" />
+            </div>
+            <div className="flex flex-col gap-1 flex-1 min-w-[180px]">
+              <label className="text-xs text-gray-500 font-medium">批次名稱（用於檔名）</label>
+              <input type="text" value={batchLabel} onChange={e => setBatchLabel(e.target.value)}
+                placeholder="例：蘋果10.3" className="border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-lopia-red" />
+            </div>
+          </div>
+
+          {/* Preview */}
+          {date && suffix && (
+            <div className="bg-gray-50 rounded-lg px-3 py-2 text-xs text-gray-500">
+              單號預覽：<span className="font-mono font-semibold text-gray-700">S{date.replace(/-/g, '')}{suffix.padStart(2, '0')}</span>
+              {batchLabel && <span className="ml-3">檔名：<span className="font-semibold text-gray-700">S..._{batchLabel}_店鋪貨單.xlsx</span></span>}
+            </div>
+          )}
+
+          {/* Output type */}
+          <div>
+            <label className="text-xs text-gray-500 font-medium mb-2 block">產出選項</label>
+            <div className="flex gap-2 flex-wrap">
+              {([['both', '兩份都產出'], ['store', '僅店鋪貨單'], ['chuku', '僅優儲出庫單']] as [OutputType, string][]).map(([v, label]) => (
+                <button key={v} onClick={() => setOutputType(v)}
+                  className={`px-4 py-2 rounded-lg text-sm font-medium border transition-colors ${
+                    outputType === v ? 'bg-lopia-red text-white border-lopia-red' : 'bg-white text-gray-600 border-gray-200 hover:border-lopia-red hover:text-lopia-red'
+                  }`}>{label}</button>
+              ))}
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* Step 3: Generate */}
+      <div className={`transition-opacity ${!canGenerate ? 'opacity-40 pointer-events-none' : ''}`}>
+        {error && (
+          <div className="mb-3 px-4 py-2.5 bg-red-50 border border-red-200 rounded-lg text-xs text-red-600">❌ {error}</div>
+        )}
+        <button onClick={handleGenerate} disabled={!canGenerate || generating}
+          className="w-full flex items-center justify-center gap-2 py-3.5 bg-lopia-red text-white font-semibold rounded-xl text-base hover:bg-lopia-red-dark transition-colors disabled:opacity-50 shadow-sm">
+          {generating ? <><Spinner size={18} /> 產生中…</> : <>
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
+              <polyline points="14 2 14 8 20 8"/>
+            </svg>
+            產生並下載 {outputType === 'both' ? '（兩份）' : ''}
+          </>}
+        </button>
+      </div>
+
+      {/* Result */}
+      {done.length > 0 && (
+        <div className="bg-emerald-50 border border-emerald-200 rounded-xl px-5 py-4 space-y-2">
+          <div className="flex items-center gap-2">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#059669" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+              <polyline points="20 6 9 17 4 12"/>
+            </svg>
+            <span className="text-sm font-bold text-emerald-700">已產生並下載</span>
+          </div>
+          {done.map(n => (
+            <p key={n} className="text-xs text-emerald-600 font-mono ml-6">📄 {n}</p>
+          ))}
+        </div>
+      )}
+    </div>
+  )
+}
+
 // ── Page ──────────────────────────────────────────────────────────────────────
 
 export default function ShipmentGeneratorPage() {
   const [authed, setAuthed] = useState(false)
+  const [tab, setTab]       = useState<'lopia' | 'yushu'>('lopia')
 
   useEffect(() => {
     if (sessionStorage.getItem('lopia_portal_authed') === '1') setAuthed(true)
@@ -734,16 +1001,12 @@ export default function ShipmentGeneratorPage() {
       {/* Header */}
       <header className="sticky top-0 z-50 bg-white border-b border-gray-200 shadow-sm">
         <div className="max-w-2xl mx-auto px-4 h-14 flex items-center gap-3">
-          <a
-            href="/"
-            className="flex items-center gap-1.5 text-gray-400 hover:text-gray-600 transition-colors shrink-0"
-          >
+          <a href="/" className="flex items-center gap-1.5 text-gray-400 hover:text-gray-600 transition-colors shrink-0">
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
               <polyline points="15 18 9 12 15 6"/>
             </svg>
             <span className="text-xs hidden sm:inline">貨況系統</span>
           </a>
-
           <div className="flex items-center gap-2.5 flex-1">
             <div className="w-8 h-8 rounded-lg bg-lopia-red flex items-center justify-center shrink-0">
               <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
@@ -757,17 +1020,25 @@ export default function ShipmentGeneratorPage() {
               <p className="text-xs text-gray-400">上傳 Excel，自動生成各店鋪出貨單 + 總表</p>
             </div>
           </div>
-
-          <a
-            href="/orders"
-            className="flex items-center text-xs text-gray-500 hover:text-lopia-red transition-colors px-2.5 py-1.5 rounded-md hover:bg-lopia-red-light border border-gray-200 hover:border-lopia-red font-medium"
-          >
+          <a href="/orders" className="flex items-center text-xs text-gray-500 hover:text-lopia-red transition-colors px-2.5 py-1.5 rounded-md hover:bg-lopia-red-light border border-gray-200 hover:border-lopia-red font-medium">
             出貨單系統
           </a>
         </div>
+
+        {/* Tab bar */}
+        <div className="max-w-2xl mx-auto px-4 flex border-t border-gray-100">
+          {([['lopia', '📦 LOPIA 出貨單'], ['yushu', '🏭 優儲出貨單']] as ['lopia' | 'yushu', string][]).map(([key, label]) => (
+            <button key={key} onClick={() => setTab(key)}
+              className={`px-5 py-2.5 text-sm font-medium border-b-2 transition-colors ${
+                tab === key
+                  ? 'border-lopia-red text-lopia-red'
+                  : 'border-transparent text-gray-500 hover:text-gray-700'
+              }`}>{label}</button>
+          ))}
+        </div>
       </header>
 
-      <GeneratorPanel />
+      {tab === 'lopia' ? <GeneratorPanel /> : <YushuPanel />}
     </div>
   )
 }
