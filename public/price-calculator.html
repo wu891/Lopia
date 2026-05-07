@@ -350,6 +350,14 @@ table.res-table { width:100%;border-collapse:collapse;font-size:12px; }
         <input type="number" id="usd_rate" value="32" step="0.1" min="1" oninput="recalc()">
         <div class="param-hint">海運費以 USD 計，需設定</div>
       </div>
+      <div class="param-box sea-only" id="cnt-type-box">
+        <label>貨櫃規格</label>
+        <select id="container_type" onchange="switchContainer()">
+          <option value="20rf">20'RF</option>
+          <option value="40rf">40'RF</option>
+        </select>
+        <div class="param-hint">切換後費用自動更新</div>
+      </div>
       <div class="param-box">
         <label>加工品消費稅（%）</label>
         <input type="number" id="tw_tax" value="5" step="0.1" oninput="recalc()">
@@ -433,10 +441,10 @@ table.res-table { width:100%;border-collapse:collapse;font-size:12px; }
           <div class="chevron" id="chev-oc">▼</div>
         </div>
         <div class="log-body hidden" id="body-oc">
-          <div class="cbm-row" style="display:flex">
+          <div class="cbm-row" id="cbm-row-oc">
             <label style="color:#1e40af">總體積（CBM）：</label>
             <span class="cbm-val" id="cbm-disp-oc" style="color:#1e40af">0.000</span>
-            <span>m³　運費連動項目自動更新</span>
+            <span>m³　（FCL 定額計費，CBM 僅供參考）</span>
           </div>
           <table class="item-table">
             <thead><tr>
@@ -646,20 +654,26 @@ const jpItems = [
   {id:'jp12', name:'Security Charge',   rate:500,   qty:1,   unit:'AWB',   isWeight:false, isVol:false, en:true},
 ];
 
-// 海運：日本輸出費（JPY）
+// 海運：日本輸出費（JPY）— FCL 冷凍貨櫃 九州日新 25187BE
 const seaJpItems = [
-  {id:'sj01', name:'輸出通関料',   rate:15000, qty:1,   unit:'件',  isWeight:false, isVol:false, en:true},
-  {id:'sj02', name:'取扱料',       rate:5000,  qty:1,   unit:'件',  isWeight:false, isVol:false, en:true},
-  {id:'sj03', name:'CFS Charge',   rate:3000,  qty:0,   unit:'CBM', isWeight:false, isVol:true,  en:true},
-  {id:'sj04', name:'BL Fee',       rate:3000,  qty:1,   unit:'BL',  isWeight:false, isVol:false, en:true},
+  {id:'sj01', name:'輸出通関料',        rate:5900,  qty:1, unit:'件',  rate20:5900,  rate40:5900,  isWeight:false, isVol:false, isCT:false, en:true},
+  {id:'sj02', name:'取扱料',            rate:12000, qty:1, unit:'件',  rate20:12000, rate40:12000, isWeight:false, isVol:false, isCT:false, en:true},
+  {id:'sj03', name:'入出庫料',          rate:200,   qty:0, unit:'CT',  rate20:200,   rate40:200,   isWeight:false, isVol:false, isCT:true,  en:true},
+  {id:'sj04', name:'保管料（1期/CT）',  rate:150,   qty:0, unit:'CT',  rate20:150,   rate40:150,   isWeight:false, isVol:false, isCT:true,  en:true},
+  {id:'sj05', name:'バンニング料',      rate:38000, qty:1, unit:'Van', rate20:38000, rate40:53000, isWeight:false, isVol:false, isCT:false, en:true},
+  {id:'sj06', name:'プレクール電源代',  rate:5000,  qty:1, unit:'Van', rate20:5000,  rate40:5000,  isWeight:false, isVol:false, isCT:false, en:false},
+  {id:'sj07', name:'コンテナドレー料',  rate:19000, qty:1, unit:'Van', rate20:19000, rate40:21000, isWeight:false, isVol:false, isCT:false, en:true},
+  {id:'sj08', name:'MGシャーシ使用料', rate:20000, qty:1, unit:'Van', rate20:20000, rate40:20000, isWeight:false, isVol:false, isCT:false, en:false},
+  {id:'sj09', name:'THC（日本・博多）', rate:45000, qty:1, unit:'Van', rate20:45000, rate40:65000, isWeight:false, isVol:false, isCT:false, en:true},
+  {id:'sj10', name:'Seal Fee',          rate:2050,  qty:1, unit:'Van', rate20:2050,  rate40:2050,  isWeight:false, isVol:false, isCT:false, en:true},
+  {id:'sj11', name:'Doc Fee',           rate:6000,  qty:1, unit:'B/L', rate20:6000,  rate40:6000,  isWeight:false, isVol:false, isCT:false, en:true},
+  {id:'sj12', name:'Telex Release Fee', rate:4500,  qty:1, unit:'Van', rate20:4500,  rate40:4500,  isWeight:false, isVol:false, isCT:false, en:true},
 ];
 
-// 海運：海上運費（USD）
+// 海運：海上運費（USD）— FCL 冷凍貨櫃 九州日新 25187BE
 const oceanItems = [
-  {id:'oc01', name:'Ocean Freight',  rate:90,  qty:0, unit:'CBM', isWeight:false, isVol:true,  en:true},
-  {id:'oc02', name:'BAF 燃油附加費', rate:15,  qty:0, unit:'CBM', isWeight:false, isVol:true,  en:true},
-  {id:'oc03', name:'GRI 旺季附加費', rate:0,   qty:0, unit:'CBM', isWeight:false, isVol:false, en:false},
-  {id:'oc04', name:'THC（日本）',    rate:100, qty:0, unit:'CBM', isWeight:false, isVol:true,  en:true},
+  {id:'oc01', name:'Ocean Freight', rate:1050, qty:1, unit:'Van', rate20:1050, rate40:1350, isWeight:false, isVol:false, en:true},
+  {id:'oc02', name:'WBS',           rate:60,   qty:1, unit:'Van', rate20:60,   rate40:113,  isWeight:false, isVol:false, en:true},
 ];
 
   
@@ -681,16 +695,19 @@ const twItems = [
   {id:'tw14', name:'Overtime（假日）',        rate:6000, qty:1, unit:'次',   isVol:false, en:false},
 ];
 
-// 海運：台灣進口費（TWD）
+// 台灣進口費（TWD）— FCL 冷凍貨櫃 日通 Nippon Express 25012T7-01
 const seaTwItems = [
-  {id:'st01', name:'Customs Clearance Fee', rate:3500, qty:1, unit:'BL',   isVol:false, en:true},
-  {id:'st02', name:'Handling Charge',       rate:1000, qty:1, unit:'BL',   isVol:false, en:true},
-  {id:'st03', name:'EDI Entry Fee',         rate:200,  qty:1, unit:'BL',   isVol:false, en:true},
-  {id:'st04', name:'THC（台灣）',           rate:500,  qty:0, unit:'CBM',  isVol:true,  en:true},
-  {id:'st05', name:'CFS Fee',              rate:600,  qty:0, unit:'CBM',  isVol:true,  en:true},
-  {id:'st06', name:'Food Inspection Fee',  rate:3000, qty:1, unit:'item', isVol:false, en:true},
-  {id:'st07', name:'Truck Charge',         rate:3000, qty:1, unit:'SHPT', isVol:false, en:true},
-  {id:'st08', name:'Customs Inspection Fee',rate:500, qty:1, unit:'次',   isVol:false, en:true},
+  {id:'st01', name:'D/O Fee',                    rate:3300,  qty:1, unit:'D/O',  isVol:false, isUSD:false,                       en:true},
+  {id:'st02', name:'Low Sulphur Surcharge',       rate:120,   qty:1, unit:'USD',  isVol:false, isUSD:true,                        en:true},
+  {id:'st03', name:'THC（台灣・基隆）',           rate:8800,  qty:1, unit:'CNT',  isVol:false, isUSD:false, rate20:8800, rate40:11100, en:true},
+  {id:'st04', name:'EMC Charge',                 rate:1000,  qty:1, unit:'CNT',  isVol:false, isUSD:false, rate20:1000, rate40:2000,  en:true},
+  {id:'st05', name:'EDI Fee',                    rate:120,   qty:1, unit:'SHP',  isVol:false, isUSD:false,                       en:true},
+  {id:'st06', name:'Customs Clearance',          rate:3000,  qty:1, unit:'件',   isVol:false, isUSD:false,                       en:true},
+  {id:'st07', name:'Customs + per add. CNT',     rate:800,   qty:1, unit:'CNT',  isVol:false, isUSD:false,                       en:false},
+  {id:'st08', name:'FDA Application Fee',        rate:3000,  qty:1, unit:'item', isVol:false, isUSD:false,                       en:true},
+  {id:'st09', name:'FDA + per add. item',        rate:800,   qty:0, unit:'item', isVol:false, isUSD:false,                       en:false},
+  {id:'st10', name:'Quarantine Declaration Fee', rate:3000,  qty:1, unit:'item', isVol:false, isUSD:false,                       en:true},
+  {id:'st11', name:'DRAYAGE（含發電機板架）',    rate:12000, qty:1, unit:'CNT',  isVol:false, isUSD:false,                       en:true},
 ];
 
 // 倉儲配送費（不分模式）
@@ -751,10 +768,11 @@ function switchMode() {
   document.getElementById('jp-sub').textContent = isSea ? '見積書 SEA — JPY' : '見積書 AIR — JPY';
   document.getElementById('tw-sub').textContent = isSea ? '台灣 SEA 進口費 — TWD（未含稅）' : 'NX Taiwan AIR — TWD（未含稅）';
 
-  // USD rate box
+  // USD rate box + container type box
   const usdBox = document.getElementById('usd-rate-box');
-  if (isSea) usdBox.classList.add('visible');
-  else usdBox.classList.remove('visible');
+  const cntBox = document.getElementById('cnt-type-box');
+  if (isSea) { usdBox.classList.add('visible'); cntBox.classList.add('visible'); }
+  else { usdBox.classList.remove('visible'); cntBox.classList.remove('visible'); }
 
   // Mode badge
   const badge = document.getElementById('hdr-mode-badge');
@@ -774,6 +792,51 @@ function switchMode() {
 }
 
 // ══════════════════════════════════════════════════════
+//  貨櫃規格切換（20RF ↔ 40RF）
+// ══════════════════════════════════════════════════════
+function switchContainer() {
+  const is40 = (document.getElementById('container_type')?.value || '20rf') === '40rf';
+  [seaJpItems, oceanItems, seaTwItems].forEach(items => {
+    items.forEach(item => {
+      if (item.rate20 === undefined) return;
+      item.rate = is40 ? item.rate40 : item.rate20;
+      const tr = document.getElementById('tr-' + item.id);
+      if (!tr) return;
+      const rateInput = tr.querySelectorAll('input')[0];
+      if (rateInput) rateInput.value = item.rate;
+      const usdRate = +document.getElementById('usd_rate')?.value || 32;
+      const rawAmt = item.en ? item.rate * item.qty : 0;
+      const dispAmt = item.isUSD ? rawAmt * usdRate : rawAmt;
+      const amtEl = document.getElementById('amt-' + item.id);
+      if (amtEl) {
+        amtEl.textContent = item.isUSD && dispAmt > 0 ? `≈${fmt(dispAmt)}` : fmt(rawAmt);
+        amtEl.className = 'r amt' + (dispAmt === 0 ? ' zero' : '');
+      }
+    });
+  });
+  recalc();
+}
+
+// ── CT 連動（入出庫料・保管料）依商品總箱數自動更新 ──
+function updateCTRows() {
+  const totalBoxes = products.reduce((s, p) => s + (p.qty || 0), 0);
+  seaJpItems.forEach(item => {
+    if (!item.isCT) return;
+    item.qty = totalBoxes;
+    const tr = document.getElementById('tr-' + item.id);
+    if (!tr) return;
+    const qtyInput = tr.querySelectorAll('input')[1];
+    if (qtyInput) qtyInput.value = totalBoxes;
+    const rawAmt = item.en ? item.rate * totalBoxes : 0;
+    const amtEl = document.getElementById('amt-' + item.id);
+    if (amtEl) {
+      amtEl.textContent = fmt(rawAmt);
+      amtEl.className = 'r amt' + (rawAmt === 0 ? ' zero' : '');
+    }
+  });
+}
+
+// ══════════════════════════════════════════════════════
 //  面板切換
 // ══════════════════════════════════════════════════════
 function togglePanel(id) {
@@ -790,16 +853,21 @@ function renderLogSection(sid, items) {
   const tbody = document.getElementById('rows-'+sid);
   if (!tbody) return;
   tbody.innerHTML = '';
+  const usdRate = +document.getElementById('usd_rate')?.value || 32;
   items.forEach(item => {
     const tr = document.createElement('tr');
     if (!item.en) tr.classList.add('disabled-row');
     tr.id = 'tr-'+item.id;
-    const amt = item.en ? item.rate * item.qty : 0;
+    const rawAmt = item.en ? item.rate * item.qty : 0;
+    const dispAmt = item.isUSD ? rawAmt * usdRate : rawAmt;
+    const unitTag = item.isUSD
+      ? `<span class="unit-tag" style="background:#dbeafe;color:#1e40af">USD</span>`
+      : `<span class="unit-tag">${item.unit}</span>`;
+    const amtLabel = item.isUSD && dispAmt > 0 ? `≈${fmt(dispAmt)}` : fmt(rawAmt);
     tr.innerHTML = `
       <td style="font-weight:600;color:#2d3748;white-space:nowrap">${item.name}</td>
       <td class="r">
         <input type="number" class="rate-input" value="${item.rate}"
-  renderBatchRecords();
           onchange="updateLogItem('${sid}','${item.id}','rate',+this.value)"
           oninput="updateLogItem('${sid}','${item.id}','rate',+this.value)">
       </td>
@@ -808,8 +876,8 @@ function renderLogSection(sid, items) {
           onchange="updateLogItem('${sid}','${item.id}','qty',+this.value)"
           oninput="updateLogItem('${sid}','${item.id}','qty',+this.value)">
       </td>
-      <td><span class="unit-tag">${item.unit}</span></td>
-      <td class="r amt ${amt===0?'zero':''}" id="amt-${item.id}">${fmt(amt)}</td>
+      <td>${unitTag}</td>
+      <td class="r amt ${dispAmt===0?'zero':''}" id="amt-${item.id}">${amtLabel}</td>
       <td>
         <input type="checkbox" class="enabled-cb" ${item.en?'checked':''}
           onchange="updateLogItem('${sid}','${item.id}','en',this.checked)">
@@ -834,10 +902,12 @@ function updateLogItem(sid, itemId, key, val) {
   item[key] = val;
   const tr = document.getElementById('tr-'+itemId);
   if (key==='en') tr.classList.toggle('disabled-row', !val);
-  const amt = item.en ? item.rate * item.qty : 0;
+  const usdRate = +document.getElementById('usd_rate')?.value || 32;
+  const rawAmt = item.en ? item.rate * item.qty : 0;
+  const dispAmt = item.isUSD ? rawAmt * usdRate : rawAmt;
   const amtEl = document.getElementById('amt-'+itemId);
-  amtEl.textContent = fmt(amt);
-  amtEl.className = 'r amt' + (amt===0?' zero':'');
+  amtEl.textContent = item.isUSD && dispAmt > 0 ? `≈${fmt(dispAmt)}` : fmt(rawAmt);
+  amtEl.className = 'r amt' + (dispAmt===0?' zero':'');
   recalc();
 }
 
@@ -1011,14 +1081,12 @@ function recalc() {
   // ── CBM（海運模式）──
   const totalCBM = computeTotalCBM();
   if (isSea) {
+    updateCTRows();
     const cbmStr = totalCBM.toFixed(3);
     ['cbm-disp-jp','cbm-disp-oc','cbm-disp-tw'].forEach(id => {
       const el = document.getElementById(id);
       if (el) el.textContent = cbmStr;
     });
-    updateVolRows(seaJpItems, totalCBM);
-    updateVolRows(oceanItems, totalCBM);
-    updateVolRows(seaTwItems, totalCBM);
   }
 
   // ── 物流費計算 ──
@@ -1026,7 +1094,10 @@ function recalc() {
   const activeTw = isSea ? seaTwItems : twItems;
 
   const jpJPY   = sectionTotal(activeJp);
-  const twBase  = sectionTotal(activeTw);
+  // seaTwItems 含 isUSD 項目（Low Sulphur），需乘 usdRate 換成 TWD
+  const twBase  = isSea
+    ? activeTw.reduce((s,x) => s + (x.en ? x.rate * x.qty * (x.isUSD ? usdRate : 1) : 0), 0)
+    : sectionTotal(activeTw);
   const saBase  = sectionTotal(saItems);
   const jpTWD   = jpJPY * jpyRate;
   const twTWD   = twBase * (1 + twTax);
@@ -1170,7 +1241,7 @@ function recalc() {
 
   // ── 備註欄 ──
   document.getElementById('note-bar').innerHTML = isSea
-    ? '<strong>海運公式：</strong>建議售價 = 總成本/箱 ÷ (1 − 毛利率)　|　海上運費以 USD 計，乘以 USD/TWD 匯率後納入成本　|　CBM 依商品長×寬×高自動累算　|　THC / CFS 連動 CBM 自動更新'
+    ? '<strong>FCL 海運公式：</strong>建議售價 = 總成本/箱 ÷ (1 − 毛利率)　|　費用依九州日新（日本輸出）＋日通 NX Taiwan（台灣進口）報價　|　Ocean Freight / WBS / Low Sulphur Surcharge 以 USD 計，乘以 USD/TWD 匯率　|　入出庫料・保管料依商品總箱數自動連動　|　切換 20RF / 40RF 費用自動更新'
     : '<strong>公式：</strong>建議售價 = 總成本/箱 ÷ (1 − 毛利率)　|　關稅稅基 = 仕入TWD　|　消費稅稅基 = 仕入 + 關稅　|　台灣進口費＆配送費自動加算 5% 消費稅';
 }
 
@@ -1336,17 +1407,52 @@ window.toggleLanguage = function() {
   window.applyLanguage(lang);
 };
 // ══════════════════════════════════════════════════════
-// ② 批號紀錄功能
+// ② 批號紀錄功能（Google Sheets 雲端同步版）
 // ══════════════════════════════════════════════════════
 const BATCH_STORAGE_KEY='tmj_batch_records';
-function getBatchRecords(){try{return JSON.parse(localStorage.getItem(BATCH_STORAGE_KEY)||'[]');}catch(e){return[];}}
-function saveBatchRecords(r){localStorage.setItem(BATCH_STORAGE_KEY,JSON.stringify(r));}
+const GAS_URL='https://script.google.com/macros/s/AKfycbxdj-gUTpQik-_owMQF5KgaLp6o8hFxG35uFrrjcp5e99RQjWhM8zvJ4DwlvB7UAV3n/exec';
+
+let _cachedRecords=[];
+
+async function _gasPost(body){
+  const res=await fetch(GAS_URL,{method:'POST',body:JSON.stringify(body)});
+  return res.json();
+}
+async function _gasFetch(){
+  const res=await fetch(GAS_URL+'?t='+Date.now());
+  return res.json();
+}
+async function _migrateLocalToGAS(){
+  const local=JSON.parse(localStorage.getItem(BATCH_STORAGE_KEY)||'[]');
+  if(!local.length)return;
+  try{
+    await _gasPost({action:'migrate',records:local});
+    localStorage.removeItem(BATCH_STORAGE_KEY);
+    console.log('[批號] 已將 '+local.length+' 筆本機資料遷移至 Google Sheets');
+  }catch(e){console.warn('[批號] 遷移失敗',e);}
+}
+async function getBatchRecords(){
+  if(!GAS_URL){
+    try{return JSON.parse(localStorage.getItem(BATCH_STORAGE_KEY)||'[]');}catch(e){return[];}
+  }
+  try{
+    await _migrateLocalToGAS();
+    const data=await _gasFetch();
+    return data.ok?data.records:[];
+  }catch(e){
+    console.warn('[批號] GAS 讀取失敗，使用本機備份',e);
+    try{return JSON.parse(localStorage.getItem(BATCH_STORAGE_KEY)||'[]');}catch(e2){return[];}
+  }
+}
 function showToast(msg){const t=document.getElementById('save-toast');if(!t)return;t.textContent=msg;t.classList.add('show');setTimeout(()=>t.classList.remove('show'),2500);}
 function escHtml(s){return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');}
-window.renderBatchRecords=function(){
-  const records=getBatchRecords(),tbody=document.getElementById('batch-records-tbody');
+window.renderBatchRecords=async function(){
+  const tbody=document.getElementById('batch-records-tbody');
   if(!tbody)return;
   const lang=window._langMode||'zh';
+  tbody.innerHTML='<tr><td colspan="7" style="text-align:center;color:#a0aec0;padding:16px;font-size:12px">⏳ '+(lang==='ja'?'読み込み中...':'載入中...')+'</td></tr>';
+  const records=await getBatchRecords();
+  _cachedRecords=records;
   const noMsg=lang==='ja'?'記録がありません。試算後に保存してください。':'暫無紀錄，試算後保存以供日後查閱';
   const del=lang==='ja'?'削除':'刪除';
   const detail=lang==='ja'?'詳細':'詳細';
@@ -1368,8 +1474,7 @@ window.renderBatchRecords=function(){
   });
 };
 window.downloadBatchExcel=function(idx){
-  const records=getBatchRecords();
-  const r=records[idx];
+  const r=_cachedRecords[idx];
   if(!r)return;
   const m1=r.margin1||5, m2=r.margin2||10;
   const mode=r.priceMode||'margin';
@@ -1397,14 +1502,31 @@ window.downloadBatchExcel=function(idx){
   document.body.appendChild(a);a.click();document.body.removeChild(a);
   URL.revokeObjectURL(url);
 };
-window.deleteRecord=function(idx){const r=getBatchRecords();r.splice(idx,1);saveBatchRecords(r);renderBatchRecords();};
-window.clearAllRecords=function(){
+window.deleteRecord=async function(idx){
+  const r=_cachedRecords[idx];
+  if(!r)return;
+  if(!GAS_URL){
+    _cachedRecords.splice(idx,1);
+    localStorage.setItem(BATCH_STORAGE_KEY,JSON.stringify(_cachedRecords));
+  }else{
+    try{await _gasPost({action:'delete',batchId:r.batchId,savedAt:r.savedAt});}
+    catch(e){showToast('❌ 刪除失敗，請檢查網路');return;}
+  }
+  renderBatchRecords();
+};
+window.clearAllRecords=async function(){
   const lang=window._langMode||'zh';
-  if(confirm(lang==='ja'?'全ての履歴を削除しますか？':'確定要清除所有紀錄？')){saveBatchRecords([]);renderBatchRecords();}
-}
+  if(!confirm(lang==='ja'?'全ての履歴を削除しますか？':'確定要清除所有紀錄？'))return;
+  if(!GAS_URL){
+    localStorage.removeItem(BATCH_STORAGE_KEY);
+  }else{
+    try{await _gasPost({action:'clearAll'});}
+    catch(e){showToast('❌ 清除失敗，請檢查網路');return;}
+  }
+  renderBatchRecords();
+};
 window.viewBatchDetail=function(idx){
-  const records=getBatchRecords();
-  const r=records[idx];
+  const r=_cachedRecords[idx];
   if(!r)return;
   const overlay=document.getElementById('batch-detail-overlay');
   const title=document.getElementById('batch-detail-title');
@@ -1452,7 +1574,7 @@ window.closeBatchDetail=function(){
   const o=document.getElementById('batch-detail-overlay');
   if(o) o.classList.remove('active');
 };
-window.saveBatchRecord=function(){
+window.saveBatchRecord=async function(){
   const bi=document.getElementById('batch-id-input'),ri=document.getElementById('batch-remark-input');
   const batchId=bi.value.trim(),lang=window._langMode||'zh';
   if(!batchId){alert(lang==='ja'?'ロット番号を入力してください':'請輸入批號');bi.focus();return;}
@@ -1474,8 +1596,8 @@ window.saveBatchRecord=function(){
   const prods=Array.from(document.querySelectorAll('#prod-body td:first-child input[type="text"]')).map(function(x){return x.value;}).join(', ');
   const now=new Date(),savedAt=now.toLocaleString('zh-TW',{year:'numeric',month:'2-digit',day:'2-digit',hour:'2-digit',minute:'2-digit'});
   const ai=isSea?seaJpItems:jpItems, ti=isSea?seaTwItems:twItems;
-  function st(it){return it.reduce(function(s,x){return s+(x.en?x.rate*x.qty:0);},0);}
-  const jpJPY=st(ai),twBase=st(ti),saBase=st(saItems);
+  function st(it,usd){return it.reduce(function(s,x){return s+(x.en?x.rate*x.qty*(x.isUSD&&usd?usd:1):0);},0);}
+  const jpJPY=st(ai,0),twBase=st(ti,isSea?usdRate:0),saBase=st(saItems,0);
   const jpTWD=jpJPY*jpyRate,twTWD=twBase*(1+twTax),saTWD=saBase*(1+twTax);
   const oceanUSD=isSea?st(oceanItems):0,oceanTWD=oceanUSD*usdRate;
   const totalLog=jpTWD+oceanTWD+twTWD+saTWD;
@@ -1499,9 +1621,24 @@ window.saveBatchRecord=function(){
       oceanTWD:Math.round(oceanTWD),twBase:Math.round(twBase),twTWD:Math.round(twTWD),
       saBase:Math.round(saBase),saTWD:Math.round(saTWD),totalLog:Math.round(totalLog)},
     productRows:productRows};
-  const recs=getBatchRecords(); recs.push(rec); saveBatchRecords(recs);
-  bi.value=''; ri.value=''; renderBatchRecords();
-  showToast(lang==='ja'?'✅ 保存しました！ロット番号：'+batchId:'✅ 試算已保存！批號：'+batchId);
+  const btn=document.getElementById('btn-save-batch');
+  if(btn){btn.disabled=true;btn.textContent=lang==='ja'?'保存中...':'保存中...';}
+  try{
+    if(!GAS_URL){
+      const recs=JSON.parse(localStorage.getItem(BATCH_STORAGE_KEY)||'[]');
+      recs.push(rec);
+      localStorage.setItem(BATCH_STORAGE_KEY,JSON.stringify(recs));
+    }else{
+      await _gasPost({action:'save',record:rec});
+    }
+    bi.value=''; ri.value='';
+    await renderBatchRecords();
+    showToast(lang==='ja'?'✅ 保存しました！ロット番号：'+batchId:'✅ 試算已保存！批號：'+batchId);
+  }catch(e){
+    showToast('❌ 保存失敗，請檢查網路');
+  }finally{
+    if(btn){btn.disabled=false;btn.textContent='💾 '+(lang==='ja'?'今回の試算を保存':'保存本次試算');}
+  }
 };;
 
   // ══════════════════════════════════════════════════════
