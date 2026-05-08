@@ -71,6 +71,16 @@ body { font-family: 'Segoe UI','Noto Sans TC',sans-serif; background:#f0f2f5; co
 .chevron { font-size:11px;color:#a0aec0;transition:transform .2s; }
 .chevron.open { transform:rotate(180deg); }
 
+/* ── Sea TW provider toggle ── */
+.sea-tw-toggle { display:flex;gap:4px;margin-right:6px;align-items:center; }
+.ptoggle-btn {
+  padding:3px 10px;border-radius:12px;font-size:11px;font-weight:700;
+  border:1.5px solid #93c5fd;background:transparent;color:#3b82f6;
+  cursor:pointer;transition:all .15s;white-space:nowrap;font-family:inherit;
+}
+.ptoggle-btn:hover { background:#dbeafe; }
+.ptoggle-btn.active { background:#3b82f6;color:white;border-color:#3b82f6; }
+
 .log-body { border-top:1px solid #edf2f7;padding:0; }
 .log-body.hidden { display:none; }
 
@@ -529,6 +539,13 @@ table.res-table { width:100%;border-collapse:collapse;font-size:12px; }
             <div class="log-title">台灣進口費</div>
             <div class="log-sub" id="tw-sub">NX Taiwan AIR — TWD（未含稅）</div>
           </div>
+          <!-- 海運供應商 toggle（空運時隱藏） -->
+          <div class="sea-tw-toggle" id="sea-tw-toggle" style="display:none">
+            <button class="ptoggle-btn active" data-provider="nippon"
+              onclick="event.stopPropagation(); switchSeaTwProvider('nippon')">台灣日通</button>
+            <button class="ptoggle-btn" data-provider="t3ex"
+              onclick="event.stopPropagation(); switchSeaTwProvider('t3ex')">台灣航空</button>
+          </div>
           <div>
             <div class="log-total" id="tw-total-disp">NT$0</div>
             <div class="log-sub" id="tw-tax-disp"></div>
@@ -768,6 +785,18 @@ const seaTwItems = [
   {id:'st11', name:'DRAYAGE（含發電機板架）',    rate:12000, qty:1, unit:'CNT',  isVol:false, isUSD:false,                       en:true},
 ];
 
+// 台灣進口費（TWD）— FCL 冷凍貨櫃 台灣航空 T3EX 2026.01.07
+const seaTwItemsT3EX = [
+  {id:'t3e01', name:'Customs Clearance Fee',          rate:2500,  qty:1, unit:'件',  isVol:false, isUSD:false, en:true},
+  {id:'t3e02', name:'FDA Application Fee',             rate:2000,  qty:1, unit:'item',isVol:false, isUSD:false, en:true},
+  {id:'t3e03', name:'Quarantine Fee',                  rate:2000,  qty:1, unit:'item',isVol:false, isUSD:false, en:true},
+  {id:'t3e04', name:'Long Form Fee',                   rate:100,   qty:0, unit:'頁', isVol:false, isUSD:false, en:false},
+  {id:'t3e05', name:'DRAYAGE（溫控）',                 rate:12000, qty:1, unit:'CNT', isVol:false, isUSD:false, en:true},
+  {id:'t3e06', name:'FDA + per add. cert',             rate:800,   qty:0, unit:'張', isVol:false, isUSD:false, en:false},
+  {id:'t3e07', name:'Quarantine + per add. cert',      rate:800,   qty:0, unit:'張', isVol:false, isUSD:false, en:false},
+  {id:'t3e08', name:'Customs Verification Fee',        rate:800,   qty:1, unit:'次', isVol:false, isUSD:false, en:true},
+];
+
 // 倉儲配送費（不分模式）
 const saItems = [
   {id:'sa01', name:'入庫費',              rate:150,  qty:3,   unit:'板',    en:true},
@@ -786,6 +815,9 @@ let products = [
   {name:'燒番薯スイートポテト',    price:2640, qty:87, gw:'', nw:'', duty:25, l:'', w:'', h:''},
   {name:'カリカリスティックポテト', price:5100, qty:40, gw:'', nw:'', duty:25, l:'', w:'', h:''},
 ];
+
+// 海運台灣進口費供應商狀態
+window._seaTwProvider = 'nippon'; // 'nippon' | 't3ex'
 
 // ══════════════════════════════════════════════════════
 //  初始化
@@ -824,7 +856,16 @@ function switchMode() {
 
   // Panel subtitles
   document.getElementById('jp-sub').textContent = isSea ? '見積書 SEA — JPY' : '見積書 AIR — JPY';
-  document.getElementById('tw-sub').textContent = isSea ? '台灣 SEA 進口費 — TWD（未含稅）' : 'NX Taiwan AIR — TWD（未含稅）';
+  if (isSea) {
+    const provLabel = window._seaTwProvider === 't3ex' ? '台灣航空 T3EX SEA — TWD（未含稅）' : '台灣日通 SEA — TWD（未含稅）';
+    document.getElementById('tw-sub').textContent = provLabel;
+  } else {
+    document.getElementById('tw-sub').textContent = 'NX Taiwan AIR — TWD（未含稅）';
+  }
+
+  // Provider toggle visibility
+  const toggle = document.getElementById('sea-tw-toggle');
+  if (toggle) toggle.style.display = isSea ? 'flex' : 'none';
 
   // USD rate box + container type box
   const usdBox = document.getElementById('usd-rate-box');
@@ -839,7 +880,8 @@ function switchMode() {
 
   // Re-render logistics sections
   renderLogSection('jp', isSea ? seaJpItems : jpItems);
-  renderLogSection('tw', isSea ? seaTwItems : twItems);
+  const activeTwItems = isSea ? (window._seaTwProvider === 't3ex' ? seaTwItemsT3EX : seaTwItems) : twItems;
+  renderLogSection('tw', activeTwItems);
 
   // Re-render result head (preserving current margins)
   const m1 = +document.getElementById('margin1')?.value || 5;
@@ -850,11 +892,33 @@ function switchMode() {
 }
 
 // ══════════════════════════════════════════════════════
+//  海運台灣進口費供應商切換（台灣日通 ↔ 台灣航空）
+// ══════════════════════════════════════════════════════
+function switchSeaTwProvider(provider) {
+  window._seaTwProvider = provider;
+  const isSea = document.getElementById('transport_mode').value === 'sea';
+  if (!isSea) return;
+
+  const items = provider === 't3ex' ? seaTwItemsT3EX : seaTwItems;
+  const subText = provider === 't3ex' ? '台灣航空 T3EX SEA — TWD（未含稅）' : '台灣日通 SEA — TWD（未含稅）';
+  document.getElementById('tw-sub').textContent = subText;
+
+  // 更新 toggle 按鈕狀態
+  document.querySelectorAll('#sea-tw-toggle .ptoggle-btn').forEach(btn => {
+    btn.classList.toggle('active', btn.dataset.provider === provider);
+  });
+
+  renderLogSection('tw', items);
+  recalc();
+}
+
+// ══════════════════════════════════════════════════════
 //  貨櫃規格切換（20RF ↔ 40RF）
 // ══════════════════════════════════════════════════════
 function switchContainer() {
   const is40 = (document.getElementById('container_type')?.value || '20rf') === '40rf';
-  [seaJpItems, oceanItems, seaTwItems].forEach(items => {
+  const activeSeaTw = window._seaTwProvider === 't3ex' ? seaTwItemsT3EX : seaTwItems;
+  [seaJpItems, oceanItems, activeSeaTw].forEach(items => {
     items.forEach(item => {
       if (item.rate20 === undefined) return;
       item.rate = is40 ? item.rate40 : item.rate20;
