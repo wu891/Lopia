@@ -112,8 +112,8 @@ function addStoreSheet(wb: ExcelJS.Workbook, order: StoreOrder, shipmentNo: stri
   const ws = wb.addWorksheet(sheetName, { views: [{ showGridLines: false }] })
 
   ws.columns = [
-    { key: 'name',    width: 36 },
-    { key: 'spec',    width: 12 },
+    { key: 'name',    width: 48.71 },
+    { key: 'spec',    width: 16.43 },
     { key: 'qty',     width: 8  },
     { key: 'price',   width: 14 },
     { key: 'amount',  width: 14 },
@@ -122,21 +122,21 @@ function addStoreSheet(wb: ExcelJS.Workbook, order: StoreOrder, shipmentNo: stri
   // R1 — company name
   ws.addRow([COMPANY_NAME, '', '', '', ''])
   ws.mergeCells('A1:E1')
-  applyRow(ws.getRow(1), { bg: C_BLUE_LIGHT, bold: true, size: 13, align: 'center', valign: 'middle', height: 22 })
+  applyRow(ws.getRow(1), { bg: C_BLUE_LIGHT, bold: true, size: 13, align: 'center', valign: 'middle', height: 21.75 })
 
   // R2 — tel + address
   ws.addRow([COMPANY_INFO, '', '', '', ''])
   ws.mergeCells('A2:E2')
-  applyRow(ws.getRow(2), { bg: C_BLUE_LIGHT, size: 10, align: 'center', valign: 'middle', height: 16 })
+  applyRow(ws.getRow(2), { bg: C_BLUE_LIGHT, size: 10, align: 'center', valign: 'middle', height: 15.75 })
 
   // R3 — spacer
   ws.addRow([''])
-  ws.getRow(3).height = 8
+  ws.getRow(3).height = 7.5
 
   // R4 — title
   ws.addRow(['出貨單 / 納品書', '', '', '', ''])
   ws.mergeCells('A4:E4')
-  applyRow(ws.getRow(4), { bold: true, size: 16, color: C_BLUE_DARK, align: 'center', valign: 'middle', height: 28 })
+  applyRow(ws.getRow(4), { bold: true, size: 16, color: C_BLUE_DARK, align: 'center', valign: 'middle', height: 27.75 })
   ws.getCell('A4').border = { bottom: { style: 'medium', color: { argb: C_BLUE_DARK } } }
 
   // R5 — shipment no
@@ -153,7 +153,7 @@ function addStoreSheet(wb: ExcelJS.Workbook, order: StoreOrder, shipmentNo: stri
 
   // R7 — store name
   ws.addRow(['收貨店鋪：', shortName, '', '', ''])
-  applyRow(ws.getRow(7), { valign: 'middle', height: 20 })
+  applyRow(ws.getRow(7), { valign: 'middle', height: 19.5 })
   styleCell(ws, 'A7', { color: 'FF888888', size: 11 })
   styleCell(ws, 'B7', { bold: true, size: 13, color: C_RED_STORE })
 
@@ -165,7 +165,7 @@ function addStoreSheet(wb: ExcelJS.Workbook, order: StoreOrder, shipmentNo: stri
   ws.addRow(['商品名稱', '入數', '箱數', '單價(TWD/箱)', '小計(TWD)'])
   applyRow(ws.getRow(9), {
     bg: C_BLUE_DARK, bold: true, color: C_WHITE, size: 11,
-    align: 'center', valign: 'middle', borders: true, height: 20
+    align: 'center', valign: 'middle', borders: true, height: 19.5
   })
   ws.getCell('A9').alignment = { horizontal: 'left', vertical: 'middle' }
 
@@ -221,7 +221,7 @@ function addStoreSheet(wb: ExcelJS.Workbook, order: StoreOrder, shipmentNo: stri
     '箱',
     { formula: sumAmtFormula },
   ])
-  totalRow.height = 20
+  totalRow.height = 19.5
   applyRow(totalRow, { bg: C_GRAY, bold: true, borders: true, valign: 'middle' })
   totalRow.getCell(1).alignment = { horizontal: 'left', vertical: 'middle' }
   totalRow.getCell(3).alignment = { horizontal: 'center', vertical: 'middle' }
@@ -271,7 +271,7 @@ function addStoreSheet(wb: ExcelJS.Workbook, order: StoreOrder, shipmentNo: stri
   const signRowNum = totalRowNum + nextOffset
   const signRow = ws.addRow(['收貨簽名：___________________________　　日期：___________'])
   ws.mergeCells(`A${signRowNum}:E${signRowNum}`)
-  signRow.height = 22
+  signRow.height = 21.75
   signRow.getCell(1).font = { name: 'Arial', size: 11 }
   signRow.getCell(1).alignment = { vertical: 'middle' }
   signRow.getCell(1).border = { top: { style: 'thin', color: { argb: 'FFEEEEEE' } } }
