@@ -530,7 +530,7 @@ const STORE_MAP = {
     '漢神':'台中漢神中港店','中漢':'台中漢神中港店','中港':'台中漢神中港店',
     '北蛋':'台北大巨蛋店','sogo':'台南 SOGO 新天店','高漢':'高雄漢神百貨店'
 };
-const PROCESSED_KW = ['ジュース','果汁','ジャム','果醬','ドライ','果乾','ゼリー','果凍','チョコ','ケーキ','クッキー','餅乾','アイス','プリン','加工','調味','醬','sauce','ソース','漬け','醃','干し','乾燥','冷凍','罐','瓶','ボトル'];
+const PROCESSED_KW = ['ジュース','果汁','ジャム','果醬','ドライ','果乾','ゼリー','果凍','チョコ','ケーキ','クッキー','餅乾','アイス','プリン','加工','調味','醬','sauce','ソース','漬け','醃','干し','乾燥','冷凍','罐','瓶','ボトル','大学芋','大學芋','スティック','揚げ','フライ','コロッケ','焼き芋','干しいも','いもスティック','天ぷら','炒め'];
 const VEG_KW = ['地瓜','さつまいも','サツマイモ','甘薯','馬鈴薯','じゃがいも','キャベツ','高麗菜','白菜','大根','蘿蔔','にんじん','紅蘿蔔','トマト','番茄','レタス','ほうれん草','きゅうり','なす','茄子','玉ねぎ','洋蔥','ねぎ','蔥','にんにく','大蒜','ブロッコリー','アスパラ','とうもろこし','えだまめ','毛豆','芋','野菜','蔬菜'];
 
 function classifyProduct(name) {
@@ -590,10 +590,11 @@ async function syncFromNotion() {
     try {
         // Fetch all endpoints in parallel
         setLoadingText('正在拉取出貨記錄與批次資料...');
-        const [shipRes, recRes, priceRes] = await Promise.all([
+        const [shipRes, recRes, priceRes, excelRes] = await Promise.all([
             fetch(`${API_BASE}/api/shipments`),
             fetch(`${API_BASE}/api/records`),
             fetch(`${API_BASE}/api/batch-prices`),
+            fetch(`${API_BASE}/api/excel-rows`).catch(() => null),
         ]);
 
         if (!shipRes.ok || !recRes.ok) throw new Error('API 回應異常');
@@ -678,6 +679,16 @@ async function syncFromNotion() {
                 });
             }
         });
+
+        // Merge Excel rows from Notion (persisted via /api/excel-rows)
+        if (excelRes && excelRes.ok) {
+            const { rows: notionExcelRows } = await excelRes.json();
+            if (Array.isArray(notionExcelRows) && notionExcelRows.length > 0) {
+                // Remove any existing excel-sourced rows then re-add from Notion
+                allData = allData.filter(r => r.source !== 'excel');
+                notionExcelRows.forEach(r => allData.push({ ...r, id: genId(), source: 'excel' }));
+            }
+        }
 
         lastSync = new Date().toISOString();
         saveLocal();
@@ -1693,15 +1704,20 @@ async function handleExcelFiles(files) {
                     if (!product || boxes <= 0) continue;
 
                     // Skip totals/summary rows
-                    if (namePart.includes('合計') || namePart.includes('小計') ||
+                    if (!namePart || namePart.includes('合計') || namePart.includes('小計') ||
                         namePart.includes('出　計') || namePart.includes('出計') ||
-                        namePart.includes('總數') || namePart.includes('総数')) continue;
+                        namePart.includes('總數') || namePart.includes('総数') ||
+                        namePart.includes('総計') || namePart.includes('合　計') ||
+                        namePart === '計' || /^[-─━＝=]+$/.test(namePart)) continue;
 
                     let unitPrice = 0;
                     for (let c = priceStartIdx; c < (row.length ?? 0); c++) {
                         if (typeof row[c] === 'number' && row[c] >= 100) { unitPrice = row[c]; break; }
                     }
 
+                    const autoCategory = classifyProduct(product);
+                    // Flag 蔬菜 rows as uncertain — might actually be 加工品
+                    const uncertain = autoCategory === '蔬菜';
                     excelPreviewRows.push({
                         id: genId(),
                         shipmentNo,
@@ -1711,7 +1727,8 @@ async function handleExcelFiles(files) {
                         spec: '',
                         quantity: boxes,
                         unitPrice,
-                        category: classifyProduct(product),
+                        category: autoCategory,
+                        uncertain,
                         source: 'excel',
                         batchId: null,
                         batchName: '',
@@ -1737,7 +1754,7 @@ function renderExcelPreview() {
         `共 ${excelPreviewRows.length} 筆，${totalBoxes} 箱，金額合計 ${fmtCurrency(totalAmt)}（單價為 0 的商品需手動補填）`;
 
     tbody.innerHTML = excelPreviewRows.map((r, idx) => `
-        <tr>
+        <tr style="${r.uncertain ? 'background:#fffbea;' : ''}">
             <td style="font-size:11px">${r.shipmentNo}</td>
             <td><input type="date" value="${r.date}" onchange="excelPreviewRows[${idx}].date=this.value" style="border:1px solid #ddd;border-radius:4px;padding:2px 4px;font-size:12px"></td>
             <td><input type="text" value="${r.store}" onchange="excelPreviewRows[${idx}].store=this.value;updateExcelRowTotal(${idx})" style="border:1px solid #ddd;border-radius:4px;padding:2px 4px;font-size:12px;width:130px"></td>
@@ -1746,11 +1763,14 @@ function renderExcelPreview() {
             <td class="text-right">${r.quantity}</td>
             <td class="text-right"><input type="number" value="${r.unitPrice}" min="0" onchange="excelPreviewRows[${idx}].unitPrice=+this.value;updateExcelRowTotal(${idx})" style="border:1px solid #ddd;border-radius:4px;padding:2px 4px;font-size:12px;width:80px;text-align:right"></td>
             <td class="text-right" id="excel-subtotal-${idx}">${fmtCurrency(r.quantity*r.unitPrice)}</td>
-            <td class="text-center"><select onchange="excelPreviewRows[${idx}].category=this.value" style="border:1px solid #ddd;border-radius:4px;padding:2px 4px;font-size:11px">
-                <option value="水果" ${r.category==='水果'?'selected':''}>水果</option>
-                <option value="蔬菜" ${r.category==='蔬菜'?'selected':''}>蔬菜</option>
-                <option value="加工品" ${r.category==='加工品'?'selected':''}>加工品</option>
-            </select></td>
+            <td class="text-center">
+                <select onchange="excelPreviewRows[${idx}].category=this.value;excelPreviewRows[${idx}].uncertain=false;renderExcelPreview()" style="border:1px solid ${r.uncertain?'#f0a500':'#ddd'};border-radius:4px;padding:2px 4px;font-size:11px">
+                    <option value="水果" ${r.category==='水果'?'selected':''}>水果</option>
+                    <option value="蔬菜" ${r.category==='蔬菜'?'selected':''}>蔬菜</option>
+                    <option value="加工品" ${r.category==='加工品'?'selected':''}>加工品</option>
+                </select>
+                ${r.uncertain ? '<span title="系統判定為蔬菜，請確認是否應為加工品（含稅5%）" style="color:#f0a500;margin-left:3px;cursor:help;font-size:13px">⚠</span>' : ''}
+            </td>
             <td class="text-center"><button class="btn btn-ghost btn-sm" onclick="excelPreviewRows.splice(${idx},1);renderExcelPreview()" style="color:var(--negative);font-size:14px">✕</button></td>
         </tr>`).join('');
 }
@@ -1766,18 +1786,46 @@ function updateExcelRowTotal(idx) {
         `共 ${excelPreviewRows.length} 筆，${totalBoxes} 箱，金額合計 ${fmtCurrency(totalAmt)}（單價為 0 的商品需手動補填）`;
 }
 
-function confirmExcelImport() {
+async function confirmExcelImport() {
     if (!excelPreviewRows.length) return;
+    const btn = document.getElementById('btn-confirm-excel');
+    if (btn) btn.disabled = true;
+
     // Remove existing excel rows with same shipmentNo to avoid duplicates on re-import
     const nos = new Set(excelPreviewRows.map(r => r.shipmentNo).filter(Boolean));
     allData = allData.filter(r => !(r.source === 'excel' && nos.has(r.shipmentNo)));
     // Add new rows
-    excelPreviewRows.forEach(r => allData.push({...r, id: genId()}));
+    const rowsToAdd = excelPreviewRows.map(r => ({...r, id: genId()}));
+    rowsToAdd.forEach(r => allData.push(r));
     saveLocal();
     document.getElementById('excel-modal').classList.remove('active');
     excelPreviewRows = [];
     refreshAll();
     showToast(`已加入 ${allData.filter(r=>r.source==='excel').length} 筆 Excel 出貨資料`, 'success');
+
+    // Write back to Notion (non-blocking — fails gracefully if DB not set up)
+    try {
+        const payload = rowsToAdd.map(r => ({
+            shipmentNo: r.shipmentNo,
+            date: r.date,
+            store: r.store,
+            product: r.product,
+            spec: r.spec || '',
+            quantity: r.quantity,
+            unitPrice: r.unitPrice,
+            category: r.category,
+        }));
+        const res = await fetch(`${API_BASE}/api/excel-rows`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ rows: payload, shipmentNos: [...nos] }),
+        });
+        if (!res.ok) console.warn('Excel rows Notion sync failed:', await res.text());
+    } catch (e) {
+        console.warn('Excel rows Notion sync error:', e);
+    } finally {
+        if (btn) btn.disabled = false;
+    }
 }
 
 // ── Default CSV Data ──────────────────────────────────────

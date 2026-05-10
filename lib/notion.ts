@@ -536,6 +536,89 @@ export async function deleteFurikomiRecord(id: string): Promise<void> {
   await notion.pages.update({ page_id: id, archived: true })
 }
 
+// ── Excel Rows (對帳明細) ─────────────────────────────────────────────────────
+
+export interface ExcelRow {
+  shipmentNo: string
+  date: string
+  store: string
+  product: string
+  spec: string
+  quantity: number
+  unitPrice: number
+  category: string
+}
+
+export async function getExcelRows(): Promise<ExcelRow[]> {
+  const DB = process.env.NOTION_EXCEL_ROWS_DB
+  if (!DB) return []
+
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const results: any[] = []
+  let cursor: string | undefined
+  do {
+    const res = await notion.databases.query({
+      database_id: DB,
+      sorts: [{ property: '出貨日期', direction: 'ascending' }],
+      page_size: 100,
+      ...(cursor ? { start_cursor: cursor } : {}),
+    })
+    results.push(...res.results)
+    cursor = res.has_more ? (res.next_cursor ?? undefined) : undefined
+  } while (cursor)
+
+  return results.map(page => {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const p = (page as any).properties
+    return {
+      shipmentNo: getText(p['ShipmentNo']) ?? '',
+      date: getDate(p['出貨日期']) ?? '',
+      store: getText(p['門市']) ?? '',
+      product: getText(p['商品名稱']) ?? '',
+      spec: getText(p['入數']) ?? '',
+      quantity: getNumber(p['箱數']) ?? 0,
+      unitPrice: getNumber(p['單價']) ?? 0,
+      category: getSelect(p['類別']) ?? '水果',
+    }
+  })
+}
+
+export async function saveExcelRows(rows: ExcelRow[], shipmentNos: string[]): Promise<void> {
+  const DB = process.env.NOTION_EXCEL_ROWS_DB
+  if (!DB) return
+
+  // Delete existing rows for the given shipment numbers to avoid duplicates
+  if (shipmentNos.length > 0) {
+    for (const sno of shipmentNos) {
+      const existing = await notion.databases.query({
+        database_id: DB,
+        filter: { property: 'ShipmentNo', rich_text: { equals: sno } },
+      })
+      await Promise.all(existing.results.map(p =>
+        notion.pages.update({ page_id: p.id, archived: true })
+      ))
+    }
+  }
+
+  // Create new rows
+  await Promise.all(rows.map(r =>
+    notion.pages.create({
+      parent: { database_id: DB },
+      properties: {
+        '名稱': { title: [{ text: { content: `${r.shipmentNo}_${r.store}_${r.product}` } }] },
+        'ShipmentNo': { rich_text: [{ text: { content: r.shipmentNo } }] },
+        '出貨日期': r.date ? { date: { start: r.date } } : { date: null },
+        '門市': { rich_text: [{ text: { content: r.store } }] },
+        '商品名稱': { rich_text: [{ text: { content: r.product } }] },
+        '入數': { rich_text: [{ text: { content: r.spec || '' } }] },
+        '箱數': { number: r.quantity },
+        '單價': { number: r.unitPrice },
+        '類別': { select: { name: r.category } },
+      },
+    })
+  ))
+}
+
 // ── Batch Prices ──────────────────────────────────────────────────────────────
 
 export interface BatchPriceEntry {
