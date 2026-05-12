@@ -68,9 +68,12 @@ export async function POST(req: NextRequest) {
     }
 
     // ── New batch notification ────────────────────────────────────────────────
-    const { batchName, supplier, flightNo, awbNo, departJP, arrivalTW, totalBoxes, fileNames } = body
+    const { batchName, supplier, transportMode, flightNo, awbNo, departJP, arrivalTW, totalBoxes, fileNames } = body
 
-    const recipients = process.env.NOTIFY_EMAILS ?? ''
+    const recipients =
+      transportMode === '空運' ? (process.env.NOTIFY_EMAILS_AIR ?? process.env.NOTIFY_EMAILS ?? '') :
+      transportMode === '海運' ? (process.env.NOTIFY_EMAILS_SEA ?? process.env.NOTIFY_EMAILS ?? '') :
+      (process.env.NOTIFY_EMAILS ?? '')
     if (!recipients) return NextResponse.json({ ok: true, skipped: 'no recipients' })
     if (!process.env.GMAIL_USER || !process.env.GMAIL_APP_PASSWORD)
       return NextResponse.json({ ok: true, skipped: 'gmail not configured' })

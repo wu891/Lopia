@@ -105,13 +105,14 @@ export default function AddBatchForm({ lang, onBatchAdded }: Props) {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          batchName:  ivName.trim(),
-          flightNo:   flightNo   || null,
-          awbNo:      awbNo      || null,
-          departJP:   departJP   || null,
-          arrivalTW:  arrivalTW  || null,
-          totalBoxes: totalBoxes ? Number(totalBoxes) : null,
-          fileNames:  uploadedNames,
+          batchName:     ivName.trim(),
+          transportMode: transportMode || null,
+          flightNo:      flightNo   || null,
+          awbNo:         awbNo      || null,
+          departJP:      departJP   || null,
+          arrivalTW:     arrivalTW  || null,
+          totalBoxes:    totalBoxes ? Number(totalBoxes) : null,
+          fileNames:     uploadedNames,
         }),
       })
 
