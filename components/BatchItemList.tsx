@@ -151,7 +151,7 @@ export default function BatchItemList({ batchId, lang, parentTotalBoxes = null, 
         </p>
         <button
           onClick={startAdd}
-          className="text-xs text-lopia-red hover:underline cursor-pointer"
+          className="text-xs px-2 py-1 bg-lopia-red-light text-lopia-red rounded-lg hover:bg-red-100 font-medium transition-colors"
         >
           + {lang === 'ja' ? '商品追加' : '新增品項'}
         </button>
