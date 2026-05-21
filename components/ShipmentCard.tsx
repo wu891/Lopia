@@ -8,6 +8,15 @@ import InventoryBar from './InventoryBar'
 import DeliveryPlan from './DeliveryPlan'
 import PasswordModal, { isAuthed, logChange } from './PasswordModal'
 import BatchItemList from './BatchItemList'
+import AnomalyBadge, { AnomalyType } from './AnomalyBadge'
+
+// DEMO: derive batch anomalies from ivName (replace with real aggregation from items)
+function demoBatchAnomalies(ivName: string): AnomalyType[] {
+  if (ivName?.includes('CITY20260402')) return ['退回']
+  if (ivName === 'CITY20260401F') return ['銷毀']
+  if (ivName === 'CITY20260403') return ['退回', '銷毀']
+  return []
+}
 
 interface ShipmentCardProps {
   shipment: Shipment
@@ -152,6 +161,7 @@ export default function ShipmentCard({ shipment, lang, allRecords, onRecordChang
             lang={lang}
             onUpdated={onRecordChange}
           />
+          {demoBatchAnomalies(shipment.ivName).map(a => (<AnomalyBadge key={a} type={a} lang={lang} />))}
         </div>
       </div>
 
