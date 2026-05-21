@@ -1,4 +1,4 @@
-import { Client } from '@notionhq/client'
+TEST_PASTE_CONTENTimport { Client } from '@notionhq/client'
 
 const notion = new Client({ auth: process.env.NOTION_API_KEY })
 
@@ -691,4 +691,121 @@ export async function saveBatchPrices(prices: Record<string, BatchPriceEntry[]>)
       })
     ))
   }
+}
+
+
+// ── Batch Items (批次子品項) ──────────────────────────────────────────────────
+
+export interface BatchItem {
+  id: string
+  batchId: string | null
+  productName: string
+  origin: string | null
+  boxes: number | null
+  shippedBoxes: number | null
+  status: string | null
+  remarks: string | null
+  sortOrder: number | null
+}
+
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+function pageToBatchItem(page: any): BatchItem {
+  const p = page.properties
+  const relation = p['關聯批次']?.relation as Array<{ id: string }> | undefined
+  return {
+    id: page.id,
+    batchId: relation?.[0]?.id ?? null,
+    productName: getText(p['品名']) ?? '',
+    origin: getText(p['產地']),
+    boxes: getNumber(p['箱數']),
+    shippedBoxes: getNumber(p['已出貨箱數']) ?? 0,
+    status: getSelect(p['狀態']),
+    remarks: getText(p['備註']),
+    sortOrder: getNumber(p['SortOrder']),
+  }
+}
+
+export async function getBatchItems(batchId?: string): Promise<BatchItem[]> {
+  const DB = process.env.NOTION_BATCH_ITEMS_DB
+  if (!DB) return []
+
+  const results: BatchItem[] = []
+  let cursor: string | undefined
+  do {
+    const response = await notion.databases.query({
+      database_id: DB,
+      ...(batchId
+        ? { filter: { property: '關聯批次', relation: { contains: batchId } } }
+        : {}),
+      sorts: [{ property: 'SortOrder', direction: 'ascending' }],
+      page_size: 100,
+      ...(cursor ? { start_cursor: cursor } : {}),
+    })
+    results.push(...response.results.map(pageToBatchItem))
+    cursor = response.has_more ? (response.next_cursor ?? undefined) : undefined
+  } while (cursor)
+  return results
+}
+
+export async function createBatchItem(data: {
+  batchId: string
+  productName: string
+  origin?: string
+  boxes?: number
+  shippedBoxes?: number
+  status?: string
+  remarks?: string
+  sortOrder?: number
+}): Promise<BatchItem> {
+  const DB = process.env.NOTION_BATCH_ITEMS_DB
+  if (!DB) throw new Error('Missing NOTION_BATCH_ITEMS_DB env var')
+
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const props: any = {
+    '名稱': { title: [{ text: { content: data.productName } }] },
+    '關聯批次': { relation: [{ id: data.batchId }] },
+    '品名': { rich_text: [{ text: { content: data.productName } }] },
+  }
+  if (data.origin) props['產地'] = { rich_text: [{ text: { content: data.origin } }] }
+  if (data.boxes != null) props['箱數'] = { number: data.boxes }
+  if (data.shippedBoxes != null) props['已出貨箱數'] = { number: data.shippedBoxes }
+  if (data.status) props['狀態'] = { select: { name: data.status } }
+  if (data.remarks) props['備註'] = { rich_text: [{ text: { content: data.remarks } }] }
+  if (data.sortOrder != null) props['SortOrder'] = { number: data.sortOrder }
+
+  const page = await notion.pages.create({
+    parent: { database_id: DB },
+    properties: props,
+  })
+  return pageToBatchItem(page)
+}
+
+export async function updateBatchItem(id: string, data: Partial<{
+  productName: string
+  origin: string
+  boxes: number
+  shippedBoxes: number
+  status: string
+  remarks: string
+  sortOrder: number
+}>): Promise<BatchItem> {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const props: any = {}
+  if (data.productName != null) {
+    props['品名'] = { rich_text: [{ text: { content: data.productName } }] }
+    props['名稱'] = { title: [{ text: { content: data.productName } }] }
+  }
+  if (data.origin != null) props['產地'] = { rich_text: [{ text: { content: data.origin } }] }
+  if (data.boxes != null) props['箱數'] = { number: data.boxes }
+  if (data.shippedBoxes != null) props['已出貨箱數'] = { number: data.shippedBoxes }
+  if (data.status) props['狀態'] = { select: { name: data.status } }
+  if (data.remarks != null) props['備註'] = { rich_text: [{ text: { content: data.remarks } }] }
+  if (data.sortOrder != null) props['SortOrder'] = { number: data.sortOrder }
+
+  const page = await notion.pages.update({ page_id: id, properties: props })
+  return pageToBatchItem(page)
+}
+
+export async function deleteBatchItem(id: string): Promise<void> {
+  await notion.pages.update({ page_id: id, archived: true })
 }
