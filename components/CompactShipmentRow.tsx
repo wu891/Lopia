@@ -7,6 +7,7 @@ import DocumentStatus from './DocumentStatus'
 import InventoryBar from './InventoryBar'
 import DeliveryPlan from './DeliveryPlan'
 import PasswordModal, { isAuthed, logChange } from './PasswordModal'
+import BatchItemList from './BatchItemList'
 
 const STATUS_OPTIONS = ['待出貨', '部分出貨', '全數出貨'] as const
 
@@ -243,6 +244,9 @@ export default function CompactShipmentRow({ shipment, lang, allRecords, onRecor
               planned={plannedBoxes}
               lang={lang}
             />
+
+            {/* Batch items 品項明細 */}
+            <BatchItemList batchId={shipment.id} lang={lang} parentTotalBoxes={shipment.totalBoxes} parentShippedBoxes={shippedBoxes} />
 
             {/* Batch items 品項明細 */}
             <BatchItemList batchId={shipment.id} lang={lang} parentTotalBoxes={shipment.totalBoxes} parentShippedBoxes={shippedBoxes} />
