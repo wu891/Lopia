@@ -3,14 +3,20 @@ import { useEffect, useState } from 'react'
 import { BatchItem } from '@/lib/notion'
 import { Lang, t } from '@/lib/i18n'
 import PasswordModal, { isAuthed, logChange } from './PasswordModal'
-import AnomalyBadge, { AnomalyType } from './AnomalyBadge'
+import AnomalyBadge from './AnomalyBadge';
 
-// DEMO: derive anomaly from product name (replace with real Notion field later)
+// DEMO: derive anomaly from product name
+// replace with real Notion field later
+
 function demoAnomalyOf(name: string): AnomalyType | null {
-  const n = (name || '').toLowerCase()
-  if (n.includes('鳳梨') || n.includes('pineapple')) return '退回'
-  if (n.includes('香蕉') || n.includes('banana')) return '銷毀'
-  return null
+  const n = (name || '').toLowerCase();
+
+  if (n.includes('鳳梨') || n.includes('pineapple')) return '退回';
+
+  if (n.includes('香蕉') || n.includes('banana')) return '銷毀';
+
+  return null;
+}
 } import AnomalyBadge, { AnomalyType } from './AnomalyBadge'  // DEMO: derive anomaly from product name (replace with real Notion field later) function demoAnomalyOf(name: string): AnomalyType | null {   const n = (name || '').toLowerCase()   if (n.includes('鳳梨') || n.includes('pineapple')) return '退回'   if (n.includes('香蕉') || n.includes('banana')) return '銷毀'   return null }
 
 interface Props {
