@@ -208,7 +208,7 @@ export default function ShipmentCard({ shipment, lang, allRecords, onRecordChang
         />
 
           {/* Batch items 品項明細 */}
-          <BatchItemList batchId={shipment.id} lang={lang} />
+          <BatchItemList batchId={shipment.id} lang={lang} parentTotalBoxes={shipment.totalBoxes} parentShippedBoxes={shippedBoxes} />
 
         {/* Delivery plan */}
         <DeliveryPlan
