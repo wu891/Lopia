@@ -178,7 +178,7 @@ export const t = {
     previewEmpty: '14天內無預計到貨批次',
     previewCopy: '複製 LINE 格式',
     previewCopied: '複製完成',
-    previewArrival: '抵台日',
+    previewArrival: '出貨日',
     previewTotalBoxes: '合計',
     // Feature 1: 3-way verification
     verifyModalTitle: '出貨前三對照確認',
@@ -367,7 +367,7 @@ export const t = {
     previewEmpty: '14日以内に到着予定の便はありません',
     previewCopy: 'LINEテキストをコピー',
     previewCopied: 'コピー完了',
-    previewArrival: '台湾着',
+    previewArrival: '出荷日',
     previewTotalBoxes: '合計',
     // Feature 1: 3-way verification
     verifyModalTitle: '出荷前三点照合確認',
