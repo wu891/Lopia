@@ -117,7 +117,7 @@ export default function TimelineProgress({ shipment, lang }: { shipment: Shipmen
                     } : undefined}
                   >
                     {done && <CheckIcon />}
-                    {current && <span className="w-2.5 h-2.5 rounded-full bg-lopia-red block" />}
+                    {current && !done && <span className="w-2.5 h-2.5 rounded-full bg-lopia-red block" />}
                   </div>
                 </div>
 
