@@ -81,14 +81,15 @@ export default function ArrivalPreview({
   return (
     <div className="space-y-3">
       {shipments.map(s => {
-        const storeBoxes = buildStoreBoxes(s.id, allRecords, dateFrom, dateTo)
-        const totalBoxes = storeBoxes.reduce((sum, sb) => sum + sb.boxes, 0)
         // Use earliest upcoming delivery date from records; fall back to arrivalTW
         const earliestDelivery = allRecords
           .filter(r => r.batchId === s.id && r.date && r.planStatus !== '已取消' && (!dateFrom || r.date >= dateFrom) && (!dateTo || r.date <= dateTo))
           .map(r => r.date as string)
           .sort()[0] ?? null
         const displayDate = earliestDelivery ?? s.arrivalTW
+        // Only aggregate boxes for the displayDate (not the full 14-day range)
+        const storeBoxes = earliestDelivery ? buildStoreBoxes(s.id, allRecords, displayDate, displayDate) : []
+        const totalBoxes = storeBoxes.reduce((sum, sb) => sum + sb.boxes, 0)
         const days = displayDate ? daysFromNow(displayDate) : null
         const isCopied = copiedId === s.id
 
