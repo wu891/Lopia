@@ -244,6 +244,9 @@ export default function CompactShipmentRow({ shipment, lang, allRecords, onRecor
               lang={lang}
             />
 
+            {/* Batch items 品項明細 */}
+            <BatchItemList batchId={shipment.id} lang={lang} parentTotalBoxes={shipment.totalBoxes} parentShippedBoxes={shippedBoxes} />
+
             <DeliveryPlan
               batchId={shipment.id}
               batchName={shipment.ivName}
