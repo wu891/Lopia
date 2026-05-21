@@ -7,6 +7,7 @@ import DocumentStatus from './DocumentStatus'
 import InventoryBar from './InventoryBar'
 import DeliveryPlan from './DeliveryPlan'
 import PasswordModal, { isAuthed, logChange } from './PasswordModal'
+import BatchItemList from './BatchItemList'
 
 interface ShipmentCardProps {
   shipment: Shipment
@@ -205,6 +206,9 @@ export default function ShipmentCard({ shipment, lang, allRecords, onRecordChang
           planned={plannedBoxes}
           lang={lang}
         />
+
+          {/* Batch items 品項明細 */}
+          <BatchItemList batchId={shipment.id} lang={lang} />
 
         {/* Delivery plan */}
         <DeliveryPlan
