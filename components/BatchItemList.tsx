@@ -7,6 +7,8 @@ import PasswordModal, { isAuthed, logChange } from './PasswordModal'
 interface Props {
   batchId: string
   lang: Lang
+  parentTotalBoxes?: number | null
+  parentShippedBoxes?: number
 }
 
 const STATUS_OPTS = ['待出貨', '部分出貨', '全數出貨'] as const
@@ -35,7 +37,7 @@ const EMPTY_DRAFT: DraftItem = {
   remarks: '',
 }
 
-export default function BatchItemList({ batchId, lang }: Props) {
+export default function BatchItemList({ batchId, lang, parentTotalBoxes = null, parentShippedBoxes = 0 }: Props) {
   const T = t[lang]
   const [items, setItems] = useState<BatchItem[]>([])
   const [loading, setLoading] = useState(true)
@@ -154,6 +156,31 @@ export default function BatchItemList({ batchId, lang }: Props) {
           + {lang === 'ja' ? '商品追加' : '新增品項'}
         </button>
       </div>
+
+      
+      {/* 對照列：品項加總 vs 母批次 (方案A 顯示用，不寫回 DB) */}
+      {items.length > 0 && (parentTotalBoxes != null || parentShippedBoxes > 0) && (() => {
+        const sumBoxes = items.reduce((s, it) => s + (it.boxes ?? 0), 0)
+        const sumShipped = items.reduce((s, it) => s + (it.shippedBoxes ?? 0), 0)
+        const totalOk = parentTotalBoxes == null || sumBoxes === parentTotalBoxes
+        const shippedOk = sumShipped === parentShippedBoxes
+        return (
+          <div className="flex flex-wrap items-center gap-x-3 gap-y-1 mb-1.5 text-[11px]">
+            <span className={`px-1.5 py-0.5 rounded border ${totalOk ? 'bg-gray-50 text-gray-600 border-gray-200' : 'bg-amber-50 text-amber-700 border-amber-200'}`}>
+              {lang === 'ja' ? '品目合計' : '品項總箱'}: {sumBoxes}
+              {parentTotalBoxes != null && <> / {parentTotalBoxes} {totalOk ? '✓' : '⚠'}</>}
+            </span>
+            <span className={`px-1.5 py-0.5 rounded border ${shippedOk ? 'bg-gray-50 text-gray-600 border-gray-200' : 'bg-amber-50 text-amber-700 border-amber-200'}`}>
+              {lang === 'ja' ? '出荷済合計' : '品項已出貨'}: {sumShipped} / {parentShippedBoxes} {shippedOk ? '✓' : '⚠'}
+            </span>
+            {(!totalOk || !shippedOk) && (
+              <span className="text-amber-700">
+                {lang === 'ja' ? '※ 親バッチと不一致' : '※ 與母批次不一致'}
+              </span>
+            )}
+          </div>
+        )
+      })()}
 
       <div className="border border-gray-200 rounded-lg overflow-hidden">
         {loading ? (
