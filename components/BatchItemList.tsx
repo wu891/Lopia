@@ -3,6 +3,15 @@ import { useEffect, useState } from 'react'
 import { BatchItem } from '@/lib/notion'
 import { Lang, t } from '@/lib/i18n'
 import PasswordModal, { isAuthed, logChange } from './PasswordModal'
+import AnomalyBadge, { AnomalyType } from './AnomalyBadge'
+
+// DEMO: derive anomaly from product name (replace with real Notion field later)
+function demoAnomalyOf(name: string): AnomalyType | null {
+  const n = (name || '').toLowerCase()
+  if (n.includes('鳳梨') || n.includes('pineapple')) return '退回'
+  if (n.includes('香蕉') || n.includes('banana')) return '銷毀'
+  return null
+} import AnomalyBadge, { AnomalyType } from './AnomalyBadge'  // DEMO: derive anomaly from product name (replace with real Notion field later) function demoAnomalyOf(name: string): AnomalyType | null {   const n = (name || '').toLowerCase()   if (n.includes('鳳梨') || n.includes('pineapple')) return '退回'   if (n.includes('香蕉') || n.includes('banana')) return '銷毀'   return null }
 
 interface Props {
   batchId: string
@@ -198,7 +207,8 @@ export default function BatchItemList({ batchId, lang, parentTotalBoxes = null, 
                 <th className="px-2 py-1.5 text-right font-medium">{T.boxes}</th>
                 <th className="px-2 py-1.5 text-right font-medium">{T.shipped}</th>
                 <th className="px-2 py-1.5 text-center font-medium">{T.deliveryStatus}</th>
-                <th className="px-2 py-1.5 text-right font-medium w-16"></th>
+                <th className="px-2 py-1.5 text-center font-medium">{lang === 'ja' ? '異常' : '異常'}</th>
+            <th className="px-2 py-1.5 text-right font-medium w-16"></th>
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-100">
@@ -216,7 +226,8 @@ export default function BatchItemList({ batchId, lang, parentTotalBoxes = null, 
                         {it.status ?? '待出貨'}
                       </span>
                     </td>
-                    <td className="px-2 py-1.5 text-right whitespace-nowrap">
+                    <td className="px-2 py-1.5 text-center">{(() => { const a = demoAnomalyOf(it.productName); return a ? <AnomalyBadge type={a} lang={lang} /> : <span className="text-gray-300">-</span> })()}</td>
+              <td className="px-2 py-1.5 text-right whitespace-nowrap">
                       <button onClick={() => startEdit(it)} className="text-gray-400 hover:text-lopia-red mr-2 cursor-pointer">✎</button>
                       <button onClick={() => remove(it)} className="text-gray-400 hover:text-red-500 cursor-pointer">✕</button>
                     </td>
