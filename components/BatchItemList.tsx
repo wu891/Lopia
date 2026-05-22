@@ -5,7 +5,6 @@ import { Lang, t } from '@/lib/i18n'
 import PasswordModal, { isAuthed, logChange } from './PasswordModal'
 import AnomalyBadge from './AnomalyBadge';
 
-}
 interface Props {
   batchId: string
   lang: Lang
@@ -219,7 +218,7 @@ export default function BatchItemList({ batchId, lang, parentTotalBoxes = null, 
                         {it.status ?? '待出貨'}
                       </span>
                     </td>
-                    <td className="px-2 py-1.5 text-center">{(() => { const a = demoAnomalyOf(it.productName); return a ? <AnomalyBadge type={a} lang={lang} /> : <span className="text-gray-300">-</span> })()}</td>
+                    <td className="px-2 py-1.5 text-center"><span className="text-gray-400">-</span></td>
               <td className="px-2 py-1.5 text-right whitespace-nowrap">
                       <button onClick={() => startEdit(it)} className="text-gray-400 hover:text-lopia-red mr-2 cursor-pointer">✎</button>
                       <button onClick={() => remove(it)} className="text-gray-400 hover:text-red-500 cursor-pointer">✕</button>
@@ -304,6 +303,7 @@ function EditRow({
           {STATUS_OPTS.map(s => <option key={s} value={s}>{s}</option>)}
         </select>
       </td>
+      <td className="px-1 py-1"></td>
       <td className="px-1 py-1 text-right whitespace-nowrap">
         <button onClick={onSave} className="text-emerald-600 hover:text-emerald-700 mr-2 font-bold cursor-pointer">✓</button>
         <button onClick={onCancel} className="text-gray-400 hover:text-gray-600 cursor-pointer">✕</button>
