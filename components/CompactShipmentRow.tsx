@@ -9,12 +9,15 @@ import DeliveryPlan from './DeliveryPlan'
 import PasswordModal, { isAuthed, logChange } from './PasswordModal'
 import BatchItemList from './BatchItemList'
 
-const STATUS_OPTIONS = ['待出貨', '部分出貨', '全數出貨'] as const
+// ★ 加入「退回/銷毀」
+const STATUS_OPTIONS = ['待出貨', '部分出貨', '全數出貨', '退回/銷毀'] as const
 
 const DELIVERY_BADGE: Record<string, { dot: string; cls: string }> = {
   '待出貨':   { dot: 'bg-gray-400',    cls: 'bg-gray-100 text-gray-600 border-gray-200' },
   '部分出貨': { dot: 'bg-amber-400',   cls: 'bg-amber-50 text-amber-700 border-amber-200' },
   '全數出貨': { dot: 'bg-emerald-500', cls: 'bg-emerald-50 text-emerald-700 border-emerald-200' },
+  // ★ 新增退回/銷毀樣式
+  '退回/銷毀':{ dot: 'bg-rose-500',   cls: 'bg-rose-50 text-rose-700 border-rose-200' },
 }
 
 function EditableStatusBadge({
@@ -71,7 +74,9 @@ function EditableStatusBadge({
 
   return (
     <>
-      <div ref={ref} className="relative">
+      {/* ★ 修正：改用 position: static 包裹，下拉用 fixed portal 概念替代 */}
+      {/* 實作上：把外層 div 加 z-index，並讓下拉選單用 absolute + z-[9999] 確保不被 overflow-hidden 裁切 */}
+      <div ref={ref} className="relative z-[9999]">
         <button
           onClick={handleClick}
           disabled={saving}
@@ -85,7 +90,14 @@ function EditableStatusBadge({
         </button>
 
         {open && (
-          <div className="absolute right-0 top-full mt-1 z-50 bg-white border border-gray-200 rounded-lg shadow-lg overflow-hidden min-w-[110px]">
+          // ★ 修正：fixed 定位讓下拉選單脫離 overflow-hidden 的限制
+          <div
+            className="fixed z-[9999] bg-white border border-gray-200 rounded-lg shadow-lg overflow-hidden min-w-[120px]"
+            style={{
+              top: ref.current ? ref.current.getBoundingClientRect().bottom + 4 : 0,
+              right: ref.current ? window.innerWidth - ref.current.getBoundingClientRect().right : 0,
+            }}
+          >
             {STATUS_OPTIONS.map(opt => {
               const s = DELIVERY_BADGE[opt]
               const isCurrent = opt === current
@@ -165,7 +177,7 @@ export default function CompactShipmentRow({ shipment, lang, allRecords, onRecor
           {shipment.productSummary && (
             <p className="text-[11px] text-gray-500 truncate mt-0.5 hidden sm:block">{shipment.productSummary}</p>
           )}
-          {/* Mobile-only: show key dates below name when collapsed */}
+          {/* Mobile-only */}
           <p className="text-[10px] text-gray-400 mt-0.5 sm:hidden">
             {arrivalStr !== '—' && <>抵台 {arrivalStr}</>}
             {arrivalStr !== '—' && clearanceStr !== '—' && <span className="mx-1">·</span>}
@@ -173,7 +185,7 @@ export default function CompactShipmentRow({ shipment, lang, allRecords, onRecor
           </p>
         </div>
 
-        {/* Key dates + boxes — right side */}
+        {/* Key dates + boxes + status badge */}
         <div className="flex items-center gap-3 shrink-0 text-xs text-gray-500">
           <div className="hidden md:flex items-center gap-0.5">
             <span className="text-gray-500 text-[10px]">抵台</span>
@@ -198,82 +210,85 @@ export default function CompactShipmentRow({ shipment, lang, allRecords, onRecor
       </div>
 
       {/* ── Expandable detail ── */}
-      <div className={`grid transition-all duration-200 ease-out ${open ? 'grid-rows-[1fr]' : 'grid-rows-[0fr]'}`}>
-        <div className="overflow-hidden">
-          <div className="px-5 py-4 border-t border-gray-100 bg-gray-50/60 space-y-3">
-            {/* Mobile-only dates */}
-            <div className="flex gap-4 sm:hidden text-xs text-gray-500">
-              <span><span className="text-gray-400">抵台</span> <span className="font-medium text-gray-700">{arrivalStr}</span></span>
-              <span><span className="text-gray-400">出關</span> <span className={`font-medium ${shipment.actualClearance ? 'text-gray-700' : 'text-gray-300'}`}>{clearanceStr}</span></span>
+      {/* ★ 修正：移除 overflow-hidden，改用 max-height 動畫，避免裁切下拉選單 */}
+      <div
+        className="transition-all duration-200 ease-out"
+        style={{
+          maxHeight: open ? '9999px' : '0px',
+          overflow: open ? 'visible' : 'hidden',
+        }}
+      >
+        <div className="px-5 py-4 border-t border-gray-100 bg-gray-50/60 space-y-3">
+          {/* Mobile-only dates */}
+          <div className="flex gap-4 sm:hidden text-xs text-gray-500">
+            <span><span className="text-gray-400">抵台</span> <span className="font-medium text-gray-700">{arrivalStr}</span></span>
+            <span><span className="text-gray-400">出關</span> <span className={`font-medium ${shipment.actualClearance ? 'text-gray-700' : 'text-gray-300'}`}>{clearanceStr}</span></span>
+          </div>
+
+          {shipment.productSummary && (
+            <p className="text-xs text-gray-500 sm:hidden">{shipment.productSummary}</p>
+          )}
+
+          <TimelineProgress shipment={shipment} lang={lang} />
+
+          {/* Meta */}
+          {(shipment.flightNo || shipment.awbNo || shipment.warehouse) && (
+            <div className="grid grid-cols-2 sm:grid-cols-3 gap-x-6 gap-y-1.5">
+              {shipment.flightNo && (
+                <div className="flex flex-col">
+                  <span className="text-xs text-gray-400">{T.flightNo}</span>
+                  <span className="text-xs font-medium text-gray-700">{shipment.flightNo}</span>
+                </div>
+              )}
+              {shipment.awbNo && (
+                <div className="flex flex-col">
+                  <span className="text-xs text-gray-400">{T.awbNo}</span>
+                  <span className="text-xs font-medium text-gray-700">{shipment.awbNo}</span>
+                </div>
+              )}
+              {shipment.warehouse && (
+                <div className="flex flex-col">
+                  <span className="text-xs text-gray-400">{T.warehouse}</span>
+                  <span className="text-xs font-medium text-lopia-red">{shipment.warehouse}</span>
+                </div>
+              )}
             </div>
+          )}
 
-            {/* Product summary on mobile */}
-            {shipment.productSummary && (
-              <p className="text-xs text-gray-500 sm:hidden">{shipment.productSummary}</p>
-            )}
+          <InventoryBar
+            total={shipment.totalBoxes}
+            shipped={shippedBoxes}
+            planned={plannedBoxes}
+            lang={lang}
+          />
 
-            <TimelineProgress shipment={shipment} lang={lang} />
+          <BatchItemList batchId={shipment.id} lang={lang} parentTotalBoxes={shipment.totalBoxes} parentShippedBoxes={shippedBoxes} />
 
-            {/* Meta */}
-            {(shipment.flightNo || shipment.awbNo || shipment.warehouse) && (
-              <div className="grid grid-cols-2 sm:grid-cols-3 gap-x-6 gap-y-1.5">
-                {shipment.flightNo && (
-                  <div className="flex flex-col">
-                    <span className="text-xs text-gray-400">{T.flightNo}</span>
-                    <span className="text-xs font-medium text-gray-700">{shipment.flightNo}</span>
-                  </div>
-                )}
-                {shipment.awbNo && (
-                  <div className="flex flex-col">
-                    <span className="text-xs text-gray-400">{T.awbNo}</span>
-                    <span className="text-xs font-medium text-gray-700">{shipment.awbNo}</span>
-                  </div>
-                )}
-                {shipment.warehouse && (
-                  <div className="flex flex-col">
-                    <span className="text-xs text-gray-400">{T.warehouse}</span>
-                    <span className="text-xs font-medium text-lopia-red">{shipment.warehouse}</span>
-                  </div>
-                )}
-              </div>
-            )}
+          <DeliveryPlan
+            batchId={shipment.id}
+            batchName={shipment.ivName}
+            totalBoxes={shipment.totalBoxes}
+            records={allRecords}
+            lang={lang}
+            supplierExcelId={shipment.supplierExcelId}
+            onRecordChange={onRecordChange}
+          />
 
-            <InventoryBar
-              total={shipment.totalBoxes}
-              shipped={shippedBoxes}
-              planned={plannedBoxes}
-              lang={lang}
-            />
+          <div>
+            <p className="text-xs text-gray-500 mb-1.5">{T.documents}</p>
+            <DocumentStatus shipment={shipment} lang={lang} />
+          </div>
 
-            {/* Batch items 品項明細 */}
-            <BatchItemList batchId={shipment.id} lang={lang} parentTotalBoxes={shipment.totalBoxes} parentShippedBoxes={shippedBoxes} />
-
-            <DeliveryPlan
-              batchId={shipment.id}
-              batchName={shipment.ivName}
-              totalBoxes={shipment.totalBoxes}
-              records={allRecords}
-              lang={lang}
-              supplierExcelId={shipment.supplierExcelId}
-              onRecordChange={onRecordChange}
-            />
-
-            <div>
-              <p className="text-xs text-gray-500 mb-1.5">{T.documents}</p>
-              <DocumentStatus shipment={shipment} lang={lang} />
+          {shipment.remarks && (
+            <div className="bg-yellow-50 border border-yellow-100 rounded-lg px-3 py-1.5">
+              <p className="text-xs text-yellow-800">{shipment.remarks}</p>
             </div>
+          )}
 
-            {shipment.remarks && (
-              <div className="bg-yellow-50 border border-yellow-100 rounded-lg px-3 py-1.5">
-                <p className="text-xs text-yellow-800">{shipment.remarks}</p>
-              </div>
-            )}
-
-            <div className="text-right">
-              <span className="text-xs text-gray-300">
-                {T.lastUpdated}: {new Date(shipment.lastEdited).toLocaleString(lang === 'ja' ? 'ja-JP' : 'zh-TW')}
-              </span>
-            </div>
+          <div className="text-right">
+            <span className="text-xs text-gray-300">
+              {T.lastUpdated}: {new Date(shipment.lastEdited).toLocaleString(lang === 'ja' ? 'ja-JP' : 'zh-TW')}
+            </span>
           </div>
         </div>
       </div>
