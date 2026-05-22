@@ -449,6 +449,13 @@ export async function updateShipmentDeliveryStatus(id: string, deliveryStatus: s
   })
 }
 
+export async function updateShipmentRemarks(id: string, remarks: string) {
+  await notion.pages.update({
+    page_id: id,
+    properties: { '備註': { rich_text: [{ text: { content: remarks } }] } },
+  })
+}
+
 // ── Furikomi (振込明細) ────────────────────────────────────────────────────────
 
 export interface FurikomiRecord {

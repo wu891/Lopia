@@ -8,15 +8,6 @@ import InventoryBar from './InventoryBar'
 import DeliveryPlan from './DeliveryPlan'
 import PasswordModal, { isAuthed, logChange } from './PasswordModal'
 import BatchItemList from './BatchItemList'
-import AnomalyBadge, { AnomalyType } from './AnomalyBadge'
-
-// DEMO: derive batch anomalies from ivName (replace with real aggregation from items)
-function demoBatchAnomalies(ivName: string): AnomalyType[] {
-  if (ivName?.includes('CITY20260402')) return ['退回']
-  if (ivName === 'CITY20260401F') return ['銷毀']
-  if (ivName === 'CITY20260403') return ['退回', '銷毀']
-  return []
-}
 
 interface ShipmentCardProps {
   shipment: Shipment
@@ -25,12 +16,13 @@ interface ShipmentCardProps {
   onRecordChange: () => void
 }
 
-const STATUS_OPTIONS = ['待出貨', '部分出貨', '全數出貨'] as const
+const STATUS_OPTIONS = ['待出貨', '部分出貨', '全數出貨', '退回/銷毀'] as const
 
 const DELIVERY_BADGE: Record<string, { dot: string; cls: string }> = {
-  '待出貨':  { dot: 'bg-gray-400',   cls: 'bg-gray-100 text-gray-600 border-gray-200' },
-  '部分出貨':{ dot: 'bg-amber-400',  cls: 'bg-amber-50 text-amber-700 border-amber-200' },
-  '全數出貨':{ dot: 'bg-emerald-500',cls: 'bg-emerald-50 text-emerald-700 border-emerald-200' },
+  '待出貨':    { dot: 'bg-gray-400',    cls: 'bg-gray-100 text-gray-600 border-gray-200' },
+  '部分出貨':  { dot: 'bg-amber-400',   cls: 'bg-amber-50 text-amber-700 border-amber-200' },
+  '全數出貨':  { dot: 'bg-emerald-500', cls: 'bg-emerald-50 text-emerald-700 border-emerald-200' },
+  '退回/銷毀': { dot: 'bg-rose-500',    cls: 'bg-rose-50 text-rose-700 border-rose-200' },
 }
 
 function EditableStatusBadge({
@@ -50,6 +42,10 @@ function EditableStatusBadge({
   const [saving, setSaving] = useState(false)
   const ref = useRef<HTMLDivElement>(null)
 
+  // prop 更新時同步 local state
+  useEffect(() => { setCurrent(value) }, [value])
+
+  // click-outside 關閉
   useEffect(() => {
     if (!open) return
     function handler(e: MouseEvent) {
@@ -101,7 +97,7 @@ function EditableStatusBadge({
         </button>
 
         {open && (
-          <div className="absolute right-0 top-full mt-1 z-50 bg-white border border-gray-200 rounded-lg shadow-lg overflow-hidden min-w-[110px]">
+          <div className="absolute right-0 top-full mt-1 z-50 bg-white border border-gray-200 rounded-lg shadow-lg overflow-hidden min-w-[120px]">
             {STATUS_OPTIONS.map(opt => {
               const s = DELIVERY_BADGE[opt]
               const isCurrent = opt === current
@@ -132,10 +128,106 @@ function EditableStatusBadge({
   )
 }
 
+// 備註欄可編輯元件
+function EditableRemarks({
+  shipmentId,
+  initialValue,
+  lang,
+  onUpdated,
+}: {
+  shipmentId: string
+  initialValue: string | null
+  lang: Lang
+  onUpdated: () => void
+}) {
+  const [editing, setEditing] = useState(false)
+  const [value, setValue] = useState(initialValue ?? '')
+  const [saving, setSaving] = useState(false)
+  const [showAuth, setShowAuth] = useState(false)
+  const inputRef = useRef<HTMLTextAreaElement>(null)
+
+  // prop 更新時同步（不覆蓋編輯中的內容）
+  useEffect(() => { if (!editing) setValue(initialValue ?? '') }, [initialValue, editing])
+
+  useEffect(() => {
+    if (editing) inputRef.current?.focus()
+  }, [editing])
+
+  function handleEdit(e: React.MouseEvent) {
+    e.stopPropagation()
+    if (!isAuthed()) { setShowAuth(true); return }
+    setEditing(true)
+  }
+
+  async function handleSave() {
+    setSaving(true)
+    try {
+      await fetch(`/api/shipments/${shipmentId}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ remarks: value }),
+      })
+      await logChange('更新備註', shipmentId, value || '(清空)')
+      setEditing(false)
+      onUpdated()
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  function handleKeyDown(e: React.KeyboardEvent) {
+    if (e.key === 'Escape') { setValue(initialValue ?? ''); setEditing(false) }
+    if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleSave() }
+  }
+
+  if (editing) {
+    return (
+      <div className="bg-yellow-50 border border-yellow-200 rounded-lg px-3 py-2">
+        <textarea
+          ref={inputRef}
+          value={value}
+          onChange={e => setValue(e.target.value)}
+          onKeyDown={handleKeyDown}
+          rows={2}
+          placeholder={lang === 'ja' ? '備考を入力...' : '輸入備註...'}
+          className="w-full bg-transparent text-xs text-yellow-800 resize-none focus:outline-none"
+        />
+        <div className="flex justify-end gap-2 mt-1">
+          <button onClick={() => { setValue(initialValue ?? ''); setEditing(false) }} className="text-xs text-gray-400 hover:text-gray-600">取消</button>
+          <button onClick={handleSave} disabled={saving} className="text-xs text-emerald-600 font-semibold hover:text-emerald-700 disabled:opacity-50">
+            {saving ? '儲存中...' : '儲存'}
+          </button>
+        </div>
+      </div>
+    )
+  }
+
+  return (
+    <div
+      onClick={handleEdit}
+      className={`group cursor-pointer rounded-lg px-3 py-1.5 transition-colors ${value ? 'bg-yellow-50 border border-yellow-100 hover:border-yellow-300' : 'bg-gray-50 border border-dashed border-gray-200 hover:border-gray-400'}`}
+    >
+      {value ? (
+        <p className="text-xs text-yellow-800 group-hover:text-yellow-900">{value}</p>
+      ) : (
+        <p className="text-xs text-gray-400 group-hover:text-gray-500">
+          {lang === 'ja' ? '備考を追加...' : '點此新增備註...'}
+        </p>
+      )}
+      {showAuth && (
+        <PasswordModal
+          lang={lang}
+          onSuccess={() => { setShowAuth(false); setEditing(true) }}
+          onCancel={() => setShowAuth(false)}
+        />
+      )}
+    </div>
+  )
+}
+
 export default function ShipmentCard({ shipment, lang, allRecords, onRecordChange }: ShipmentCardProps) {
   const T = t[lang]
 
-  // Use server-computed values from /api/shipments (already accounts for 全數出貨 status)
   const plannedBoxes = shipment.plannedBoxes ?? 0
   const shippedBoxes = shipment.shippedBoxes ?? 0
 
@@ -161,7 +253,6 @@ export default function ShipmentCard({ shipment, lang, allRecords, onRecordChang
             lang={lang}
             onUpdated={onRecordChange}
           />
-          {demoBatchAnomalies(shipment.ivName).map(a => (<AnomalyBadge key={a} type={a} lang={lang} />))}
         </div>
       </div>
 
@@ -170,7 +261,7 @@ export default function ShipmentCard({ shipment, lang, allRecords, onRecordChang
         <TimelineProgress shipment={shipment} lang={lang} />
       </div>
 
-      {/* Meta section — gray bg */}
+      {/* Meta section */}
       <div className="px-5 py-2.5 bg-gray-50 border-t border-gray-100 grid grid-cols-2 sm:grid-cols-3 gap-x-6 gap-y-1.5">
         {shipment.flightNo && (
           <div className="flex flex-col">
@@ -209,7 +300,6 @@ export default function ShipmentCard({ shipment, lang, allRecords, onRecordChang
       </div>
 
       <div className="px-5 py-3 space-y-3">
-        {/* Inventory bar */}
         <InventoryBar
           total={shipment.totalBoxes}
           shipped={shippedBoxes}
@@ -217,10 +307,8 @@ export default function ShipmentCard({ shipment, lang, allRecords, onRecordChang
           lang={lang}
         />
 
-          {/* Batch items 品項明細 */}
-          <BatchItemList batchId={shipment.id} lang={lang} parentTotalBoxes={shipment.totalBoxes} parentShippedBoxes={shippedBoxes} />
+        <BatchItemList batchId={shipment.id} lang={lang} parentTotalBoxes={shipment.totalBoxes} parentShippedBoxes={shippedBoxes} />
 
-        {/* Delivery plan */}
         <DeliveryPlan
           batchId={shipment.id}
           batchName={shipment.ivName}
@@ -231,18 +319,21 @@ export default function ShipmentCard({ shipment, lang, allRecords, onRecordChang
           onRecordChange={onRecordChange}
         />
 
-        {/* Documents */}
         <div>
           <p className="text-xs text-gray-500 mb-1.5">{T.documents}</p>
           <DocumentStatus shipment={shipment} lang={lang} />
         </div>
 
-        {/* Remarks */}
-        {shipment.remarks && (
-          <div className="bg-yellow-50 border border-yellow-100 rounded-lg px-3 py-1.5">
-            <p className="text-xs text-yellow-800">{shipment.remarks}</p>
-          </div>
-        )}
+        {/* 備註 - 可編輯 */}
+        <div>
+          <p className="text-xs text-gray-500 mb-1">{lang === 'ja' ? '備考' : '備註'}</p>
+          <EditableRemarks
+            shipmentId={shipment.id}
+            initialValue={shipment.remarks}
+            lang={lang}
+            onUpdated={onRecordChange}
+          />
+        </div>
       </div>
 
       {/* Footer */}

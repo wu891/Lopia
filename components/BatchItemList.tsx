@@ -3,7 +3,6 @@ import { useEffect, useState } from 'react'
 import { BatchItem } from '@/lib/notion'
 import { Lang, t } from '@/lib/i18n'
 import PasswordModal, { isAuthed, logChange } from './PasswordModal'
-import AnomalyBadge from './AnomalyBadge';
 
 interface Props {
   batchId: string
@@ -15,9 +14,9 @@ interface Props {
 const STATUS_OPTS = ['待出貨', '部分出貨', '全數出貨', '退回/銷毀'] as const
 
 const STATUS_STYLE: Record<string, string> = {
-  '待出貨': 'bg-gray-100 text-gray-600 border-gray-200',
-  '部分出貨': 'bg-amber-50 text-amber-700 border-amber-200',
-  '全數出貨': 'bg-emerald-50 text-emerald-700 border-emerald-200',
+  '待出貨':    'bg-gray-100 text-gray-600 border-gray-200',
+  '部分出貨':  'bg-amber-50 text-amber-700 border-amber-200',
+  '全數出貨':  'bg-emerald-50 text-emerald-700 border-emerald-200',
   '退回/銷毀': 'bg-rose-50 text-rose-700 border-rose-200',
 }
 
@@ -108,7 +107,7 @@ export default function BatchItemList({ batchId, lang, parentTotalBoxes = null, 
       boxes: draft.boxes ? Number(draft.boxes) : 0,
       shippedBoxes: draft.shippedBoxes ? Number(draft.shippedBoxes) : 0,
       status: draft.status,
-      remarks: draft.remarks.trim() || undefined,
+      remarks: draft.remarks.trim(),
     }
     if (adding) {
       const res = await fetch('/api/batch-items', {
@@ -159,8 +158,7 @@ export default function BatchItemList({ batchId, lang, parentTotalBoxes = null, 
         </button>
       </div>
 
-      
-      {/* 對照列：品項加總 vs 母批次 (方案A 顯示用，不寫回 DB) */}
+      {/* 對照列：品項加總 vs 母批次 */}
       {items.length > 0 && (parentTotalBoxes != null || parentShippedBoxes > 0) && (() => {
         const sumBoxes = items.reduce((s, it) => s + (it.boxes ?? 0), 0)
         const sumShipped = items.reduce((s, it) => s + (it.shippedBoxes ?? 0), 0)
@@ -189,7 +187,7 @@ export default function BatchItemList({ batchId, lang, parentTotalBoxes = null, 
           <div className="px-3 py-2 text-xs text-gray-400">{T.loading}</div>
         ) : items.length === 0 && !adding ? (
           <div className="px-3 py-3 text-xs text-gray-400 text-center">
-            {lang === 'ja' ? '商品明細はまだありません' : '尚無品項明細,點上方「+ 新增品項」開始'}
+            {lang === 'ja' ? '商品明細はまだありません' : '尚無品項明細，點上方「+ 新增品項」開始'}
           </div>
         ) : (
           <table className="w-full text-xs">
@@ -199,8 +197,8 @@ export default function BatchItemList({ batchId, lang, parentTotalBoxes = null, 
                 <th className="px-2 py-1.5 text-right font-medium">{T.boxes}</th>
                 <th className="px-2 py-1.5 text-right font-medium">{T.shipped}</th>
                 <th className="px-2 py-1.5 text-center font-medium">{T.deliveryStatus}</th>
-                <th className="px-2 py-1.5 text-center font-medium">{lang === 'ja' ? '異常' : '異常'}</th>
-            <th className="px-2 py-1.5 text-right font-medium w-16"></th>
+                <th className="px-2 py-1.5 text-left font-medium">{lang === 'ja' ? '備考' : '備註'}</th>
+                <th className="px-2 py-1.5 text-right font-medium w-16"></th>
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-100">
@@ -213,12 +211,18 @@ export default function BatchItemList({ batchId, lang, parentTotalBoxes = null, 
                     <td className="px-2 py-1.5 text-right text-gray-700">{it.boxes ?? 0}</td>
                     <td className="px-2 py-1.5 text-right text-gray-700">{it.shippedBoxes ?? 0}</td>
                     <td className="px-2 py-1.5 text-center">
-                      <span className={`inline-block px-1.5 py-0.5 rounded text-[10px] border ${STATUS_STYLE[it.status ?? '待出貨']}`}>
+                      <span className={`inline-block px-1.5 py-0.5 rounded text-[10px] border ${STATUS_STYLE[it.status ?? '待出貨'] ?? STATUS_STYLE['待出貨']}`}>
                         {it.status ?? '待出貨'}
                       </span>
                     </td>
-                    <td className="px-2 py-1.5 text-center"><span className="text-gray-400">-</span></td>
-              <td className="px-2 py-1.5 text-right whitespace-nowrap">
+                    <td className="px-2 py-1.5 text-gray-500 max-w-[120px] truncate">
+                      {it.remarks ? (
+                        <span className="text-yellow-700 bg-yellow-50 px-1 py-0.5 rounded text-[10px]">{it.remarks}</span>
+                      ) : (
+                        <span className="text-gray-300">—</span>
+                      )}
+                    </td>
+                    <td className="px-2 py-1.5 text-right whitespace-nowrap">
                       <button onClick={() => startEdit(it)} className="text-gray-400 hover:text-lopia-red mr-2 cursor-pointer">✎</button>
                       <button onClick={() => remove(it)} className="text-gray-400 hover:text-red-500 cursor-pointer">✕</button>
                     </td>
@@ -294,7 +298,14 @@ function EditRow({
           {STATUS_OPTS.map(s => <option key={s} value={s}>{s}</option>)}
         </select>
       </td>
-      <td className="px-1 py-1"></td>
+      <td className="px-1 py-1">
+        <input
+          value={draft.remarks}
+          onChange={e => setDraft({ ...draft, remarks: e.target.value })}
+          placeholder={lang === 'ja' ? '備考...' : '備註...'}
+          className="w-full border border-gray-300 rounded px-1.5 py-0.5 text-xs focus:outline-none focus:ring-1 focus:ring-lopia-red"
+        />
+      </td>
       <td className="px-1 py-1 text-right whitespace-nowrap">
         <button onClick={onSave} className="text-emerald-600 hover:text-emerald-700 mr-2 font-bold cursor-pointer">✓</button>
         <button onClick={onCancel} className="text-gray-400 hover:text-gray-600 cursor-pointer">✕</button>
