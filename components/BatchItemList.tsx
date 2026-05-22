@@ -12,12 +12,13 @@ interface Props {
   parentShippedBoxes?: number
 }
 
-const STATUS_OPTS = ['待出貨', '部分出貨', '全數出貨'] as const
+const STATUS_OPTS = ['待出貨', '部分出貨', '全數出貨', '退回/銷毀'] as const
 
 const STATUS_STYLE: Record<string, string> = {
   '待出貨': 'bg-gray-100 text-gray-600 border-gray-200',
   '部分出貨': 'bg-amber-50 text-amber-700 border-amber-200',
   '全數出貨': 'bg-emerald-50 text-emerald-700 border-emerald-200',
+  '退回/銷毀': 'bg-rose-50 text-rose-700 border-rose-200',
 }
 
 interface DraftItem {
@@ -195,7 +196,6 @@ export default function BatchItemList({ batchId, lang, parentTotalBoxes = null, 
             <thead className="bg-gray-50 text-gray-500">
               <tr>
                 <th className="px-2 py-1.5 text-left font-medium">{lang === 'ja' ? '品名' : '品名'}</th>
-                <th className="px-2 py-1.5 text-left font-medium">{lang === 'ja' ? '産地' : '產地'}</th>
                 <th className="px-2 py-1.5 text-right font-medium">{T.boxes}</th>
                 <th className="px-2 py-1.5 text-right font-medium">{T.shipped}</th>
                 <th className="px-2 py-1.5 text-center font-medium">{T.deliveryStatus}</th>
@@ -210,7 +210,6 @@ export default function BatchItemList({ batchId, lang, parentTotalBoxes = null, 
                 ) : (
                   <tr key={it.id} className="hover:bg-gray-50">
                     <td className="px-2 py-1.5 font-medium text-gray-800">{it.productName}</td>
-                    <td className="px-2 py-1.5 text-gray-600">{it.origin || '—'}</td>
                     <td className="px-2 py-1.5 text-right text-gray-700">{it.boxes ?? 0}</td>
                     <td className="px-2 py-1.5 text-right text-gray-700">{it.shippedBoxes ?? 0}</td>
                     <td className="px-2 py-1.5 text-center">
@@ -267,14 +266,6 @@ function EditRow({
           value={draft.productName}
           onChange={e => setDraft({ ...draft, productName: e.target.value })}
           placeholder={lang === 'ja' ? '品名' : '品名'}
-          className="w-full border border-gray-300 rounded px-1.5 py-0.5 text-xs focus:outline-none focus:ring-1 focus:ring-lopia-red"
-        />
-      </td>
-      <td className="px-1 py-1">
-        <input
-          value={draft.origin}
-          onChange={e => setDraft({ ...draft, origin: e.target.value })}
-          placeholder={lang === 'ja' ? '産地' : '產地'}
           className="w-full border border-gray-300 rounded px-1.5 py-0.5 text-xs focus:outline-none focus:ring-1 focus:ring-lopia-red"
         />
       </td>
