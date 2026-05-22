@@ -17,8 +17,6 @@ function demoAnomalyOf(name: string): AnomalyType | null {
 
   return null;
 }
-} import AnomalyBadge, { AnomalyType } from './AnomalyBadge'  // DEMO: derive anomaly from product name (replace with real Notion field later) function demoAnomalyOf(name: string): AnomalyType | null {   const n = (name || '').toLowerCase()   if (n.includes('鳳梨') || n.includes('pineapple')) return '退回'   if (n.includes('香蕉') || n.includes('banana')) return '銷毀'   return null }
-
 interface Props {
   batchId: string
   lang: Lang
