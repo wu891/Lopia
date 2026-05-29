@@ -11,7 +11,19 @@ export async function POST(req: NextRequest) {
           const isTaxable = form.get('isTaxable') === '1'
 
           const manualSheetsRaw = form.get('manualSheets') as string | null
-          const manualSheets: string[] | undefined = manualSheetsRaw ? JSON.parse(manualSheetsRaw) : undefined
+          let manualSheets: string[] | undefined
+          if (manualSheetsRaw) {
+                  try {
+                            const parsed = JSON.parse(manualSheetsRaw)
+                            if (Array.isArray(parsed) && parsed.every(s => typeof s === 'string')) {
+                                          manualSheets = parsed
+                            } else {
+                                          return NextResponse.json({ error: 'manualSheets 必須是字串陣列' }, { status: 400 })
+                            }
+                  } catch {
+                            return NextResponse.json({ error: 'manualSheets 格式錯誤（無效 JSON）' }, { status: 400 })
+                  }
+          }
           const isManualMode = !!(manualSheets && manualSheets.length > 0)
 
       if (!date || !file) {

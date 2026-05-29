@@ -16,6 +16,8 @@
 // Maps the shorthand store names used in Excel sheets
 // to the full display names used in our STORES list.
 export const EXCEL_STORE_MAP: Record<string, string> = {
+  // ── 非 LOPIA 門市但會出現在貨單，保留原名（必須在 fallback 子字串比對前先精確命中）──
+  '台南大遠百': '台南大遠百',
   // ── 較長/精確的別名放前面，避免子字串 fallback 誤判 ──
   '台中漢神':   '台中漢神中港店',   // S0805, S1001, S1003, S1004
   '漢神台中':   '台中漢神中港店',   // S0404, S0802

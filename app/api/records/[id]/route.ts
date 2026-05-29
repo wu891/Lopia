@@ -1,7 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { updateShipmentRecord, deleteShipmentRecord } from '@/lib/notion'
+import { requireAuth } from '@/lib/auth'
 
 export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+  if (!(await requireAuth('edit'))) {
+    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+  }
   try {
     const { id } = await params
     const data = await req.json()
@@ -14,6 +18,9 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
 }
 
 export async function DELETE(_req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+  if (!(await requireAuth('edit'))) {
+    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+  }
   try {
     const { id } = await params
     await deleteShipmentRecord(id)

@@ -39,10 +39,18 @@ const STORE_ORDER = Array.from({ length: 12 }, (_, i) => `LPA${String(i + 1).pad
 
 function matchStore(name: string): [string, string] | null {
   const n = name.toLowerCase().trim()
+  if (!n) return null
+  // 精確命中優先
+  const exact = STORE_MAP[n]
+  if (exact) return exact
+  // Substring fallback：取「最長 key 命中」避免 '台中漢神' 被短 key '台中' 誤命中
+  let best: { key: string; val: [string, string] } | null = null
   for (const [key, val] of Object.entries(STORE_MAP)) {
-    if (n.includes(key) || key.includes(n)) return val
+    if (n.includes(key) && (best === null || key.length > best.key.length)) {
+      best = { key, val }
+    }
   }
-  return null
+  return best?.val ?? null
 }
 
 function getStoreNum(code: string): string {

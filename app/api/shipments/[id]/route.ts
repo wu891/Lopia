@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { updateShipmentInspection, updateShipmentDeliveryStatus, updateShipmentRemarks } from '@/lib/notion'
+import { requireAuth } from '@/lib/auth'
 
 export const dynamic = 'force-dynamic'
 
@@ -7,6 +8,9 @@ export async function PATCH(
   req: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
+  if (!(await requireAuth('edit'))) {
+    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+  }
   try {
     const { id } = await params
     if (!id) return NextResponse.json({ error: 'Missing id' }, { status: 400 })

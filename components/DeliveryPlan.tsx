@@ -338,16 +338,24 @@ export default function DeliveryPlan({ batchId, batchName, totalBoxes, records, 
       // Skip locked rounds — they are protected from Excel updates
       const skippedLocked = changedRounds.filter(d => d.existingGroup?.locked)
       const updatableRounds = changedRounds.filter(d => !d.existingGroup?.locked)
+      const checkDeletes = async (responses: Response[], roundNo: number) => {
+        const err = (await Promise.all(
+          responses.map(async r => r.ok ? null : (await r.json().catch(() => ({}))).error ?? `HTTP ${r.status}`)
+        )).find(Boolean)
+        if (err) throw new Error(`第 ${roundNo} 輪刪除舊紀錄失敗：${err}`)
+      }
       for (const d of updatableRounds) {
         // Stale round (exists in Notion but not in new Excel) — delete only, no date needed
         if (d.newStores.length === 0 && d.existingGroup) {
-          await Promise.all(d.existingGroup.ids.map(id => fetch(`/api/records/${id}`, { method: 'DELETE' })))
+          const delRes = await Promise.all(d.existingGroup.ids.map(id => fetch(`/api/records/${id}`, { method: 'DELETE' })))
+          await checkDeletes(delRes, d.roundNo)
           continue
         }
         const date = d.date
         if (!date) continue
         if (d.existingGroup) {
-          await Promise.all(d.existingGroup.ids.map(id => fetch(`/api/records/${id}`, { method: 'DELETE' })))
+          const delRes = await Promise.all(d.existingGroup.ids.map(id => fetch(`/api/records/${id}`, { method: 'DELETE' })))
+          await checkDeletes(delRes, d.roundNo)
         }
         if (d.newStores.length > 0) {
           const res = await Promise.all(

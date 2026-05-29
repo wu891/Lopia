@@ -1,6 +1,13 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { google } from 'googleapis'
 import { Readable } from 'stream'
+import { requireAuth, sanitizeFilenamePart } from '@/lib/auth'
+
+const MAX_UPLOAD_BYTES = 25 * 1024 * 1024 // 25 MB
+
+const ALLOWED_DOC_TYPES = new Set([
+  'IV', 'PL', 'AWB', '檢疫證明', '通關文件', '供應商配送', '出貨單', '其他',
+])
 
 function getDriveClient() {
     const privateKey = process.env.GOOGLE_PRIVATE_KEY?.replace(/\\n/g, '\n')
@@ -15,13 +22,25 @@ function getDriveClient() {
 }
 
 export async function POST(req: NextRequest) {
+    if (!(await requireAuth(['edit', 'portal']))) {
+        return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+    }
     try {
           const form    = await req.formData()
           const file    = form.get('file') as File | null
-          const batch   = form.get('batch') as string
-          const docType = form.get('docType') as string
+          const batchRaw   = form.get('batch') as string | null
+          const docTypeRaw = form.get('docType') as string | null
 
       if (!file) return NextResponse.json({ error: 'No file' }, { status: 400 })
+
+      // Size check (defence in depth — Vercel also enforces a body-size limit)
+      if (file.size > MAX_UPLOAD_BYTES) {
+              return NextResponse.json({ error: 'File too large' }, { status: 413 })
+      }
+
+      const docType = docTypeRaw && ALLOWED_DOC_TYPES.has(docTypeRaw) ? docTypeRaw : '其他'
+      const batch = sanitizeFilenamePart(batchRaw, 60)
+      const safeOriginalName = sanitizeFilenamePart(file.name, 80) || 'file'
 
       // 供應商配送 Excel 不上傳到 Drive
       if (docType === '供應商配送') {
@@ -36,7 +55,7 @@ export async function POST(req: NextRequest) {
           const uploaded = await drive.files.create({
                   supportsAllDrives: true,
                   requestBody: {
-                            name: `[${docType}] ${file.name}`,
+                            name: `[${docType}] ${safeOriginalName}`,
                             parents: [folderId],
                             description: `Batch: ${batch} | Type: ${docType}`,
                   },

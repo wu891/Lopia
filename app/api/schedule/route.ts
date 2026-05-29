@@ -1,8 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createShipmentRecord } from '@/lib/notion'
 import { ParsedEntry } from '@/lib/parseSchedule'
+import { requireAuth } from '@/lib/auth'
 
 export async function POST(req: NextRequest) {
+  if (!(await requireAuth('edit'))) {
+    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+  }
   try {
     const { entries, batchId } = await req.json() as {
       entries: ParsedEntry[]

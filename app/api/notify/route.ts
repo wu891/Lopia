@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import nodemailer from 'nodemailer'
 import { google } from 'googleapis'
+import { requireAuth, htmlEscape } from '@/lib/auth'
 
 function getDriveClient() {
   const auth = new google.auth.GoogleAuth({
@@ -30,6 +31,9 @@ async function grantDriveAccess(emails: string[]) {
 }
 
 export async function POST(req: NextRequest) {
+  if (!(await requireAuth('edit'))) {
+    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+  }
   try {
     const body = await req.json()
 
@@ -43,7 +47,10 @@ export async function POST(req: NextRequest) {
         service: 'gmail',
         auth: { user: process.env.GMAIL_USER, pass: process.env.GMAIL_APP_PASSWORD },
       })
-      const missingList = (missingDocs as string[]).map(d => `<li>${d}</li>`).join('')
+      const docs: string[] = Array.isArray(missingDocs) ? missingDocs : []
+      const missingList = docs.map(d => `<li>${htmlEscape(d)}</li>`).join('')
+      const safeBatchName = htmlEscape(batchName)
+      const safeDepartJP = htmlEscape(departJP ?? '—')
       const html = `
 <div style="font-family:sans-serif;max-width:480px;margin:0 auto">
   <div style="background:#f97316;padding:16px 24px;border-radius:8px 8px 0 0">
@@ -51,8 +58,8 @@ export async function POST(req: NextRequest) {
   </div>
   <div style="border:1px solid #eee;border-top:none;border-radius:0 0 8px 8px;padding:20px 24px">
     <p style="margin:0 0 12px;color:#333">以下の書類が未提出です。至急ご確認ください。</p>
-    <p style="margin:0 0 6px;font-weight:600;color:#444">バッチ：${batchName}</p>
-    <p style="margin:0 0 6px;color:#444">出発日：${departJP ?? '—'}</p>
+    <p style="margin:0 0 6px;font-weight:600;color:#444">バッチ：${safeBatchName}</p>
+    <p style="margin:0 0 6px;color:#444">出発日：${safeDepartJP}</p>
     <p style="margin:8px 0 4px;color:#444">未提出書類：</p>
     <ul style="margin:0;padding-left:20px;color:#d32f2f;font-weight:600">${missingList}</ul>
     <p style="margin-top:16px;font-size:12px;color:#aaa">此信件由 LOPIA 進口追蹤系統自動發送</p>
@@ -61,7 +68,7 @@ export async function POST(req: NextRequest) {
       await transporter.sendMail({
         from: `"LOPIA 進口系統" <${process.env.GMAIL_USER}>`,
         to: process.env.GMAIL_USER,
-        subject: `【催件】${batchName} - 文件未齊`,
+        subject: `【催件】${String(batchName ?? '').slice(0, 100)} - 文件未齊`,
         html,
       })
       return NextResponse.json({ ok: true })
@@ -86,7 +93,7 @@ export async function POST(req: NextRequest) {
       },
     })
 
-    const driveLink = `https://drive.google.com/drive/folders/${process.env.GOOGLE_DRIVE_FOLDER_ID}`
+    const driveLink = `https://drive.google.com/drive/folders/${encodeURIComponent(process.env.GOOGLE_DRIVE_FOLDER_ID ?? '')}`
 
     const rows = [
       ['批次名稱', batchName],
@@ -96,10 +103,11 @@ export async function POST(req: NextRequest) {
       ['日本出發日', departJP || '—'],
       ['抵台日',   arrivalTW || '—'],
       ['入倉箱數',  totalBoxes ? `${totalBoxes} 箱` : '—'],
-    ].map(([k, v]) => `<tr><td style="padding:4px 12px 4px 0;color:#666;white-space:nowrap">${k}</td><td style="padding:4px 0;font-weight:600">${v}</td></tr>`).join('')
+    ].map(([k, v]) => `<tr><td style="padding:4px 12px 4px 0;color:#666;white-space:nowrap">${htmlEscape(k)}</td><td style="padding:4px 0;font-weight:600">${htmlEscape(v)}</td></tr>`).join('')
 
-    const fileListHtml = fileNames?.length
-      ? `<p style="margin:16px 0 4px;color:#444;font-size:14px">📎 已上傳文件：</p><ul style="margin:0;padding-left:20px">${fileNames.map((n: string) => `<li style="font-size:13px;color:#555">${n}</li>`).join('')}</ul>`
+    const safeFileNames: string[] = Array.isArray(fileNames) ? fileNames : []
+    const fileListHtml = safeFileNames.length
+      ? `<p style="margin:16px 0 4px;color:#444;font-size:14px">📎 已上傳文件：</p><ul style="margin:0;padding-left:20px">${safeFileNames.map((n) => `<li style="font-size:13px;color:#555">${htmlEscape(n)}</li>`).join('')}</ul>`
       : ''
 
     const html = `
@@ -126,7 +134,7 @@ export async function POST(req: NextRequest) {
       transporter.sendMail({
         from: `"LOPIA 進口系統" <${process.env.GMAIL_USER}>`,
         to: recipients,
-        subject: `📦 LOPIA 新批次登錄：${batchName}`,
+        subject: `📦 LOPIA 新批次登錄：${String(batchName ?? '').slice(0, 100)}`,
         html,
       }),
       grantDriveAccess(emailList),

@@ -1,29 +1,23 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getShipments, getShipmentRecords, createShipment } from '@/lib/notion'
+import { requireAuth } from '@/lib/auth'
 
 export const dynamic = 'force-dynamic' // always fetch fresh from Notion
 
-const CORS = {
-  'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
-  'Access-Control-Allow-Headers': 'Content-Type',
-}
-
-export async function OPTIONS() {
-  return new Response(null, { status: 204, headers: CORS })
-}
-
 export async function POST(req: NextRequest) {
+  if (!(await requireAuth('edit'))) {
+    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+  }
   try {
     const data = await req.json()
     if (!data.ivName?.trim()) {
-      return NextResponse.json({ error: 'Missing batch name' }, { status: 400, headers: CORS })
+      return NextResponse.json({ error: 'Missing batch name' }, { status: 400 })
     }
     const shipment = await createShipment(data)
-    return NextResponse.json({ shipment }, { headers: CORS })
+    return NextResponse.json({ shipment })
   } catch (err) {
     console.error(err)
-    return NextResponse.json({ error: 'Failed to create shipment' }, { status: 500, headers: CORS })
+    return NextResponse.json({ error: 'Failed to create shipment' }, { status: 500 })
   }
 }
 
@@ -49,9 +43,6 @@ export async function GET() {
       const planned = plannedMap[s.id] ?? 0
       const done = doneMap[s.id] ?? 0
       const total = s.totalBoxes ?? 0
-      // When 全數出貨: use totalBoxes as shipped (ground truth from Notion 入倉箱數)
-      // When all active rounds done: use planned as shipped
-      // Otherwise: use completed rounds sum
       const allDone = planned > 0 && done >= planned
       const shipped =
         s.deliveryStatus === '全數出貨' ? total :
@@ -68,9 +59,9 @@ export async function GET() {
     return NextResponse.json({
       shipments: enriched,
       lastUpdated: new Date().toISOString(),
-    }, { headers: CORS })
+    })
   } catch (err) {
     console.error(err)
-    return NextResponse.json({ error: 'Failed to fetch data' }, { status: 500, headers: CORS })
+    return NextResponse.json({ error: 'Failed to fetch data' }, { status: 500 })
   }
 }

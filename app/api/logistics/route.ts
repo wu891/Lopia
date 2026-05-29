@@ -5,6 +5,7 @@ import {
   LogisticsEventType,
   DeliveryStatus,
 } from '@/lib/notion'
+import { requireAuth } from '@/lib/auth'
 
 export const dynamic = 'force-dynamic'
 
@@ -19,6 +20,10 @@ export async function GET() {
 }
 
 export async function POST(req: NextRequest) {
+  // logistics 同時被主站 (edit) 與物流業者後台 (portal) 使用
+  if (!(await requireAuth(['edit', 'portal']))) {
+    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+  }
   try {
     const body = await req.json()
     const {
