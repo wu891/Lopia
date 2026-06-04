@@ -38,6 +38,13 @@ const EMPTY_DRAFT: DraftItem = {
   remarks: '',
 }
 
+// 從供應商 Excel 推算出來的品項（/api/batch-items/derived）
+interface DerivedItem {
+  productName: string
+  boxes: number
+  shippedBoxes: number
+}
+
 export default function BatchItemList({ batchId, lang, parentTotalBoxes = null, parentShippedBoxes = 0 }: Props) {
   const T = t[lang]
   const [items, setItems] = useState<BatchItem[]>([])
@@ -47,19 +54,37 @@ export default function BatchItemList({ batchId, lang, parentTotalBoxes = null, 
   const [adding, setAdding] = useState(false)
   const [showAuth, setShowAuth] = useState(false)
   const [pendingAction, setPendingAction] = useState<(() => void) | null>(null)
+  // 從出貨計畫（供應商 Excel）推算出來的品項
+  const [derived, setDerived] = useState<DerivedItem[]>([])
+  const [hasExcel, setHasExcel] = useState(false)
+  const [syncing, setSyncing] = useState(false)
+  const [syncMsg, setSyncMsg] = useState<{ type: 'ok' | 'err'; text: string } | null>(null)
 
   async function load() {
     setLoading(true)
     try {
-      const res = await fetch(`/api/batch-items?batchId=${batchId}`, { cache: 'no-store' })
-      const json = await res.json()
-      setItems(json.items ?? [])
+      const [itemsRes, derivedRes] = await Promise.all([
+        fetch(`/api/batch-items?batchId=${batchId}`, { cache: 'no-store' }),
+        fetch(`/api/batch-items/derived?batchId=${batchId}`, { cache: 'no-store' }),
+      ])
+      const itemsJson = await itemsRes.json()
+      setItems(itemsJson.items ?? [])
+      const derivedJson = await derivedRes.json().catch(() => ({}))
+      setDerived(derivedJson.derived ?? [])
+      setHasExcel(!!derivedJson.hasExcel)
     } finally {
       setLoading(false)
     }
   }
 
   useEffect(() => { load() }, [batchId])
+
+  // 「已出貨」即時自動算：有供應商 Excel 時以推算值為準，否則用手動值
+  const derivedMap = new Map(derived.map(d => [d.productName, d]))
+  function liveShipped(it: BatchItem): number {
+    if (hasExcel && derivedMap.has(it.productName)) return derivedMap.get(it.productName)!.shippedBoxes
+    return it.shippedBoxes ?? 0
+  }
 
   function withAuth(fn: () => void) {
     if (!isAuthed()) {
@@ -143,25 +168,98 @@ export default function BatchItemList({ batchId, lang, parentTotalBoxes = null, 
     })
   }
 
+  // 從出貨計畫（供應商 Excel）帶入品名＋總箱：依品名 upsert，不刪除手動新增的品項
+  function syncFromPlan() {
+    withAuth(async () => {
+      setSyncing(true); setSyncMsg(null)
+      try {
+        const res = await fetch(`/api/batch-items/derived?batchId=${batchId}`, { cache: 'no-store' })
+        const json = await res.json().catch(() => ({}))
+        if (!res.ok) {
+          setSyncMsg({ type: 'err', text: json.error ?? '同步失敗' })
+          return
+        }
+        if (!json.hasExcel) {
+          setSyncMsg({ type: 'err', text: lang === 'ja' ? '先に仕入先Excelをアップロードしてください' : '此批次尚未上傳供應商 Excel' })
+          return
+        }
+        const list: DerivedItem[] = json.derived ?? []
+        if (list.length === 0) {
+          setSyncMsg({ type: 'err', text: lang === 'ja' ? '取り込める商品がありません' : '供應商 Excel 沒有可帶入的品項' })
+          return
+        }
+        const byName = new Map(items.map(it => [it.productName, it]))
+        let created = 0, updated = 0
+        for (const d of list) {
+          const existing = byName.get(d.productName)
+          if (existing) {
+            if ((existing.boxes ?? 0) !== d.boxes) {
+              await fetch(`/api/batch-items/${existing.id}`, {
+                method: 'PATCH',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ boxes: d.boxes }),
+              })
+              updated++
+            }
+          } else {
+            await fetch('/api/batch-items', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ batchId, productName: d.productName, boxes: d.boxes, shippedBoxes: 0, status: '待出貨', sortOrder: items.length + created }),
+            })
+            created++
+          }
+        }
+        await logChange('同步品項明細', batchId, `從出貨計畫帶入 ${list.length} 品項（新增 ${created} / 更新 ${updated}）`)
+        setSyncMsg({ type: 'ok', text: lang === 'ja' ? `同期完了：追加 ${created}・更新 ${updated}` : `已同步：新增 ${created}、更新 ${updated}` })
+        await load()
+      } catch {
+        setSyncMsg({ type: 'err', text: lang === 'ja' ? '同期に失敗しました' : '同步失敗，請重試' })
+      } finally {
+        setSyncing(false)
+      }
+    })
+  }
+
   return (
     <div>
-      <div className="flex items-center justify-between mb-1.5">
+      <div className="flex items-center justify-between mb-1.5 gap-2">
         <p className="text-xs text-gray-500">
           {lang === 'ja' ? '商品明細' : '品項明細'}
           {items.length > 0 && <span className="ml-1 text-gray-400">({items.length})</span>}
         </p>
-        <button
-          onClick={startAdd}
-          className="text-xs px-2 py-1 bg-lopia-red-light text-lopia-red rounded-lg hover:bg-red-100 font-medium transition-colors"
-        >
-          + {lang === 'ja' ? '商品追加' : '新增品項'}
-        </button>
+        <div className="flex items-center gap-1.5 flex-shrink-0">
+          {hasExcel && (
+            <button
+              onClick={syncFromPlan}
+              disabled={syncing}
+              title={lang === 'ja' ? '配送計画（仕入先Excel）から商品名・箱数を取り込む' : '從出貨計畫（供應商 Excel）帶入品名與總箱'}
+              className="text-xs px-2 py-1 bg-blue-50 text-blue-600 border border-blue-200 rounded-lg hover:bg-blue-100 font-medium transition-colors disabled:opacity-50"
+            >
+              {syncing
+                ? <><span className="animate-spin inline-block">⟳</span> {lang === 'ja' ? '同期中...' : '同步中...'}</>
+                : <>🔄 {lang === 'ja' ? '配送計画から取込' : '從出貨計畫同步'}</>}
+            </button>
+          )}
+          <button
+            onClick={startAdd}
+            className="text-xs px-2 py-1 bg-lopia-red-light text-lopia-red rounded-lg hover:bg-red-100 font-medium transition-colors"
+          >
+            + {lang === 'ja' ? '商品追加' : '新增品項'}
+          </button>
+        </div>
       </div>
+
+      {syncMsg && (
+        <p className={`text-xs mb-1.5 px-2 py-1 rounded-lg ${syncMsg.type === 'ok' ? 'text-green-700 bg-green-50' : 'text-red-600 bg-red-50'}`}>
+          {syncMsg.type === 'ok' ? '✓' : '⚠'} {syncMsg.text}
+        </p>
+      )}
 
       {/* 對照列：品項加總 vs 母批次 */}
       {items.length > 0 && (parentTotalBoxes != null || parentShippedBoxes > 0) && (() => {
         const sumBoxes = items.reduce((s, it) => s + (it.boxes ?? 0), 0)
-        const sumShipped = items.reduce((s, it) => s + (it.shippedBoxes ?? 0), 0)
+        const sumShipped = items.reduce((s, it) => s + liveShipped(it), 0)
         const totalOk = parentTotalBoxes == null || sumBoxes === parentTotalBoxes
         const shippedOk = sumShipped === parentShippedBoxes
         return (
@@ -204,12 +302,14 @@ export default function BatchItemList({ batchId, lang, parentTotalBoxes = null, 
             <tbody className="divide-y divide-gray-100">
               {items.map(it => (
                 editingId === it.id ? (
-                  <EditRow key={it.id} draft={draft} setDraft={setDraft} onSave={save} onCancel={cancelEdit} lang={lang} />
+                  <EditRow key={it.id} draft={draft} setDraft={setDraft} onSave={save} onCancel={cancelEdit} lang={lang} autoShipped={hasExcel} />
                 ) : (
                   <tr key={it.id} className="hover:bg-gray-50">
                     <td className="px-2 py-1.5 font-medium text-gray-800">{it.productName}</td>
                     <td className="px-2 py-1.5 text-right text-gray-700">{it.boxes ?? 0}</td>
-                    <td className="px-2 py-1.5 text-right text-gray-700">{it.shippedBoxes ?? 0}</td>
+                    <td className={`px-2 py-1.5 text-right ${hasExcel && derivedMap.has(it.productName) ? 'text-blue-600' : 'text-gray-700'}`}>
+                      {liveShipped(it)}
+                    </td>
                     <td className="px-2 py-1.5 text-center">
                       <span className={`inline-block px-1.5 py-0.5 rounded text-[10px] border ${STATUS_STYLE[it.status ?? '待出貨'] ?? STATUS_STYLE['待出貨']}`}>
                         {it.status ?? '待出貨'}
@@ -230,7 +330,7 @@ export default function BatchItemList({ batchId, lang, parentTotalBoxes = null, 
                 )
               ))}
               {adding && (
-                <EditRow draft={draft} setDraft={setDraft} onSave={save} onCancel={cancelEdit} lang={lang} />
+                <EditRow draft={draft} setDraft={setDraft} onSave={save} onCancel={cancelEdit} lang={lang} autoShipped={hasExcel} />
               )}
             </tbody>
           </table>
@@ -254,13 +354,14 @@ export default function BatchItemList({ batchId, lang, parentTotalBoxes = null, 
 }
 
 function EditRow({
-  draft, setDraft, onSave, onCancel, lang,
+  draft, setDraft, onSave, onCancel, lang, autoShipped,
 }: {
   draft: DraftItem
   setDraft: (d: DraftItem) => void
   onSave: () => void
   onCancel: () => void
   lang: Lang
+  autoShipped: boolean
 }) {
   return (
     <tr className="bg-yellow-50">
@@ -281,13 +382,19 @@ function EditRow({
           className="w-16 border border-gray-300 rounded px-1.5 py-0.5 text-xs text-right focus:outline-none focus:ring-1 focus:ring-lopia-red"
         />
       </td>
-      <td className="px-1 py-1">
-        <input
-          type="number" min="0"
-          value={draft.shippedBoxes}
-          onChange={e => setDraft({ ...draft, shippedBoxes: e.target.value })}
-          className="w-16 border border-gray-300 rounded px-1.5 py-0.5 text-xs text-right focus:outline-none focus:ring-1 focus:ring-lopia-red"
-        />
+      <td className="px-1 py-1 text-right">
+        {autoShipped ? (
+          <span className="text-[10px] text-gray-400" title={lang === 'ja' ? '出荷済は配送計画から自動計算' : '已出貨由出貨計畫自動計算'}>
+            {lang === 'ja' ? '自動' : '自動'}
+          </span>
+        ) : (
+          <input
+            type="number" min="0"
+            value={draft.shippedBoxes}
+            onChange={e => setDraft({ ...draft, shippedBoxes: e.target.value })}
+            className="w-16 border border-gray-300 rounded px-1.5 py-0.5 text-xs text-right focus:outline-none focus:ring-1 focus:ring-lopia-red"
+          />
+        )}
       </td>
       <td className="px-1 py-1">
         <select
