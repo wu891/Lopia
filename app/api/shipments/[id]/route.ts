@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { updateShipmentInspection, updateShipmentDeliveryStatus, updateShipmentRemarks } from '@/lib/notion'
+import { updateShipmentInspection, updateShipmentDeliveryStatus, updateShipmentRemarks, updateShipmentCost } from '@/lib/notion'
 import { requireAuth } from '@/lib/auth'
 
 export const dynamic = 'force-dynamic'
@@ -16,7 +16,10 @@ export async function PATCH(
     if (!id) return NextResponse.json({ error: 'Missing id' }, { status: 400 })
 
     const body = await req.json()
-    const { fumigation, pesticideTest, radiationTest, deliveryStatus, remarks } = body
+    const {
+      fumigation, pesticideTest, radiationTest, deliveryStatus, remarks,
+      importCost, freightCost, storageCost, costCurrency, taxMode,
+    } = body
 
     if (deliveryStatus !== undefined) {
       await updateShipmentDeliveryStatus(id, deliveryStatus)
@@ -24,6 +27,20 @@ export async function PATCH(
 
     if (remarks !== undefined) {
       await updateShipmentRemarks(id, remarks)
+    }
+
+    // 毛利系統：批次成本
+    if (
+      importCost !== undefined || freightCost !== undefined || storageCost !== undefined ||
+      costCurrency !== undefined || taxMode !== undefined
+    ) {
+      await updateShipmentCost(id, {
+        ...(importCost   !== undefined ? { importCost }   : {}),
+        ...(freightCost  !== undefined ? { freightCost }  : {}),
+        ...(storageCost  !== undefined ? { storageCost }  : {}),
+        ...(costCurrency !== undefined ? { costCurrency } : {}),
+        ...(taxMode      !== undefined ? { taxMode }      : {}),
+      })
     }
 
     await updateShipmentInspection(id, {

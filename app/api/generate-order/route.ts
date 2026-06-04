@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { google } from 'googleapis'
-import { getShipmentById, getShipmentRecords } from '@/lib/notion'
+import { getShipmentById, getShipmentRecords, updateShipmentRecord } from '@/lib/notion'
 import { parseDeliveryExcel, EXCEL_STORE_MAP } from '@/lib/parseDeliveryExcel'
 import { generateShipmentOrder, generateShipmentNo, StoreOrder } from '@/lib/generateShipmentOrder'
 
@@ -81,6 +81,23 @@ export async function POST(req: NextRequest) {
                       }],
                 deliveryDate,
             })
+            }
+
+      // 5b. 毛利系統：把每店營收（= 店鋪貨單 單價×數量 合計）寫回掛批次的出貨紀錄。
+      //     失敗不影響出貨單下載。
+      const amountByStore = new Map<string, number>()
+            for (const o of storeOrders) {
+                    const amt = o.products.reduce((s, p) => s + (p.quantity || 0) * (p.unitPrice || 0), 0)
+                    amountByStore.set(o.storeName, (amountByStore.get(o.storeName) ?? 0) + amt)
+            }
+            try {
+                    await Promise.all(roundRecords.map(r =>
+                      (r.store && amountByStore.has(r.store))
+                        ? updateShipmentRecord(r.id, { amount: Math.round(amountByStore.get(r.store)!) })
+                        : Promise.resolve(),
+                    ))
+            } catch (e) {
+                    console.error('[generate-order] 寫回營收失敗（不影響出貨單）', e)
             }
 
       // 6. Generate shipment number

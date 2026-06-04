@@ -46,6 +46,12 @@ export interface Shipment {
   fclLcl: string | null          // FCL | LCL
   // Supplier Excel
   supplierExcelId: string | null
+  // Cost (毛利系統) — 批次成本
+  importCost: number | null      // 進貨成本（未稅，原幣別）
+  freightCost: number | null     // 運費
+  storageCost: number | null     // 倉儲費
+  costCurrency: string | null    // 成本幣別：TWD | JPY
+  taxMode: string | null         // 課稅別：免稅 | 5%
   // Computed
   shippedBoxes?: number
   remainingBoxes?: number | null
@@ -135,6 +141,11 @@ function pageToShipment(page: any): Shipment {
     transportMode: getSelect(p['運輸方式']),
     fclLcl: getSelect(p['FCL/LCL']),
     supplierExcelId: getText(p['供應商配送Excel']),
+    importCost: getNumber(p['進貨成本']),
+    freightCost: getNumber(p['運費']),
+    storageCost: getNumber(p['倉儲費']),
+    costCurrency: getSelect(p['成本幣別']),
+    taxMode: getSelect(p['課稅別']),
   }
 }
 
@@ -237,6 +248,7 @@ export async function updateShipmentRecord(id: string, data: Partial<{
   store: string
   date: string
   boxes: number
+  amount: number | null
   round: number
   planStatus: string
   remarks: string
@@ -249,6 +261,7 @@ export async function updateShipmentRecord(id: string, data: Partial<{
   if (data.store) props['出貨門市'] = { select: { name: data.store } }
   if (data.date) props['出貨日期'] = { date: { start: data.date } }
   if (data.boxes != null) props['出貨箱數'] = { number: data.boxes }
+  if (data.amount !== undefined) props['金額'] = { number: data.amount }
   if (data.round != null) props['出貨輪次'] = { number: data.round }
   if (data.planStatus) props['計畫狀態'] = { select: { name: data.planStatus } }
   if (data.remarks != null) props['備註'] = { rich_text: [{ text: { content: data.remarks } }] }
@@ -454,6 +467,25 @@ export async function updateShipmentRemarks(id: string, remarks: string) {
     page_id: id,
     properties: { '備註': { rich_text: [{ text: { content: remarks } }] } },
   })
+}
+
+// 毛利系統：寫入批次成本（進貨成本/運費/倉儲/幣別/課稅）
+export async function updateShipmentCost(id: string, data: {
+  importCost?: number | null
+  freightCost?: number | null
+  storageCost?: number | null
+  costCurrency?: string | null
+  taxMode?: string | null
+}) {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const props: any = {}
+  if (data.importCost   !== undefined) props['進貨成本'] = { number: data.importCost }
+  if (data.freightCost  !== undefined) props['運費']     = { number: data.freightCost }
+  if (data.storageCost  !== undefined) props['倉儲費']   = { number: data.storageCost }
+  if (data.costCurrency !== undefined && data.costCurrency) props['成本幣別'] = { select: { name: data.costCurrency } }
+  if (data.taxMode      !== undefined && data.taxMode)      props['課稅別']   = { select: { name: data.taxMode } }
+  if (Object.keys(props).length === 0) return
+  await notion.pages.update({ page_id: id, properties: props })
 }
 
 // ── Furikomi (振込明細) ────────────────────────────────────────────────────────
