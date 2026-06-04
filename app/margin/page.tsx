@@ -2,7 +2,7 @@
 import { useState, useEffect, useCallback, useMemo } from 'react'
 import Header from '@/components/Header'
 import PasswordModal, { isAuthed, markAuthed, logChange } from '@/components/PasswordModal'
-import type { BatchMargin } from '@/lib/margin'
+import type { BatchMargin, RevenueSource } from '@/lib/margin'
 
 function fmt(n: number): string {
   return Math.round(n).toLocaleString('en-US')
@@ -187,6 +187,36 @@ export default function MarginPage() {
     await fetchData()
   }
 
+  const [writingBack, setWritingBack] = useState(false)
+
+  // 一鍵寫回：把本批「金額尚空、但已由對帳/批價推算出」的列，寫進 Notion 金額欄
+  async function writebackBatch(b: BatchMargin) {
+    const targets = b.rows.filter(
+      r => r.record.amount == null && r.derivedAmount != null &&
+        (r.revenueSource === 'excel' || r.revenueSource === 'batchPrice'),
+    )
+    if (targets.length === 0) return
+    if (!confirm(`將把 ${targets.length} 筆推算營收寫回 Notion（僅寫目前金額為空的列，手動填過的不動）。確定？`)) return
+    setWritingBack(true)
+    let ok = 0, fail = 0
+    try {
+      for (const r of targets) {
+        const amount = Math.round(r.derivedAmount as number)
+        const res = await fetch(`/api/records/${r.record.id}`, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ amount }),
+        })
+        if (res.ok) ok++; else fail++
+      }
+      await logChange('一鍵寫回營收', b.batch.ivName, `成功${ok} 失敗${fail}（共${targets.length}）`)
+      await fetchData()
+      if (fail > 0) alert(`完成：成功 ${ok} 筆，失敗 ${fail} 筆（請確認權限）`)
+    } finally {
+      setWritingBack(false)
+    }
+  }
+
   return (
     <div className="min-h-screen bg-gray-50">
       <Header lang={lang} setLang={setLang} lastUpdated={lastUpdated} onRefresh={fetchData} />
@@ -274,7 +304,9 @@ export default function MarginPage() {
               editingRecId={editingRecId}
               onBeginEditAmount={beginEditAmount}
               onSaveAmount={saveAmount}
-              onCancelEditAmount={() => setEditingRecId(null)} />}
+              onCancelEditAmount={() => setEditingRecId(null)}
+              writingBack={writingBack}
+              onWriteback={() => requireAuth(() => writebackBatch(selected))} />}
           </>
         )}
 
@@ -293,13 +325,15 @@ function Stat({ label, value }: { label: string; value: string }) {
   )
 }
 
-function BatchDetail({ b, editing, onEdit, onCloseEdit, onSave, editingRecId, onBeginEditAmount, onSaveAmount, onCancelEditAmount }: {
+function BatchDetail({ b, editing, onEdit, onCloseEdit, onSave, editingRecId, onBeginEditAmount, onSaveAmount, onCancelEditAmount, writingBack, onWriteback }: {
   b: BatchMargin; editing: boolean; onEdit: () => void; onCloseEdit: () => void
   onSave: (d: { importCost: number; freightCost: number; storageCost: number; costCurrency: string; taxMode: string }) => Promise<void>
   editingRecId: string | null
   onBeginEditAmount: (recId: string) => void
   onSaveAmount: (recId: string, amount: number) => Promise<void>
   onCancelEditAmount: () => void
+  writingBack: boolean
+  onWriteback: () => void
 }) {
   const loss = b.margin < 0
   return (
@@ -314,12 +348,22 @@ function BatchDetail({ b, editing, onEdit, onCloseEdit, onSave, editingRecId, on
           <p className="text-xs text-gray-400 mt-0.5">
             {b.batch.supplier ? `供應商：${b.batch.supplier} · ` : ''}{b.currency} · {b.taxMode}
             {b.costSource === 'none' && <span className="text-amber-600"> · ⚠ 尚未設定進貨成本</span>}
+            {b.missingPrice > 0 && <span className="text-amber-600"> · ⚠ {b.missingPrice} 筆抓不到單價（去對帳單補）</span>}
           </p>
         </div>
-        <button onClick={onEdit}
-          className="shrink-0 flex items-center gap-1.5 text-xs text-lopia-red border border-lopia-red px-3 py-1.5 rounded-md font-medium hover:bg-lopia-red-light">
-          編輯本批成本
-        </button>
+        <div className="shrink-0 flex items-center gap-2">
+          {b.pendingWriteback > 0 && (
+            <button onClick={onWriteback} disabled={writingBack}
+              className="flex items-center gap-1.5 text-xs bg-lopia-red text-white px-3 py-1.5 rounded-md font-medium hover:bg-lopia-red-dark disabled:opacity-50"
+              title="把對帳/批價推算出的營收，寫進 Notion 出貨紀錄的金額欄（僅寫目前為空的列）">
+              {writingBack ? '寫回中…' : `一鍵寫回 ${b.pendingWriteback} 筆營收`}
+            </button>
+          )}
+          <button onClick={onEdit}
+            className="flex items-center gap-1.5 text-xs text-lopia-red border border-lopia-red px-3 py-1.5 rounded-md font-medium hover:bg-lopia-red-light">
+            編輯本批成本
+          </button>
+        </div>
       </div>
 
       {editing && <CostEditor b={b} onSave={onSave} onClose={onCloseEdit} />}
@@ -365,6 +409,7 @@ function BatchDetail({ b, editing, onEdit, onCloseEdit, onSave, editingRecId, on
                   <RevenueCell
                     rawAmount={r.record.amount}
                     display={r.revenue}
+                    source={r.revenueSource}
                     editing={editingRecId === r.record.id}
                     onBegin={() => onBeginEditAmount(r.record.id)}
                     onSave={(v) => onSaveAmount(r.record.id, v)}
@@ -397,8 +442,14 @@ function BatchDetail({ b, editing, onEdit, onCloseEdit, onSave, editingRecId, on
   )
 }
 
-function RevenueCell({ rawAmount, display, editing, onBegin, onSave, onCancel }: {
-  rawAmount: number | null; display: number; editing: boolean
+const SOURCE_TAG: Record<string, { label: string; cls: string; title: string }> = {
+  manual:     { label: '手動', cls: 'text-gray-400',    title: '手動填寫的營收' },
+  excel:      { label: '對帳', cls: 'text-emerald-500', title: '由對帳明細推算（箱數×單價），尚未寫回 Notion' },
+  batchPrice: { label: '批價', cls: 'text-sky-500',     title: '由批次單價推算（箱數×單價），尚未寫回 Notion' },
+}
+
+function RevenueCell({ rawAmount, display, source, editing, onBegin, onSave, onCancel }: {
+  rawAmount: number | null; display: number; source: RevenueSource; editing: boolean
   onBegin: () => void; onSave: (v: number) => Promise<void>; onCancel: () => void
 }) {
   const [draft, setDraft] = useState('')
@@ -419,9 +470,17 @@ function RevenueCell({ rawAmount, display, editing, onBegin, onSave, onCancel }:
       </td>
     )
   }
+  // 推算值（對帳/批價）尚未寫回，以斜體點狀底線提示「點擊可寫入」
+  const derived = source === 'excel' || source === 'batchPrice'
+  const tag = SOURCE_TAG[source]
   return (
     <td className="px-3 py-2.5 text-right cursor-pointer hover:bg-lopia-red-light" title="點擊補/改營收" onMouseDown={e => { e.preventDefault(); onBegin() }}>
-      {display > 0 ? fmt(display) : <span className="text-gray-300">＋補</span>}
+      {display > 0 ? (
+        <span className="inline-flex items-center gap-1 justify-end">
+          <span className={derived ? 'italic text-gray-600' : ''}>{fmt(display)}</span>
+          {tag && <span className={`text-[9px] ${tag.cls}`} title={tag.title}>{tag.label}</span>}
+        </span>
+      ) : <span className="text-gray-300">＋補</span>}
     </td>
   )
 }

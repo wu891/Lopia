@@ -589,7 +589,7 @@ export interface ExcelRow {
 }
 
 export async function getExcelRows(): Promise<ExcelRow[]> {
-  const DB = process.env.NOTION_EXCEL_ROWS_DB
+  const DB = process.env.NOTION_EXCEL_ROWS_DB?.trim() // trim 防 env 尾端換行（printf vs echo 陷阱）
   if (!DB) return []
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -669,7 +669,7 @@ export interface BatchPriceEntry {
 }
 
 export async function getBatchPrices(): Promise<Record<string, BatchPriceEntry[]>> {
-  const BATCH_PRICES_DB = process.env.NOTION_BATCH_PRICES_DB
+  const BATCH_PRICES_DB = process.env.NOTION_BATCH_PRICES_DB?.trim() // trim 防 env 尾端換行
   if (!BATCH_PRICES_DB) return {}
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const results: any[] = []
