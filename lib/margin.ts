@@ -52,37 +52,76 @@ export function furikomiCostForBatch(batchId: string, furikomi: FurikomiRecord[]
     .reduce((s, f) => s + num(f.originalCost) + num(f.fumigationFee) + num(f.pesticideFee), 0)
 }
 
-// 對帳明細索引：出貨單號 → 該單所有品項的含稅金額合計（箱數 × 單價）
-export function buildExcelRevenueIndex(excelRows: ExcelRow[]): Map<string, number> {
-  const idx = new Map<string, number>()
+// 對帳明細裡的一張出貨單群組（同一單號在同店同日的箱數與含稅金額合計）
+interface ExcelGroup { sno: string; qty: number; amount: number }
+export interface ExcelRevenueIndex {
+  bySno: Map<string, number>                    // 出貨單號 → 含稅金額（少數紀錄有正確 S 單號時直接對）
+  byStoreDate: Map<string, ExcelGroup[]>        // 「門市|日期」→ 該店該日的各張出貨單（用於門市+日期+箱數消歧）
+}
+
+// 建索引：出貨紀錄的單號多為亂數兜底格式，與對帳明細的 S 格式對不上，
+// 因此主要靠「門市+日期」配對；同店同日跨多批時，再用箱數消除歧義。
+export function buildExcelRevenueIndex(excelRows: ExcelRow[]): ExcelRevenueIndex {
+  const bySno = new Map<string, number>()
+  const sd = new Map<string, Map<string, ExcelGroup>>() // storeDateKey → sno → group
   for (const r of excelRows) {
+    const amt = num(r.quantity) * num(r.unitPrice)
     const sno = (r.shipmentNo || '').trim()
-    if (!sno) continue
-    idx.set(sno, (idx.get(sno) ?? 0) + num(r.quantity) * num(r.unitPrice))
+    if (sno) bySno.set(sno, (bySno.get(sno) ?? 0) + amt)
+
+    const store = (r.store || '').trim()
+    const date = (r.date || '').slice(0, 10)
+    if (store && date) {
+      const k = `${store}|${date}`
+      if (!sd.has(k)) sd.set(k, new Map())
+      const m = sd.get(k)!
+      const g = m.get(sno) ?? { sno, qty: 0, amount: 0 }
+      g.qty += num(r.quantity)
+      g.amount += amt
+      m.set(sno, g)
+    }
   }
-  return idx
+  const byStoreDate = new Map<string, ExcelGroup[]>()
+  for (const [k, m] of sd) byStoreDate.set(k, [...m.values()])
+  return { bySno, byStoreDate }
 }
 
 // 推算單筆出貨的營收（含稅），與來源。優先序：
 //   1. 手動已填金額（最優先，永不覆蓋）
-//   2. 對帳明細：以出貨單號配對，加總箱數×單價
-//   3. 批次單價：單一單價的批次 → 箱數×單價（多單價但價格一致也適用）
-//   4. 都抓不到 → null（標示缺單價）
+//   2. 對帳明細-單號：少數紀錄有正確 S 單號時直接對
+//   3. 對帳明細-門市+日期：該店該日唯一出貨單 → 直接帶；多張 → 用箱數消歧，消不掉就不猜
+//   4. 批次單價：單一單價的批次 → 箱數×單價（多單價但價格一致也適用）
+//   5. 都抓不到 → null（標示缺單價）
 export function deriveRevenue(
   rec: ShipmentRecord,
   batchId: string,
-  excelIndex: Map<string, number>,
+  excelIndex: ExcelRevenueIndex,
   batchPrices: Record<string, BatchPriceEntry[]>,
 ): { amount: number | null; source: RevenueSource } {
   if (rec.amount != null) return { amount: rec.amount, source: 'manual' }
 
   const sno = (rec.shipmentNo || '').trim()
   if (sno) {
-    const v = excelIndex.get(sno)
+    const v = excelIndex.bySno.get(sno)
     if (v != null && v > 0) return { amount: v, source: 'excel' }
   }
 
   const boxes = num(rec.boxes)
+  const store = (rec.store || '').trim()
+  const date = (rec.date || '').slice(0, 10)
+  if (store && date) {
+    const groups = excelIndex.byStoreDate.get(`${store}|${date}`)
+    if (groups && groups.length > 0) {
+      if (groups.length === 1) {
+        if (groups[0].amount > 0) return { amount: groups[0].amount, source: 'excel' }
+      } else {
+        // 同店同日有多張出貨單（跨批）→ 用箱數消歧，唯一吻合才採用，否則不猜
+        const hit = groups.filter(g => g.qty === boxes && g.amount > 0)
+        if (hit.length === 1) return { amount: hit[0].amount, source: 'excel' }
+      }
+    }
+  }
+
   const prices = batchPrices[batchId] || []
   if (boxes > 0 && prices.length > 0) {
     const uniq = [...new Set(prices.map(p => num(p.unitPrice)).filter(p => p > 0))]
@@ -97,7 +136,7 @@ export function computeBatchMargin(
   batch: Shipment,
   allRecords: ShipmentRecord[],
   furikomi: FurikomiRecord[],
-  excelIndex: Map<string, number> = new Map(),
+  excelIndex: ExcelRevenueIndex = { bySno: new Map(), byStoreDate: new Map() },
   batchPrices: Record<string, BatchPriceEntry[]> = {},
   today: string = new Date().toISOString().slice(0, 10),
 ): BatchMargin {
