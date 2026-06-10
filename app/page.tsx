@@ -9,6 +9,7 @@ import StoreList from '@/components/StoreList'
 import AddBatchForm from '@/components/AddBatchForm'
 import CalendarView from '@/components/CalendarView'
 import ArrivalPreview from '@/components/ArrivalPreview'
+import TodaySummary from '@/components/TodaySummary'
 
 type Tab = 'shipments' | 'stores' | 'preview'
 
@@ -100,7 +101,8 @@ export default function Home() {
   const [tab, setTab] = useState<Tab>('shipments')
   const [viewMode, setViewMode] = useState<'card' | 'compact' | 'calendar'>('compact')
   const [search, setSearch] = useState('')
-  const [filter, setFilter] = useState<'all' | 'active' | 'done'>('all')
+  // 預設只看進行中——已完成的批次不需要每天看
+  const [filter, setFilter] = useState<'all' | 'active' | 'done'>('active')
 
   const T = t[lang]
 
@@ -162,10 +164,11 @@ export default function Home() {
       return matchSearch && matchFilter
     })
     .sort((a, b) => {
+      // 新到舊：最近抵台的批次排最上面，未定日期沉底
       if (!a.arrivalTW && !b.arrivalTW) return 0
       if (!a.arrivalTW) return 1
       if (!b.arrivalTW) return -1
-      return new Date(a.arrivalTW).getTime() - new Date(b.arrivalTW).getTime()
+      return new Date(b.arrivalTW).getTime() - new Date(a.arrivalTW).getTime()
     })
 
   return (
@@ -225,6 +228,16 @@ export default function Home() {
         {/* Shipments tab */}
         {tab === 'shipments' && (
           <div className="space-y-4">
+            {/* 今日概況 */}
+            {!loading && !fetchError && data && (
+              <TodaySummary
+                shipments={data.shipments}
+                allRecords={allRecords}
+                lang={lang}
+                onGoPreview={() => setTab('preview')}
+              />
+            )}
+
             {/* Toolbar */}
             <div className="flex flex-col sm:flex-row gap-2 items-start sm:items-center">
               <AddBatchForm lang={lang} onBatchAdded={fetchData} />

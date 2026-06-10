@@ -42,12 +42,24 @@ export async function GET(req: NextRequest) {
     }
 
     // 1. 下載並解析供應商 Excel（同 generate-order 的模式）
+    //    Drive 檔案可能已被刪除或失去權限（404/403/410）——視同未上傳，讓前端回退手動值
     const drive = getDriveClient()
-    const fileRes = await drive.files.get(
-      { fileId: batch.supplierExcelId, alt: 'media', supportsAllDrives: true },
-      { responseType: 'arraybuffer' },
-    )
-    const supplierBuffer = fileRes.data as ArrayBuffer
+    let supplierBuffer: ArrayBuffer
+    try {
+      const fileRes = await drive.files.get(
+        { fileId: batch.supplierExcelId, alt: 'media', supportsAllDrives: true },
+        { responseType: 'arraybuffer' },
+      )
+      supplierBuffer = fileRes.data as ArrayBuffer
+    } catch (err) {
+      const status = (err as { status?: number; code?: number }).status
+        ?? (err as { code?: number }).code
+      if (status === 404 || status === 403 || status === 410) {
+        console.warn(`[derived] 供應商 Excel 失效 batchId=${batchId} fileId=${batch.supplierExcelId} status=${status}`)
+        return NextResponse.json({ derived: [], hasExcel: false, excelMissing: true })
+      }
+      throw err
+    }
     const parsed = await parseDeliveryExcel(supplierBuffer)
 
     // 2. 從出貨紀錄建立「輪次 → 日期」對照（排除已取消）

@@ -168,6 +168,15 @@ export const t = {
     // Month view
     listView: '列表',
     calendarView: '月曆',
+    // Today summary strip
+    todayShip: '今日出貨',
+    todayNoShip: '今日無出貨',
+    nextShip: '下次出貨',
+    daysLater: '天後',
+    sumInTransit: '在途（未到）',
+    sumBatches: '批',
+    sumStores: '家門市',
+    viewPreview: '看進貨預告',
     // Feature 2: Document urgency
     chaseBtn: '催件送信',
     chaseSending: '傳送中...',
@@ -357,6 +366,15 @@ export const t = {
     // Month view
     listView: 'リスト',
     calendarView: 'カレンダー',
+    // Today summary strip
+    todayShip: '本日出荷',
+    todayNoShip: '本日出荷なし',
+    nextShip: '次回出荷',
+    daysLater: '日後',
+    sumInTransit: '輸送中（未着）',
+    sumBatches: '件',
+    sumStores: '店舗',
+    viewPreview: '入荷予定へ',
     // Feature 2: Document urgency
     chaseBtn: '催促メール送信',
     chaseSending: '送信中...',

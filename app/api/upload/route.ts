@@ -42,11 +42,6 @@ export async function POST(req: NextRequest) {
       const batch = sanitizeFilenamePart(batchRaw, 60)
       const safeOriginalName = sanitizeFilenamePart(file.name, 80) || 'file'
 
-      // 供應商配送 Excel 不上傳到 Drive
-      if (docType === '供應商配送') {
-              return NextResponse.json({ ok: true, fileId: '', url: '' })
-      }
-
       const drive = getDriveClient()
           const folderId = process.env.GOOGLE_DRIVE_FOLDER_ID!
 

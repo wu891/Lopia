@@ -43,11 +43,24 @@ export async function POST(req: NextRequest) {
 
       // 3. Download supplier Excel from Google Drive
       const drive = getDriveClient()
-          const fileRes = await drive.files.get(
-            { fileId: batch.supplierExcelId, alt: 'media', supportsAllDrives: true },
-            { responseType: 'arraybuffer' }
-                )
-          const supplierBuffer = fileRes.data as ArrayBuffer
+          let supplierBuffer: ArrayBuffer
+          try {
+                  const fileRes = await drive.files.get(
+                    { fileId: batch.supplierExcelId, alt: 'media', supportsAllDrives: true },
+                    { responseType: 'arraybuffer' }
+                        )
+                  supplierBuffer = fileRes.data as ArrayBuffer
+          } catch (err) {
+                  const status = (err as { status?: number; code?: number }).status
+                    ?? (err as { code?: number }).code
+                  if (status === 404 || status === 403 || status === 410) {
+                          return NextResponse.json(
+                            { error: '供應商 Excel 已失效（Drive 檔案不存在或無權限），請重新上傳出貨時程表' },
+                            { status: 400 },
+                          )
+                  }
+                  throw err
+          }
 
       // 4. Parse supplier Excel (include 0-box products per skill spec)
       const parsed = await parseDeliveryExcel(supplierBuffer, true)

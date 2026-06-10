@@ -322,7 +322,7 @@ function BatchCard({
       const form = new FormData()
       form.append('file', file)
       form.append('batch', shipment.ivName)
-      form.append('docType', '供應商配送Excel')
+      form.append('docType', '供應商配送')
       const upRes = await fetch('/api/upload', { method: 'POST', body: form })
       if (!upRes.ok) throw new Error('上傳失敗')
       const { fileId } = await upRes.json()

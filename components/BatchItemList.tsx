@@ -57,6 +57,7 @@ export default function BatchItemList({ batchId, lang, parentTotalBoxes = null, 
   // 從出貨計畫（供應商 Excel）推算出來的品項
   const [derived, setDerived] = useState<DerivedItem[]>([])
   const [hasExcel, setHasExcel] = useState(false)
+  const [excelMissing, setExcelMissing] = useState(false)
   const [syncing, setSyncing] = useState(false)
   const [syncMsg, setSyncMsg] = useState<{ type: 'ok' | 'err'; text: string } | null>(null)
 
@@ -72,6 +73,7 @@ export default function BatchItemList({ batchId, lang, parentTotalBoxes = null, 
       const derivedJson = await derivedRes.json().catch(() => ({}))
       setDerived(derivedJson.derived ?? [])
       setHasExcel(!!derivedJson.hasExcel)
+      setExcelMissing(!!derivedJson.excelMissing)
     } finally {
       setLoading(false)
     }
@@ -253,6 +255,14 @@ export default function BatchItemList({ batchId, lang, parentTotalBoxes = null, 
       {syncMsg && (
         <p className={`text-xs mb-1.5 px-2 py-1 rounded-lg ${syncMsg.type === 'ok' ? 'text-green-700 bg-green-50' : 'text-red-600 bg-red-50'}`}>
           {syncMsg.type === 'ok' ? '✓' : '⚠'} {syncMsg.text}
+        </p>
+      )}
+
+      {excelMissing && (
+        <p className="text-xs mb-1.5 px-2 py-1 rounded-lg text-amber-700 bg-amber-50 border border-amber-200">
+          ⚠ {lang === 'ja'
+            ? '仕入先Excelのリンクが無効です（Driveファイルなし）。配送計画から再アップロードすると出荷済が自動計算されます'
+            : '供應商 Excel 連結已失效（Drive 檔案不存在），重新上傳出貨時程表後「已出貨」可恢復自動計算'}
         </p>
       )}
 
