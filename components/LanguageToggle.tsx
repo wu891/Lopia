@@ -6,20 +6,20 @@ export default function LanguageToggle({ lang, setLang }: { lang: Lang; setLang:
     <div className="flex border border-gray-200 rounded-md overflow-hidden">
       <button
         onClick={() => setLang('zh')}
-        className={`px-3 min-h-[36px] text-xs font-semibold transition-colors cursor-pointer ${
+        className={`px-2.5 min-h-[30px] text-xs transition-colors cursor-pointer ${
           lang === 'zh'
-            ? 'bg-lopia-red text-white'
-            : 'bg-white text-gray-500 hover:bg-lopia-red-light hover:text-lopia-red hover:border-lopia-red'
+            ? 'bg-gray-100 text-gray-800 font-semibold'
+            : 'bg-white text-gray-400 hover:text-gray-600'
         }`}
       >
         中文
       </button>
       <button
         onClick={() => setLang('ja')}
-        className={`px-3 min-h-[36px] text-xs font-semibold transition-colors cursor-pointer border-l border-gray-200 ${
+        className={`px-2.5 min-h-[30px] text-xs transition-colors cursor-pointer border-l border-gray-200 ${
           lang === 'ja'
-            ? 'bg-lopia-red text-white'
-            : 'bg-white text-gray-500 hover:bg-lopia-red-light hover:text-lopia-red'
+            ? 'bg-gray-100 text-gray-800 font-semibold'
+            : 'bg-white text-gray-400 hover:text-gray-600'
         }`}
       >
         日本語

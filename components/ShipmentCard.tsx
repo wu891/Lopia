@@ -278,7 +278,7 @@ export default function ShipmentCard({ shipment, lang, allRecords, onRecordChang
         {shipment.warehouse && (
           <div className="flex flex-col">
             <span className="text-xs text-gray-500">{T.warehouse}</span>
-            <span className="text-xs font-medium text-lopia-red">{shipment.warehouse}</span>
+            <span className="text-xs font-medium text-gray-700">{shipment.warehouse}</span>
           </div>
         )}
         {shipment.transportMode && (

@@ -27,7 +27,7 @@ function daysUntil(dateStr: string | null): number | null {
 
 function CheckIcon() {
   return (
-    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
+    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#059669" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
       <polyline points="20 6 9 17 4 12"/>
     </svg>
   )
@@ -73,7 +73,7 @@ export default function TimelineProgress({ shipment, lang }: { shipment: Shipmen
             className="h-full rounded-full transition-all duration-700"
             style={{
               width: `${trackPct}%`,
-              background: 'linear-gradient(90deg, #E8002D 0%, #FF4D6D 100%)',
+              background: '#10b981',
             }}
           />
         </div>
@@ -96,40 +96,40 @@ export default function TimelineProgress({ shipment, lang }: { shipment: Shipmen
                   {/* Countdown bubble on next step */}
                   {isNextStep && nextDays !== null && nextDays >= 0 && nextDays <= 14 && (
                     <div className="absolute -top-7 left-1/2 -translate-x-1/2 whitespace-nowrap">
-                      <div className="bg-lopia-red text-white text-[10px] font-bold px-2 py-0.5 rounded-full leading-tight">
+                      <div className="bg-blue-600 text-white text-[10px] font-bold px-2 py-0.5 rounded-full leading-tight">
                         {nextDays === 0 ? '今天' : `還有 ${nextDays} 天`}
                       </div>
-                      <div className="w-0 h-0 border-l-4 border-r-4 border-t-4 border-l-transparent border-r-transparent border-t-lopia-red mx-auto" />
+                      <div className="w-0 h-0 border-l-4 border-r-4 border-t-4 border-l-transparent border-r-transparent border-t-blue-600 mx-auto" />
                     </div>
                   )}
 
                   {/* Dot */}
                   <div className={`w-8 h-8 rounded-full flex items-center justify-center
                     ${done
-                      ? 'bg-lopia-red shadow-[0_2px_8px_rgba(232,0,45,0.35)]'
+                      ? 'bg-emerald-50 border-2 border-emerald-500'
                       : current
-                        ? 'bg-white border-2 border-lopia-red animate-[pulse-ring_2s_ease_infinite]'
-                        : 'bg-white border-2 border-gray-200'
+                        ? 'bg-blue-50 border-2 border-blue-500 animate-[pulse-ring_2s_ease_infinite]'
+                        : 'bg-white border-2 border-dashed border-gray-300'
                     }`}
                     style={current ? {
-                      boxShadow: '0 0 0 5px rgba(232,0,45,0.12), 0 0 16px rgba(232,0,45,0.25)',
+                      boxShadow: '0 0 0 5px rgba(37,99,235,0.12), 0 0 16px rgba(37,99,235,0.22)',
                       animation: 'pulse-ring 2s ease infinite',
                     } : undefined}
                   >
                     {done && <CheckIcon />}
-                    {current && !done && <span className="w-2.5 h-2.5 rounded-full bg-lopia-red block" />}
+                    {current && !done && <span className="w-2.5 h-2.5 rounded-full bg-blue-500 block" />}
                   </div>
                 </div>
 
                 {/* Label + date */}
                 <div className="text-center">
                   <div className={`text-[11px] font-medium leading-tight ${
-                    done ? 'text-gray-700' : current ? 'text-lopia-red font-semibold' : 'text-gray-400'
+                    done ? 'text-gray-700' : current ? 'text-blue-600 font-semibold' : 'text-gray-400'
                   }`}>
                     {step.label}
                   </div>
                   <div className={`text-[11px] font-semibold mt-0.5 ${
-                    done || current ? 'text-lopia-red' : 'text-gray-300'
+                    done ? 'text-gray-700' : current ? 'text-blue-600' : 'text-gray-300'
                   }`}>
                     {fmtDate(step.date)}
                   </div>

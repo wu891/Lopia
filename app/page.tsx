@@ -42,7 +42,7 @@ function MonthGroupedList({
       {groups.map(group => (
         <div key={group.monthKey} className="mb-6">
           <div className={`sticky top-14 z-20 -mx-4 px-4 py-2 mb-3
-            bg-gray-50/95 backdrop-blur-sm border-b border-gray-200 flex items-center gap-2`}>
+            bg-gray-50 border-b border-gray-200 flex items-center gap-2`}>
             <span className="text-sm font-bold text-gray-700">{group.label}</span>
             <span className="text-xs text-gray-400 font-normal">{group.items.length}</span>
           </div>
@@ -183,7 +183,7 @@ export default function Home() {
         onRefresh={fetchData}
       />
 
-      <div className="max-w-7xl mx-auto px-4 py-4">
+      <div className="max-w-5xl mx-auto px-4 py-4">
         {/* Underline Tab navigation */}
         <nav className="flex border-b border-gray-200 mb-4">
           <button

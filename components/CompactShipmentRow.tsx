@@ -263,7 +263,17 @@ export default function CompactShipmentRow({ shipment, lang, allRecords, onRecor
   if (shipment.radiationTest === '不合格') warnings.push({ key: 'rad', label: lang === 'ja' ? '放射線不合格' : '輻射不合格', tone: 'red' })
   if (shipment.pesticideTest === '不合格') warnings.push({ key: 'pest', label: lang === 'ja' ? '農薬不合格' : '農藥不合格', tone: 'red' })
   if (shipment.fumigation === '需燻蒸' || shipment.fumigation === '燻蒸必要') warnings.push({ key: 'fum', label: lang === 'ja' ? '燻蒸必要' : '需燻蒸', tone: 'amber' })
-  if (shipment.totalBoxes != null && plannedBoxes > 0 && plannedBoxes !== shipment.totalBoxes) warnings.push({ key: 'box', label: lang === 'ja' ? '箱数不一致' : '箱數不符', tone: 'amber' })
+  if (shipment.totalBoxes != null && plannedBoxes > 0 && plannedBoxes !== shipment.totalBoxes) {
+    // 帶數字的警示比「箱數不符」可行動：短少 = 計畫未涵蓋全部箱數，超出 = 計畫超過總箱數
+    const diff = shipment.totalBoxes - plannedBoxes
+    warnings.push({
+      key: 'box',
+      label: diff > 0
+        ? (lang === 'ja' ? `計画不足 ${diff} 箱` : `計畫短少 ${diff} 箱`)
+        : (lang === 'ja' ? `計画超過 ${-diff} 箱` : `計畫超出 ${-diff} 箱`),
+      tone: 'amber',
+    })
+  }
 
   const arrivalStr = shipment.arrivalTW?.slice(5).replace('-', '/') ?? '—'
   const clearanceStr = shipment.actualClearance?.slice(5).replace('-', '/') ?? '—'
@@ -318,7 +328,7 @@ export default function CompactShipmentRow({ shipment, lang, allRecords, onRecor
             ))}
           </div>
           {shipment.productSummary && (
-            <p className="text-[11px] text-gray-500 truncate mt-0.5 hidden sm:block">{shipment.productSummary}</p>
+            <p className="text-[11px] text-gray-600 truncate mt-0.5 hidden sm:block">{shipment.productSummary}</p>
           )}
           <p className="text-[10px] text-gray-400 mt-0.5 sm:hidden">
             {arrivalStr !== '—' && <>抵台 {arrivalStr}</>}
@@ -344,8 +354,8 @@ export default function CompactShipmentRow({ shipment, lang, allRecords, onRecor
                   className="hidden sm:block w-12 h-1.5 rounded-full bg-gray-100 overflow-hidden relative"
                   title={`${T.shipped} ${shippedBoxes} / ${T.plannedBoxes} ${plannedBoxes} / ${total} ${T.boxes}`}
                 >
-                  <span className="absolute inset-y-0 left-0 bg-red-200 rounded-full" style={{ width: `${plannedPct}%` }} />
-                  <span className="absolute inset-y-0 left-0 bg-lopia-red rounded-full" style={{ width: `${shippedPct}%` }} />
+                  <span className="absolute inset-y-0 left-0 bg-emerald-200 rounded-full" style={{ width: `${plannedPct}%` }} />
+                  <span className="absolute inset-y-0 left-0 bg-emerald-500 rounded-full" style={{ width: `${shippedPct}%` }} />
                 </div>
               )}
               <span className="text-gray-500 text-xs font-medium">
@@ -378,7 +388,7 @@ export default function CompactShipmentRow({ shipment, lang, allRecords, onRecor
           </div>
 
           {shipment.productSummary && (
-            <p className="text-xs text-gray-500 sm:hidden">{shipment.productSummary}</p>
+            <p className="text-xs text-gray-600 sm:hidden">{shipment.productSummary}</p>
           )}
 
           <TimelineProgress shipment={shipment} lang={lang} />
@@ -401,7 +411,7 @@ export default function CompactShipmentRow({ shipment, lang, allRecords, onRecor
               {shipment.warehouse && (
                 <div className="flex flex-col">
                   <span className="text-xs text-gray-400">{T.warehouse}</span>
-                  <span className="text-xs font-medium text-lopia-red">{shipment.warehouse}</span>
+                  <span className="text-xs font-medium text-gray-700">{shipment.warehouse}</span>
                 </div>
               )}
             </div>

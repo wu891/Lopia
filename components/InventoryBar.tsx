@@ -26,20 +26,20 @@ export default function InventoryBar({ total, shipped, planned, lang }: Inventor
         <svg viewBox="0 0 64 64" className="w-16 h-16" style={{ transform: 'rotate(-90deg)' }}>
           {/* Gray track */}
           <circle cx="32" cy="32" r="26" fill="none" stroke="#F3F4F6" strokeWidth="8" />
-          {/* Planned overlay (light red) */}
+          {/* Planned overlay (light green) */}
           {plannedPct > 0 && (
             <circle
               cx="32" cy="32" r="26" fill="none"
-              stroke="#FECACA" strokeWidth="8"
+              stroke="#A7F3D0" strokeWidth="8"
               strokeDasharray={`${plannedDash} ${C}`}
               strokeLinecap="butt"
             />
           )}
-          {/* Shipped fill (brand red) */}
+          {/* Shipped fill (green = 完成進度) */}
           {shippedPct > 0 && (
             <circle
               cx="32" cy="32" r="26" fill="none"
-              stroke="#E8002D" strokeWidth="8"
+              stroke="#10b981" strokeWidth="8"
               strokeDasharray={`${shippedDash} ${C}`}
               strokeLinecap="round"
             />
@@ -49,7 +49,7 @@ export default function InventoryBar({ total, shipped, planned, lang }: Inventor
         <div className="absolute inset-0 flex items-center justify-center">
           <span
             className="text-sm font-bold leading-none"
-            style={{ color: shippedPct > 0 ? '#E8002D' : '#9CA3AF' }}
+            style={{ color: shippedPct > 0 ? '#059669' : '#9CA3AF' }}
           >
             {shippedPct}%
           </span>
@@ -59,13 +59,13 @@ export default function InventoryBar({ total, shipped, planned, lang }: Inventor
       {/* Stats legend */}
       <div className="flex-1 min-w-0 space-y-1.5">
         <div className="flex items-center gap-1.5">
-          <span className="w-2 h-2 rounded-full flex-shrink-0" style={{ background: '#E8002D' }} />
+          <span className="w-2 h-2 rounded-full flex-shrink-0" style={{ background: '#10b981' }} />
           <span className="text-xs text-gray-500 flex-1">{T.shipped}</span>
           <span className="text-xs font-semibold text-gray-800">{shipped.toLocaleString()} {T.boxes}</span>
         </div>
         {planned > 0 && planned !== shipped && (
           <div className="flex items-center gap-1.5">
-            <span className="w-2 h-2 rounded-full bg-red-200 flex-shrink-0" />
+            <span className="w-2 h-2 rounded-full bg-emerald-200 flex-shrink-0" />
             <span className="text-xs text-gray-500 flex-1">{T.plannedBoxes}</span>
             <span className="text-xs font-semibold text-gray-800">{planned.toLocaleString()} {T.boxes}</span>
           </div>
