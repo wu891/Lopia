@@ -3,6 +3,7 @@ import { google } from 'googleapis'
 import { getShipmentById, getShipmentRecords, updateShipmentRecord } from '@/lib/notion'
 import { parseDeliveryExcel, EXCEL_STORE_MAP } from '@/lib/parseDeliveryExcel'
 import { generateShipmentOrder, generateShipmentNo, StoreOrder } from '@/lib/generateShipmentOrder'
+import { requireAuth } from '@/lib/auth'
 
 function getDriveClient() {
     const privateKey = process.env.GOOGLE_PRIVATE_KEY?.replace(/\\n/g, '\n')
@@ -17,6 +18,9 @@ function getDriveClient() {
 }
 
 export async function POST(req: NextRequest) {
+    if (!(await requireAuth(['edit', 'portal']))) {
+          return NextResponse.json({ error: '驗證已過期，請重新整理頁面並重新輸入密碼' }, { status: 401 })
+    }
     try {
           const { batchId, roundNo } = await req.json()
           if (!batchId || roundNo == null) {

@@ -1,8 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { parseKanriExcel, parsePlanExcel } from '@/lib/parseYushuExcel'
 import { generateStoreShipmentExcel, generateChukuExcel } from '@/lib/generateYushuShipment'
+import { requireAuth } from '@/lib/auth'
 
 export async function POST(req: NextRequest) {
+  if (!(await requireAuth(['edit', 'portal']))) {
+    return NextResponse.json({ error: '驗證已過期，請重新整理頁面並重新輸入密碼' }, { status: 401 })
+  }
   try {
     const form = await req.formData()
 

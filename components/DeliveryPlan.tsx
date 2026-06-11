@@ -876,7 +876,7 @@ export default function DeliveryPlan({ batchId, batchName, totalBoxes, records, 
                   <div className="flex gap-1 flex-shrink-0" onClick={e => e.stopPropagation()}>
                     {supplierExcelId && (
                       <button
-                        onClick={() => handleGenerateClick(g.roundNo)}
+                        onClick={() => requireAuth(() => handleGenerateClick(g.roundNo))}
                         disabled={generatingRound === g.roundNo}
                         title={lang === 'ja' ? '出荷伝票を生成' : '產生出貨單'}
                         className="text-blue-400 hover:text-blue-600 transition-colors text-xs disabled:opacity-40"
@@ -885,7 +885,7 @@ export default function DeliveryPlan({ batchId, batchName, totalBoxes, records, 
                       </button>
                     )}
                     <button
-                      onClick={() => handleChukuClick(g.roundNo, g.date)}
+                      onClick={() => requireAuth(() => handleChukuClick(g.roundNo, g.date))}
                       disabled={chukuGeneratingRound === g.roundNo}
                       title="優儲出庫單"
                       className="text-emerald-500 hover:text-emerald-700 transition-colors text-xs disabled:opacity-40"
@@ -917,7 +917,7 @@ export default function DeliveryPlan({ batchId, batchName, totalBoxes, records, 
                       <div className="flex gap-2">
                         {supplierExcelId ? (
                           <button
-                            onClick={() => handleGenerateClick(g.roundNo)}
+                            onClick={() => requireAuth(() => handleGenerateClick(g.roundNo))}
                             disabled={generatingRound === g.roundNo}
                             className="flex-1 py-1.5 bg-blue-50 text-blue-600 text-xs font-medium rounded-lg hover:bg-blue-100 disabled:opacity-40 transition-colors flex items-center justify-center gap-1"
                           >
@@ -931,7 +931,7 @@ export default function DeliveryPlan({ batchId, batchName, totalBoxes, records, 
                           </p>
                         )}
                         <button
-                          onClick={() => handleChukuClick(g.roundNo, g.date)}
+                          onClick={() => requireAuth(() => handleChukuClick(g.roundNo, g.date))}
                           disabled={chukuGeneratingRound === g.roundNo}
                           className="flex-1 py-1.5 bg-emerald-50 text-emerald-700 text-xs font-medium rounded-lg hover:bg-emerald-100 disabled:opacity-40 transition-colors flex items-center justify-center gap-1"
                         >

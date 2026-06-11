@@ -991,7 +991,11 @@ export default function ShipmentGeneratorPage() {
   const [tab, setTab]       = useState<'lopia' | 'yushu'>('lopia')
 
   useEffect(() => {
-    if (sessionStorage.getItem('lopia_portal_authed') === '1') setAuthed(true)
+    // 以伺服器 cookie 為準：sessionStorage 可能與 cookie 過期時間不同步
+    fetch('/api/portal-auth', { cache: 'no-store' })
+      .then(r => r.json())
+      .then(d => { if (d.ok) setAuthed(true) })
+      .catch(() => {})
   }, [])
 
   if (!authed) return <PasswordGate onAuth={() => setAuthed(true)} />

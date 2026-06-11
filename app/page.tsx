@@ -154,9 +154,12 @@ export default function Home() {
 
   const filtered = (data?.shipments ?? [])
     .filter(s => {
+      const q = search.toLowerCase()
       const matchSearch = !search ||
-        s.ivName.toLowerCase().includes(search.toLowerCase()) ||
-        (s.productSummary ?? '').toLowerCase().includes(search.toLowerCase())
+        s.ivName.toLowerCase().includes(q) ||
+        (s.productSummary ?? '').toLowerCase().includes(q) ||
+        (s.flightNo ?? '').toLowerCase().includes(q) ||
+        (s.awbNo ?? '').toLowerCase().includes(q)
       const matchFilter =
         filter === 'all'    ? true :
         filter === 'active' ? s.deliveryStatus !== '全數出貨' :
@@ -229,7 +232,7 @@ export default function Home() {
         {tab === 'shipments' && (
           <div className="space-y-4">
             {/* 今日概況 */}
-            {!loading && !fetchError && data && (
+            {data && (
               <TodaySummary
                 shipments={data.shipments}
                 allRecords={allRecords}
@@ -317,16 +320,26 @@ export default function Home() {
               </>)}
             </div>
 
-            {fetchError ? (
+            {/* 背景更新失敗：保留舊資料，只顯示提示橫幅 */}
+            {fetchError && data && (
+              <div className="flex items-center justify-between gap-2 px-3 py-2 bg-amber-50 border border-amber-200 rounded-lg">
+                <p className="text-xs text-amber-700">更新失敗，目前顯示的是稍早的資料</p>
+                <button onClick={() => fetchData()} className="text-xs text-amber-700 font-medium underline hover:text-amber-900 shrink-0">
+                  重試
+                </button>
+              </div>
+            )}
+
+            {fetchError && !data ? (
               <div className="flex items-center justify-center h-48">
                 <div className="flex flex-col items-center gap-3 text-center">
                   <p className="text-sm text-red-500 font-medium">{fetchError}</p>
-                  <button onClick={fetchData} className="px-4 py-1.5 bg-lopia-red text-white text-sm rounded-lg hover:bg-lopia-red-dark transition-colors">
+                  <button onClick={() => fetchData()} className="px-4 py-1.5 bg-lopia-red text-white text-sm rounded-lg hover:bg-lopia-red-dark transition-colors">
                     重新載入
                   </button>
                 </div>
               </div>
-            ) : loading ? (
+            ) : loading && !data ? (
               <div className="flex items-center justify-center h-48">
                 <div className="flex flex-col items-center gap-3">
                   {/* Skeleton cards */}

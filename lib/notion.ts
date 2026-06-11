@@ -314,11 +314,19 @@ function pageToLogisticsEvent(page: any): LogisticsEvent {
 }
 
 export async function getLogisticsEvents(): Promise<LogisticsEvent[]> {
-  const response = await notion.databases.query({
-    database_id: LOGISTICS_DB,
-    sorts: [{ property: '建立時間', direction: 'descending' }],
-  })
-  return response.results.map(pageToLogisticsEvent)
+  const results: LogisticsEvent[] = []
+  let cursor: string | undefined
+  do {
+    const response = await notion.databases.query({
+      database_id: LOGISTICS_DB,
+      sorts: [{ property: '建立時間', direction: 'descending' }],
+      page_size: 100,
+      ...(cursor ? { start_cursor: cursor } : {}),
+    })
+    results.push(...response.results.map(pageToLogisticsEvent))
+    cursor = response.has_more ? (response.next_cursor ?? undefined) : undefined
+  } while (cursor)
+  return results
 }
 
 export async function createLogisticsEvent(data: {

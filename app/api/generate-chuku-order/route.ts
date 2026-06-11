@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import ExcelJS from 'exceljs'
+import { requireAuth } from '@/lib/auth'
 
 const STORE_MAP: Record<string, [string, string]> = {
   '台中lalaport': ['LPA01-5', '樂比亞台中LaLaport店青果部'],
@@ -67,6 +68,9 @@ interface DataRow {
 }
 
 export async function POST(req: NextRequest) {
+  if (!(await requireAuth(['edit', 'portal']))) {
+    return NextResponse.json({ error: '驗證已過期，請重新整理頁面並重新輸入密碼' }, { status: 401 })
+  }
   try {
     const form = await req.formData()
     const file = form.get('file') as File | null

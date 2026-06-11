@@ -1,8 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { parseDeliveryExcel, EXCEL_STORE_MAP } from '@/lib/parseDeliveryExcel'
 import { generateShipmentOrder, generateShipmentNo, StoreOrder } from '@/lib/generateShipmentOrder'
+import { requireAuth } from '@/lib/auth'
 
 export async function POST(req: NextRequest) {
+    if (!(await requireAuth(['edit', 'portal']))) {
+          return NextResponse.json({ error: '驗證已過期，請重新整理頁面並重新輸入密碼' }, { status: 401 })
+    }
     try {
           const form = await req.formData()
           const date = form.get('date') as string
