@@ -101,7 +101,7 @@ export const CLEAR_COOKIE = {
 }
 
 /** Timing-safe 密碼比對：長度不同時也走完整 HMAC 比較，避免時序洩漏。 */
-export function safePasswordCompare(input: unknown, expected: string): boolean {
+export function safePasswordCompare(input: unknown, expected: string | undefined): boolean {
   if (typeof input !== 'string' || !expected) return false
   const key = 'pw-compare'
   const a = createHmac('sha256', key).update(input).digest()
