@@ -159,7 +159,7 @@ export function clampLen(s: unknown, max: number): string {
 /** Strip filesystem-unsafe chars from user-supplied filename fragments. */
 export function sanitizeFilenamePart(s: unknown, max = 50): string {
   return String(s ?? '')
-    .replace(/[\\/:*?"<>| -]/g, '')
+    .replace(/[\\/:*?"<>| -]/g, '')
     .trim()
     .slice(0, max)
 }
