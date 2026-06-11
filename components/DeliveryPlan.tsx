@@ -493,6 +493,10 @@ export default function DeliveryPlan({ batchId, batchName, totalBoxes, records, 
   }
 
   function handleDeleteRound(group: RoundGroup) {
+    const msg = lang === 'ja'
+      ? `第${group.roundNo}回の出荷計画（${group.totalBoxes}箱）を削除しますか？`
+      : `確定刪除第 ${group.roundNo} 次出貨計畫（${group.totalBoxes} 箱）？`
+    if (!confirm(msg)) return
     requireAuth(() => doDeleteRound(group))
   }
 
@@ -888,8 +892,8 @@ export default function DeliveryPlan({ batchId, batchName, totalBoxes, records, 
                     >
                       {chukuGeneratingRound === g.roundNo ? '⟳' : '🏭'}
                     </button>
-                    <button onClick={() => startEdit(g)} className="transition-colors text-xs text-gray-400 hover:text-lopia-red">✏</button>
-                    <button onClick={() => handleDeleteRound(g)} disabled={deletingRound === g.roundNo} className="transition-colors text-xs text-gray-400 hover:text-red-500 disabled:opacity-40">
+                    <button onClick={() => startEdit(g)} title={T.editRound} aria-label={T.editRound} className="transition-colors text-xs text-gray-400 hover:text-lopia-red">✏</button>
+                    <button onClick={() => handleDeleteRound(g)} disabled={deletingRound === g.roundNo} title={T.deleteRound} aria-label={T.deleteRound} className="transition-colors text-xs text-gray-400 hover:text-red-500 disabled:opacity-40 ml-1 pl-1.5 border-l border-gray-200">
                       {deletingRound === g.roundNo ? '…' : '✕'}
                     </button>
                   </div>

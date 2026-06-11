@@ -401,7 +401,7 @@ export default function CompactShipmentRow({ shipment, lang, allRecords, onRecor
           </div>
 
           <div className="text-right">
-            <span className="text-xs text-gray-300">
+            <span className="text-xs text-gray-500">
               {T.lastUpdated}: {new Date(shipment.lastEdited).toLocaleString(lang === 'ja' ? 'ja-JP' : 'zh-TW')}
             </span>
           </div>

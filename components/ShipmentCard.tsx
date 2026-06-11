@@ -338,7 +338,7 @@ export default function ShipmentCard({ shipment, lang, allRecords, onRecordChang
 
       {/* Footer */}
       <div className="px-5 py-2 bg-gray-50 border-t border-gray-100 text-right">
-        <span className="text-xs text-gray-300">
+        <span className="text-xs text-gray-500">
           {T.lastUpdated}: {new Date(shipment.lastEdited).toLocaleString(lang === 'ja' ? 'ja-JP' : 'zh-TW')}
         </span>
       </div>

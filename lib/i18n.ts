@@ -5,7 +5,7 @@ export const t = {
     title: 'LOPIA 商品動態',
     subtitle: '進口貨況即時追蹤',
     lastUpdated: '最後更新',
-    autoRefresh: '每小時自動更新',
+    autoRefresh: '每 10 分鐘自動更新',
     shipments: '進口批次',
     stores: '門市列表',
     scheduleParser: '出貨排程匯入',
@@ -167,6 +167,8 @@ export const t = {
     filterDone: '已完成',
     // Month view
     listView: '列表',
+    cardView: '卡片',
+    compactView: '精簡',
     calendarView: '月曆',
     // Today summary strip
     todayShip: '今日出貨',
@@ -203,7 +205,7 @@ export const t = {
     title: 'LOPIA 商品ステータス',
     subtitle: '輸入貨物リアルタイム追跡',
     lastUpdated: '最終更新',
-    autoRefresh: '1時間ごとに自動更新',
+    autoRefresh: '10分ごとに自動更新',
     shipments: '輸入バッチ',
     stores: '店舗一覧',
     scheduleParser: '出荷スケジュール取込',
@@ -365,6 +367,8 @@ export const t = {
     filterDone: '完了',
     // Month view
     listView: 'リスト',
+    cardView: 'カード',
+    compactView: 'シンプル',
     calendarView: 'カレンダー',
     // Today summary strip
     todayShip: '本日出荷',
