@@ -253,6 +253,17 @@ export default function CompactShipmentRow({ shipment, lang, allRecords, onRecor
 
   const shippedBoxes = shipment.shippedBoxes ?? 0
   const plannedBoxes = shipment.plannedBoxes ?? 0
+  const total = shipment.totalBoxes ?? 0
+  const shippedPct = total > 0 ? Math.min(100, Math.round((shippedBoxes / total) * 100)) : 0
+  const plannedPct = total > 0 ? Math.min(100, Math.round((plannedBoxes / total) * 100)) : 0
+
+  // 異常批次凸顯（收合列即可見，僅用現有 Notion 欄位；與 AnomalyBadge 的退回/銷毀不同）
+  const warnings: { key: string; label: string; tone: 'red' | 'amber' }[] = []
+  if ((shipment.quarantine ?? '').includes('不合格')) warnings.push({ key: 'quarantine', label: lang === 'ja' ? '検疫不合格' : '檢疫不合格', tone: 'red' })
+  if (shipment.radiationTest === '不合格') warnings.push({ key: 'rad', label: lang === 'ja' ? '放射線不合格' : '輻射不合格', tone: 'red' })
+  if (shipment.pesticideTest === '不合格') warnings.push({ key: 'pest', label: lang === 'ja' ? '農薬不合格' : '農藥不合格', tone: 'red' })
+  if (shipment.fumigation === '需燻蒸' || shipment.fumigation === '燻蒸必要') warnings.push({ key: 'fum', label: lang === 'ja' ? '燻蒸必要' : '需燻蒸', tone: 'amber' })
+  if (shipment.totalBoxes != null && plannedBoxes > 0 && plannedBoxes !== shipment.totalBoxes) warnings.push({ key: 'box', label: lang === 'ja' ? '箱数不一致' : '箱數不符', tone: 'amber' })
 
   const arrivalStr = shipment.arrivalTW?.slice(5).replace('-', '/') ?? '—'
   const clearanceStr = shipment.actualClearance?.slice(5).replace('-', '/') ?? '—'
@@ -263,6 +274,7 @@ export default function CompactShipmentRow({ shipment, lang, allRecords, onRecor
       <div
         role="button"
         tabIndex={0}
+        aria-expanded={open}
         onClick={() => setOpen(o => !o)}
         onKeyDown={e => e.key === 'Enter' && setOpen(o => !o)}
         className="flex items-center gap-3 px-4 py-3 min-h-[52px] hover:bg-gray-50 transition-colors cursor-pointer select-none"
@@ -285,6 +297,25 @@ export default function CompactShipmentRow({ shipment, lang, allRecords, onRecor
                 {shipment.supplier}
               </span>
             )}
+            {warnings.map(w => (
+              <span
+                key={w.key}
+                className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-medium border shrink-0 ${
+                  w.tone === 'red'
+                    ? 'bg-red-50 text-red-600 border-red-200'
+                    : 'bg-amber-50 text-amber-700 border-amber-200'
+                }`}
+              >
+                <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                  {w.tone === 'red' ? (
+                    <><circle cx="12" cy="12" r="10" /><line x1="12" y1="8" x2="12" y2="12" /><line x1="12" y1="16" x2="12.01" y2="16" /></>
+                  ) : (
+                    <><path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z" /><line x1="12" y1="9" x2="12" y2="13" /><line x1="12" y1="17" x2="12.01" y2="17" /></>
+                  )}
+                </svg>
+                {w.label}
+              </span>
+            ))}
           </div>
           {shipment.productSummary && (
             <p className="text-[11px] text-gray-500 truncate mt-0.5 hidden sm:block">{shipment.productSummary}</p>
@@ -307,9 +338,20 @@ export default function CompactShipmentRow({ shipment, lang, allRecords, onRecor
             <span className={`font-medium ml-0.5 ${shipment.actualClearance ? 'text-gray-700' : 'text-gray-300'}`}>{clearanceStr}</span>
           </div>
           {shipment.totalBoxes != null && (
-            <span className="text-gray-500 text-xs font-medium whitespace-nowrap">
-              {shipment.totalBoxes}<span className="text-gray-400 text-[10px] ml-0.5">箱</span>
-            </span>
+            <div className="flex items-center gap-1.5 whitespace-nowrap">
+              {total > 0 && (
+                <div
+                  className="hidden sm:block w-12 h-1.5 rounded-full bg-gray-100 overflow-hidden relative"
+                  title={`${T.shipped} ${shippedBoxes} / ${T.plannedBoxes} ${plannedBoxes} / ${total} ${T.boxes}`}
+                >
+                  <span className="absolute inset-y-0 left-0 bg-red-200 rounded-full" style={{ width: `${plannedPct}%` }} />
+                  <span className="absolute inset-y-0 left-0 bg-lopia-red rounded-full" style={{ width: `${shippedPct}%` }} />
+                </div>
+              )}
+              <span className="text-gray-500 text-xs font-medium">
+                {shipment.totalBoxes}<span className="text-gray-400 text-[10px] ml-0.5">{T.boxes}</span>
+              </span>
+            </div>
           )}
           <EditableStatusBadge
             value={shipment.deliveryStatus}
