@@ -111,7 +111,7 @@ export default function TimelineProgress({ shipment, lang }: { shipment: Shipmen
                         ? 'bg-blue-50 border-2 border-blue-500 animate-[pulse-ring_2s_ease_infinite]'
                         : 'bg-white border-2 border-dashed border-gray-300'
                     }`}
-                    style={current ? {
+                    style={current && !done ? {
                       boxShadow: '0 0 0 5px rgba(37,99,235,0.12), 0 0 16px rgba(37,99,235,0.22)',
                       animation: 'pulse-ring 2s ease infinite',
                     } : undefined}
