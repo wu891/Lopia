@@ -856,3 +856,130 @@ export async function updateBatchItem(id: string, data: Partial<{
 export async function deleteBatchItem(id: string): Promise<void> {
   await notion.pages.update({ page_id: id, archived: true })
 }
+
+// ── Demand Items (LOPIA需求清單) ──────────────────────────────────────────────
+
+export interface DemandItem {
+  id: string
+  store: string
+  product: string
+  quantity: string
+  needDate: string | null
+  status: string
+  note: string
+  source: string
+  rawMessage: string
+  lineMessageId: string
+}
+
+// Notion 的 rich_text 欄位不接受 content 為空字串，空值要改傳空陣列才能清空欄位
+function richText(content: string) {
+  return { rich_text: content ? [{ text: { content } }] : [] }
+}
+
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+function pageToDemandItem(page: any): DemandItem {
+  const p = page.properties
+  return {
+    id: page.id,
+    store: getSelect(p['門市']) ?? '',
+    product: getText(p['商品']) ?? '',
+    quantity: getText(p['數量']) ?? '',
+    needDate: getDate(p['日期']),
+    status: getSelect(p['狀態']) ?? '待處理',
+    note: getText(p['備註']) ?? '',
+    source: getSelect(p['來源']) ?? '手動',
+    rawMessage: getText(p['原始訊息']) ?? '',
+    lineMessageId: getText(p['LINE訊息ID']) ?? '',
+  }
+}
+
+export async function getDemandItems(): Promise<DemandItem[]> {
+  const DB = process.env.NOTION_DEMAND_DB
+  if (!DB) return []
+
+  const results: DemandItem[] = []
+  let cursor: string | undefined
+  do {
+    const response = await notion.databases.query({
+      database_id: DB,
+      page_size: 100,
+      ...(cursor ? { start_cursor: cursor } : {}),
+    })
+    results.push(...response.results.map(pageToDemandItem))
+    cursor = response.has_more ? (response.next_cursor ?? undefined) : undefined
+  } while (cursor)
+  return results
+}
+
+export async function createDemandItem(data: {
+  store?: string
+  product?: string
+  quantity?: string
+  needDate?: string | null
+  status?: string
+  note?: string
+  source?: string
+  rawMessage?: string
+  lineMessageId?: string
+}): Promise<DemandItem> {
+  const DB = process.env.NOTION_DEMAND_DB
+  if (!DB) throw new Error('Missing NOTION_DEMAND_DB env var')
+
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const props: any = {
+    '項目名稱': { title: [{ text: { content: data.product || data.store || '(未命名需求)' } }] },
+    '狀態': { select: { name: data.status || '待處理' } },
+    '來源': { select: { name: data.source || '手動' } },
+  }
+  if (data.store) props['門市'] = { select: { name: data.store } }
+  if (data.product != null) props['商品'] = richText(data.product)
+  if (data.quantity != null) props['數量'] = richText(data.quantity)
+  if (data.needDate) props['日期'] = { date: { start: data.needDate } }
+  if (data.note) props['備註'] = richText(data.note)
+  if (data.rawMessage) props['原始訊息'] = richText(data.rawMessage)
+  if (data.lineMessageId) props['LINE訊息ID'] = richText(data.lineMessageId)
+
+  const page = await notion.pages.create({ parent: { database_id: DB }, properties: props })
+  return pageToDemandItem(page)
+}
+
+export async function updateDemandItem(id: string, data: Partial<{
+  store: string
+  product: string
+  quantity: string
+  needDate: string | null
+  status: string
+  note: string
+}>): Promise<DemandItem> {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const props: any = {}
+  if (data.store != null) props['門市'] = data.store ? { select: { name: data.store } } : { select: null }
+  if (data.product != null) {
+    props['商品'] = richText(data.product)
+    props['項目名稱'] = { title: [{ text: { content: data.product || data.store || '(未命名需求)' } }] }
+  }
+  if (data.quantity != null) props['數量'] = richText(data.quantity)
+  if (data.needDate !== undefined) props['日期'] = data.needDate ? { date: { start: data.needDate } } : { date: null }
+  if (data.status != null) props['狀態'] = { select: { name: data.status } }
+  if (data.note != null) props['備註'] = richText(data.note)
+
+  const page = await notion.pages.update({ page_id: id, properties: props })
+  return pageToDemandItem(page)
+}
+
+export async function deleteDemandItem(id: string): Promise<void> {
+  await notion.pages.update({ page_id: id, archived: true })
+}
+
+// 檢查這則LINE訊息是否已經寫過（避免LINE重送造成重複項目）
+export async function demandItemExistsForLineMessage(lineMessageId: string): Promise<boolean> {
+  const DB = process.env.NOTION_DEMAND_DB
+  if (!DB) return false
+  const res = await notion.databases.query({
+    database_id: DB,
+    filter: { property: 'LINE訊息ID', rich_text: { equals: lineMessageId } },
+    page_size: 1,
+  })
+  return res.results.length > 0
+}
