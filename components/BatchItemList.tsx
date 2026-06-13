@@ -59,6 +59,7 @@ export default function BatchItemList({ batchId, lang, parentTotalBoxes = null, 
   const [hasExcel, setHasExcel] = useState(false)
   const [excelMissing, setExcelMissing] = useState(false)
   const [syncing, setSyncing] = useState(false)
+  const [importing, setImporting] = useState(false)
   const [syncMsg, setSyncMsg] = useState<{ type: 'ok' | 'err'; text: string } | null>(null)
 
   async function load() {
@@ -81,12 +82,57 @@ export default function BatchItemList({ batchId, lang, parentTotalBoxes = null, 
 
   useEffect(() => { load() }, [batchId])
 
-  // 「已出貨」即時自動算：有供應商 Excel 時以推算值為準，否則用手動值
+  // 「已出貨」即時自動算的來源優先序：
+  //   1. 供應商 Excel 推算（品項 × 輪次，最精確）
+  //   2. 品項自己手動填的值（> 0）
+  //   3. 都沒有時，依箱數比例分攤母批次（出貨計畫）的已出貨總量 — 方案 A
   const derivedMap = new Map(derived.map(d => [d.productName, d]))
-  function liveShipped(it: BatchItem): number {
-    if (hasExcel && derivedMap.has(it.productName)) return derivedMap.get(it.productName)!.shippedBoxes
-    return it.shippedBoxes ?? 0
+  type ShippedSource = 'derived' | 'manual' | 'prorated' | 'none'
+
+  // 依箱數比例把 pool 分攤到指定品項，用最大餘數法讓總和精確相符
+  function prorate(targetItems: BatchItem[], pool: number): Map<string, number> {
+    const out = new Map<string, number>()
+    const totalBoxes = targetItems.reduce((s, it) => s + (it.boxes ?? 0), 0)
+    if (pool <= 0 || totalBoxes <= 0) { targetItems.forEach(it => out.set(it.id, 0)); return out }
+    const parts = targetItems.map(it => {
+      const exact = pool * (it.boxes ?? 0) / totalBoxes
+      const base = Math.floor(exact)
+      return { id: it.id, base, frac: exact - base }
+    })
+    let remainder = pool - parts.reduce((s, p) => s + p.base, 0)
+    parts.sort((a, b) => b.frac - a.frac)
+    for (const p of parts) { out.set(p.id, p.base + (remainder > 0 ? 1 : 0)); if (remainder > 0) remainder-- }
+    return out
   }
+
+  function computeShipped(): Map<string, { value: number; source: ShippedSource }> {
+    const out = new Map<string, { value: number; source: ShippedSource }>()
+    // 1. 供應商 Excel 推算值
+    if (hasExcel) {
+      for (const it of items) {
+        if (derivedMap.has(it.productName)) out.set(it.id, { value: derivedMap.get(it.productName)!.shippedBoxes, source: 'derived' })
+      }
+    }
+    // 2. 手動值（> 0 視為使用者明確輸入）
+    for (const it of items) {
+      if (out.has(it.id)) continue
+      const manual = it.shippedBoxes ?? 0
+      if (manual > 0) out.set(it.id, { value: manual, source: 'manual' })
+    }
+    // 3. 比例分攤（僅在此批無品項別供應商 Excel 時啟用）
+    if (!hasExcel && parentShippedBoxes > 0) {
+      const assigned = Array.from(out.values()).reduce((s, v) => s + v.value, 0)
+      const rest = items.filter(it => !out.has(it.id))
+      const shares = prorate(rest, Math.max(0, parentShippedBoxes - assigned))
+      for (const it of rest) out.set(it.id, { value: shares.get(it.id) ?? 0, source: 'prorated' })
+    }
+    // 4. 其餘維持原值（通常為 0）
+    for (const it of items) if (!out.has(it.id)) out.set(it.id, { value: it.shippedBoxes ?? 0, source: 'none' })
+    return out
+  }
+
+  const shippedInfo = computeShipped()
+  const liveShipped = (it: BatchItem): number => shippedInfo.get(it.id)?.value ?? (it.shippedBoxes ?? 0)
 
   function withAuth(fn: () => void) {
     if (!isAuthed()) {
@@ -223,6 +269,39 @@ export default function BatchItemList({ batchId, lang, parentTotalBoxes = null, 
     })
   }
 
+  function statusForShipped(shipped: number, boxes: number): string {
+    if (boxes > 0 && shipped >= boxes) return '全數出貨'
+    if (shipped > 0) return '部分出貨'
+    return '待出貨'
+  }
+
+  // 方案 C：把「依出貨計畫比例分攤的已出貨」寫入各品項（事後仍可手動微調；再按一次會依最新計畫重新分攤）
+  function importFromPlan() {
+    withAuth(async () => {
+      setImporting(true); setSyncMsg(null)
+      try {
+        const shares = prorate(items, parentShippedBoxes)
+        let written = 0
+        for (const it of items) {
+          const shipped = shares.get(it.id) ?? 0
+          const res = await fetch(`/api/batch-items/${it.id}`, {
+            method: 'PATCH',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ shippedBoxes: shipped, status: statusForShipped(shipped, it.boxes ?? 0) }),
+          })
+          if (res.ok) written++
+        }
+        await logChange('帶入品項已出貨', batchId, `依出貨計畫比例帶入 ${written} 品項（母批次已出貨 ${parentShippedBoxes}）`)
+        setSyncMsg({ type: 'ok', text: lang === 'ja' ? `取込完了：${written} 品目に反映` : `已帶入：${written} 品項` })
+        await load()
+      } catch {
+        setSyncMsg({ type: 'err', text: lang === 'ja' ? '取込に失敗しました' : '帶入失敗，請重試' })
+      } finally {
+        setImporting(false)
+      }
+    })
+  }
+
   return (
     <div>
       <div className="flex items-center justify-between mb-1.5 gap-2">
@@ -241,6 +320,18 @@ export default function BatchItemList({ batchId, lang, parentTotalBoxes = null, 
               {syncing
                 ? <><span className="animate-spin inline-block">⟳</span> {lang === 'ja' ? '同期中...' : '同步中...'}</>
                 : <>🔄 {lang === 'ja' ? '配送計画から取込' : '從出貨計畫同步'}</>}
+            </button>
+          )}
+          {!hasExcel && parentShippedBoxes > 0 && items.length > 0 && (
+            <button
+              onClick={importFromPlan}
+              disabled={importing}
+              title={lang === 'ja' ? '配送計画の出荷済を箱数比で各品目に取り込み保存（後で手動調整可）' : '依出貨計畫已出貨總量按箱數比例帶入各品項並寫入（事後可手動微調）'}
+              className="text-xs px-2 py-1 bg-indigo-50 text-indigo-600 border border-indigo-200 rounded-lg hover:bg-indigo-100 font-medium transition-colors disabled:opacity-50"
+            >
+              {importing
+                ? <><span className="animate-spin inline-block">⟳</span> {lang === 'ja' ? '取込中...' : '帶入中...'}</>
+                : <>📥 {lang === 'ja' ? '計画から出荷済取込' : '依計畫帶入已出貨'}</>}
             </button>
           )}
           <button
@@ -317,9 +408,23 @@ export default function BatchItemList({ batchId, lang, parentTotalBoxes = null, 
                   <tr key={it.id} className="hover:bg-gray-50">
                     <td className="px-2 py-1.5 font-medium text-gray-800">{it.productName}</td>
                     <td className="px-2 py-1.5 text-right text-gray-700">{it.boxes ?? 0}</td>
-                    <td className={`px-2 py-1.5 text-right ${hasExcel && derivedMap.has(it.productName) ? 'text-blue-600' : 'text-gray-700'}`}>
-                      {liveShipped(it)}
-                    </td>
+                    {(() => {
+                      const info = shippedInfo.get(it.id) ?? { value: it.shippedBoxes ?? 0, source: 'none' as ShippedSource }
+                      const cls = info.source === 'derived' ? 'text-blue-600'
+                        : info.source === 'prorated' ? 'text-indigo-500'
+                        : 'text-gray-700'
+                      const title = info.source === 'prorated'
+                        ? (lang === 'ja' ? '配送計画の出荷済を箱数比で按分した概算（品目別Excelなし）' : '依出貨計畫已出貨總量按箱數比例分攤的估算（此批無品項別供應商 Excel）')
+                        : info.source === 'derived'
+                        ? (lang === 'ja' ? '配送計画から自動計算' : '由供應商 Excel 自動計算')
+                        : undefined
+                      return (
+                        <td className={`px-2 py-1.5 text-right ${cls}`} title={title}>
+                          {info.source === 'prorated' && <span className="text-[10px] mr-0.5">≈</span>}
+                          {info.value}
+                        </td>
+                      )
+                    })()}
                     <td className="px-2 py-1.5 text-center">
                       <span className={`inline-block px-1.5 py-0.5 rounded text-[10px] border ${STATUS_STYLE[it.status ?? '待出貨'] ?? STATUS_STYLE['待出貨']}`}>
                         {it.status ?? '待出貨'}
