@@ -983,3 +983,39 @@ export async function demandItemExistsForLineMessage(lineMessageId: string): Pro
   })
   return res.results.length > 0
 }
+
+// 把所有 LINE 訊息（不限格式）存進「LINE 訊息紀錄」DB，供每日 Claude 分析用
+export async function saveLineMessage(data: {
+  messageId: string
+  text: string
+  userId: string
+  groupId: string | null
+  sourceType: '群組' | '個人'
+  timestamp: number  // Unix ms
+}): Promise<void> {
+  const DB = process.env.NOTION_LINE_MESSAGES_DB
+  if (!DB) return  // env var 未設定時靜默跳過，不影響現有流程
+
+  // 先查是否已存過（LINE 平台偶爾會重送同一則事件）
+  const existing = await notion.databases.query({
+    database_id: DB,
+    filter: { property: 'LINE訊息ID', rich_text: { equals: data.messageId } },
+    page_size: 1,
+  })
+  if (existing.results.length > 0) return
+
+  const sentAt = new Date(data.timestamp).toISOString()
+
+  await notion.pages.create({
+    parent: { database_id: DB },
+    properties: {
+      '訊息內容': { title: [{ text: { content: data.text.slice(0, 2000) } }] },
+      '發送者ID': richText(data.userId),
+      '群組ID': richText(data.groupId ?? ''),
+      '來源類型': { select: { name: data.sourceType } },
+      '發送時間': { date: { start: sentAt } },
+      'LINE訊息ID': richText(data.messageId),
+      '已分析': { checkbox: false },
+    },
+  })
+}

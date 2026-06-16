@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createHmac } from 'crypto'
 import { parseDemandText } from '@/lib/parseDemandText'
-import { createDemandItem, demandItemExistsForLineMessage } from '@/lib/notion'
+import { createDemandItem, demandItemExistsForLineMessage, saveLineMessage } from '@/lib/notion'
 import { clampLen } from '@/lib/auth'
 
 export const dynamic = 'force-dynamic'
@@ -12,8 +12,16 @@ interface LineMessage {
   text?: string
 }
 
+interface LineSource {
+  type: 'user' | 'group' | 'room'
+  userId?: string
+  groupId?: string
+}
+
 interface LineEvent {
   type: string
+  timestamp?: number
+  source?: LineSource
   message?: LineMessage
 }
 
@@ -51,6 +59,18 @@ export async function POST(req: NextRequest) {
     if (!message || message.type !== 'text' || !message.text) continue
 
     const text = message.text
+    const source = event.source
+
+    // 所有文字訊息都存進「LINE 訊息紀錄」DB，供每日排程分析
+    await saveLineMessage({
+      messageId: message.id,
+      text,
+      userId: source?.userId ?? 'unknown',
+      groupId: source?.groupId ?? null,
+      sourceType: source?.type === 'group' ? '群組' : '個人',
+      timestamp: event.timestamp ?? Date.now(),
+    })
+
     const parsedItems = parseDemandText(text)
 
     // 一則LINE訊息可能含多行、解析出多筆需求，每一筆用「訊息ID+序號」當去重編號，
