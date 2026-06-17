@@ -73,6 +73,7 @@ export default function InventoryPage() {
   const [deliveryFileName, setDeliveryFileName] = useState('')
   const [importingDelivery, setImportingDelivery] = useState(false)
   const [importMsg, setImportMsg] = useState<{ ok: boolean; text: string } | null>(null)
+  const [generatingExcel, setGeneratingExcel] = useState(false)
 
   const initGrid = useCallback((loadedItems: InventoryItem[]) => {
     const g: Record<string, Record<string, number>> = {}
@@ -262,8 +263,48 @@ export default function InventoryPage() {
             ok: false,
             text: `已填入，但 ${unmatched.length} 個項目未比對到：${unmatched.slice(0, 2).join('、')}${unmatched.length > 2 ? '…等' : ''}，請手動補填`,
           }
-        : { ok: true, text: `第 ${round.roundNo} 回成功填入訂單格！` }
+        : { ok: true, text: `第 ${round.roundNo} 回成功填入訂單格！正在產出貨單 Excel…` }
     )
+
+    // 自動產出店鋪貨單 + 出貨總表 Excel 並下載
+    setGeneratingExcel(true)
+    void (async () => {
+      try {
+        const dateStr = shipDate || new Date().toISOString().slice(0, 10)
+        const d = dateStr.replace(/-/g, '')
+        const shipmentNo = `S${d}01`
+        const storeOrders = round.stores.map(s => ({
+          storeName: s.name,
+          products: s.products,
+          deliveryDate: dateStr,
+        }))
+        const res = await fetch('/api/generate-order-from-round', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ storeOrders, shipmentNo, batchName }),
+        })
+        if (!res.ok) {
+          const err = await res.json().catch(() => ({ error: '下載失敗' }))
+          setImportMsg(prev => prev ? { ...prev, text: prev.text.replace('正在產出貨單 Excel…', `⚠️ 貨單 Excel 產出失敗：${err.error}`) } : null)
+        } else {
+          const blob = await res.blob()
+          const shipNo = res.headers.get('X-Shipment-No') ?? shipmentNo
+          const url = URL.createObjectURL(blob)
+          const a = document.createElement('a')
+          a.href = url
+          a.download = `${shipNo}_${batchName}_店鋪貨單.xlsx`
+          document.body.appendChild(a)
+          a.click()
+          document.body.removeChild(a)
+          URL.revokeObjectURL(url)
+          setImportMsg(prev => prev ? { ...prev, text: prev.text.replace('正在產出貨單 Excel…', `✅ 貨單已下載（${shipNo}）`) } : null)
+        }
+      } catch (e) {
+        setImportMsg(prev => prev ? { ...prev, text: prev.text.replace('正在產出貨單 Excel…', `⚠️ 貨單 Excel 產出失敗：${e instanceof Error ? e.message : ''}`) } : null)
+      } finally {
+        setGeneratingExcel(false)
+      }
+    })()
 
     // 背景存進 Notion 歷史，失敗不影響主流程
     void fetch('/api/delivery-history', {
@@ -426,8 +467,12 @@ export default function InventoryPage() {
                     </span>
                     <button
                       onClick={() => applyDeliveryRound(round, deliveryFileName)}
-                      className="text-xs px-3 py-1.5 bg-lopia-red text-white rounded-lg font-semibold hover:bg-red-700 transition-colors flex-shrink-0">
-                      確認填入第 {round.roundNo} 回
+                      disabled={generatingExcel}
+                      className={`text-xs px-3 py-1.5 rounded-lg font-semibold transition-colors flex-shrink-0
+                        ${generatingExcel
+                          ? 'bg-gray-300 text-gray-500 cursor-not-allowed'
+                          : 'bg-lopia-red text-white hover:bg-red-700'}`}>
+                      {generatingExcel ? '產出中…' : `確認填入第 ${round.roundNo} 回`}
                     </button>
                   </div>
                   <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-2">
