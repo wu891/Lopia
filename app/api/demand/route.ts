@@ -27,7 +27,7 @@ export async function POST(req: NextRequest) {
       needDate: data.needDate || null,
       status: data.status || '待處理',
       note: clampLen(data.note ?? '', 2000),
-      source: '手動',
+      source: clampLen(data.source ?? '手動', 50),
     })
     return NextResponse.json({ item })
   } catch (err) {
