@@ -226,9 +226,23 @@ export async function parseDeliveryExcel(
     if (isMultiRound) {
       if (hasKaimeFormat) {
         const m = sn.trim().match(ROUND_RE)
-        if (!m) continue
-        roundNo = parseInt(m[1], 10)
-        storeRaw = sn.trim().replace(ROUND_RE, '').trim()
+        if (!m) {
+          // 容錯：分頁名如「回目夢時」缺少回次數字（Excel 打字錯誤）
+          // 從前一張有效分頁推斷回次
+          const fallback = sn.trim().match(/^回[目か](.+)/)
+          if (!fallback) continue
+          storeRaw = fallback[1].trim()
+          const idx = sheets.indexOf(sn)
+          let inferred = 1
+          for (let j = idx - 1; j >= 0; j--) {
+            const pm = sheets[j].trim().match(ROUND_RE)
+            if (pm) { inferred = parseInt(pm[1], 10); break }
+          }
+          roundNo = inferred
+        } else {
+          roundNo = parseInt(m[1], 10)
+          storeRaw = sn.trim().replace(ROUND_RE, '').trim()
+        }
       } else {
         const m = sn.trim().match(ROUND_PAREN_RE)
         if (m) {
