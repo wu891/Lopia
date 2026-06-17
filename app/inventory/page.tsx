@@ -2,6 +2,7 @@
 import { useState, useEffect, useCallback, Fragment } from 'react'
 import PasswordModal, { isAuthed } from '@/components/PasswordModal'
 import { STORES } from '@/lib/stores'
+import { parseDeliveryExcel, ParsedDeliveryRound } from '@/lib/parseDeliveryExcel'
 
 interface InventoryItem {
   id: string
@@ -66,6 +67,12 @@ export default function InventoryPage() {
   const [submitMsg, setSubmitMsg] = useState<{ ok: boolean; text: string } | null>(null)
   const [syncing, setSyncing] = useState(false)
   const [syncMsg, setSyncMsg] = useState<string | null>(null)
+
+  // 出貨指示匯入
+  const [deliveryRounds, setDeliveryRounds] = useState<ParsedDeliveryRound[] | null>(null)
+  const [deliveryFileName, setDeliveryFileName] = useState('')
+  const [importingDelivery, setImportingDelivery] = useState(false)
+  const [importMsg, setImportMsg] = useState<{ ok: boolean; text: string } | null>(null)
 
   const initGrid = useCallback((loadedItems: InventoryItem[]) => {
     const g: Record<string, Record<string, number>> = {}
@@ -196,6 +203,82 @@ export default function InventoryPage() {
     }
   }
 
+  async function handleDeliveryUpload(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0]; if (!file) return
+    setImportingDelivery(true); setDeliveryRounds(null); setImportMsg(null)
+    try {
+      const buffer = await file.arrayBuffer()
+      const rounds = await parseDeliveryExcel(buffer)
+      if (!rounds.length) throw new Error('Excel 裡找不到任何門市資料，請確認格式是否正確')
+      setDeliveryRounds(rounds)
+      setDeliveryFileName(file.name)
+    } catch (err) {
+      setImportMsg({ ok: false, text: `解析失敗：${err instanceof Error ? err.message : '未知錯誤'}` })
+    } finally {
+      setImportingDelivery(false); e.target.value = ''
+    }
+  }
+
+  function applyDeliveryRound(round: ParsedDeliveryRound, fileName: string) {
+    const newGrid: Record<string, Record<string, number>> = {}
+    for (const item of items) {
+      newGrid[item.id] = { ...grid[item.id] }
+    }
+
+    const unmatched: string[] = []
+
+    for (const storeData of round.stores) {
+      const matchedStore = ORDER_STORES.find(s =>
+        s.name_zh === storeData.name ||
+        storeData.name.includes(s.name_zh) ||
+        (s.excelSheetName != null && storeData.name.includes(s.excelSheetName))
+      )
+      if (!matchedStore) {
+        const key = `門市「${storeData.name}」`
+        if (!unmatched.includes(key)) unmatched.push(key)
+        continue
+      }
+
+      for (const product of storeData.products) {
+        let matchedItem = items.find(i => i.name === product.name)
+        if (!matchedItem) {
+          matchedItem = items.find(i =>
+            i.name.includes(product.name) || product.name.includes(i.name)
+          )
+        }
+        if (!matchedItem) {
+          const key = `商品「${product.name}」`
+          if (!unmatched.includes(key)) unmatched.push(key)
+          continue
+        }
+        newGrid[matchedItem.id][matchedStore.name_zh] = product.quantity
+      }
+    }
+
+    setGrid(newGrid)
+    setImportMsg(
+      unmatched.length
+        ? {
+            ok: false,
+            text: `已填入，但 ${unmatched.length} 個項目未比對到：${unmatched.slice(0, 2).join('、')}${unmatched.length > 2 ? '…等' : ''}，請手動補填`,
+          }
+        : { ok: true, text: `第 ${round.roundNo} 回成功填入訂單格！` }
+    )
+
+    // 背景存進 Notion 歷史，失敗不影響主流程
+    void fetch('/api/delivery-history', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        fileName,
+        roundNo: round.roundNo,
+        storeCount: round.stores.length,
+        totalBoxes: round.stores.reduce((sum, s) => sum + s.boxes, 0),
+        stores: round.stores.map(s => ({ name: s.name, boxes: s.boxes })),
+      }),
+    }).catch(() => undefined)
+  }
+
   const orderCount = items.filter(i => rowTotal(i.id) > 0).length
 
   return (
@@ -287,6 +370,14 @@ export default function InventoryPage() {
                               : 'bg-white border-gray-300 text-gray-600 hover:border-lopia-red hover:text-lopia-red'}`}>
                   Gmail 同步
                 </button>
+                <span className="w-px h-5 bg-gray-200 self-center" />
+                <label className={`cursor-pointer text-xs px-2.5 py-1.5 rounded border font-medium
+                  ${importingDelivery
+                    ? 'opacity-40 bg-gray-50 border-gray-200 text-gray-400'
+                    : 'bg-blue-50 border-blue-300 text-blue-700 hover:border-blue-500 hover:bg-blue-100'}`}>
+                  {importingDelivery ? '解析中…' : '📋 匯入出貨指示'}
+                  <input type="file" accept=".xlsx" className="hidden" onChange={handleDeliveryUpload} disabled={importingDelivery} />
+                </label>
               </div>
             )}
           </div>
@@ -301,6 +392,60 @@ export default function InventoryPage() {
         {submitMsg && (
           <div className={`text-sm px-4 py-3 rounded-xl ${submitMsg.ok ? 'bg-green-50 text-green-700 border border-green-200' : 'bg-red-50 text-red-600 border border-red-200'}`}>
             {submitMsg.text}
+          </div>
+        )}
+
+        {/* 出貨指示匯入訊息 */}
+        {importMsg && (
+          <div className={`text-sm px-4 py-3 rounded-xl ${importMsg.ok ? 'bg-blue-50 text-blue-700 border border-blue-200' : 'bg-amber-50 text-amber-700 border border-amber-200'}`}>
+            {importMsg.text}
+          </div>
+        )}
+
+        {/* 出貨指示預覽面板 */}
+        {deliveryRounds && (
+          <div className="bg-blue-50 border border-blue-200 rounded-xl px-4 py-3 space-y-3">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2 min-w-0">
+                <span className="text-sm font-bold text-blue-800 flex-shrink-0">📋 出貨指示預覽</span>
+                <span className="text-xs text-blue-500 truncate">{deliveryFileName}</span>
+              </div>
+              <button
+                onClick={() => { setDeliveryRounds(null); setDeliveryFileName(''); setImportMsg(null) }}
+                className="text-xs text-blue-400 hover:text-blue-700 px-2 py-1 rounded hover:bg-blue-100 flex-shrink-0 ml-2">
+                ✕ 關閉
+              </button>
+            </div>
+            {deliveryRounds.map(round => {
+              const totalBoxes = round.stores.reduce((sum, s) => sum + s.boxes, 0)
+              return (
+                <div key={round.roundNo} className="bg-white rounded-lg border border-blue-100 p-3 space-y-2">
+                  <div className="flex items-center justify-between gap-2">
+                    <span className="text-sm font-bold text-gray-800">
+                      第 {round.roundNo} 回　合計 {totalBoxes} 箱
+                    </span>
+                    <button
+                      onClick={() => applyDeliveryRound(round, deliveryFileName)}
+                      className="text-xs px-3 py-1.5 bg-lopia-red text-white rounded-lg font-semibold hover:bg-red-700 transition-colors flex-shrink-0">
+                      確認填入第 {round.roundNo} 回
+                    </button>
+                  </div>
+                  <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-2">
+                    {round.stores.map(store => (
+                      <div key={store.name} className="text-xs bg-gray-50 rounded-lg p-2 border border-gray-100">
+                        <div className="font-semibold text-gray-700 leading-tight">{store.name}</div>
+                        <div className="text-lopia-red font-bold mt-0.5">{store.boxes} 箱</div>
+                        {store.products.map((p, idx) => (
+                          <div key={idx} className="text-gray-400 leading-tight mt-0.5">
+                            {p.name} ×{p.quantity}
+                          </div>
+                        ))}
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )
+            })}
           </div>
         )}
 
