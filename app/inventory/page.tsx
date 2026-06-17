@@ -337,6 +337,7 @@ export default function InventoryPage() {
                   {CATEGORY_ORDER.map(cat => {
                     const catItems = items.filter(i => getCategory(i) === cat)
                     if (catItems.length === 0) return null
+                    const catStock = catItems.reduce((sum, i) => sum + i.stock, 0)
                     return (
                       <Fragment key={cat}>
                         {/* 分類標頭列 */}
@@ -346,7 +347,8 @@ export default function InventoryPage() {
                             className="px-3 py-1.5 text-xs font-bold tracking-wide sticky left-0 z-10"
                             style={{ background: cat === '蘋果' ? '#fef3c7' : '#f0fdf4', color: cat === '蘋果' ? '#92400e' : '#166534' }}
                           >
-                            {cat === '蘋果' ? '🍎 蘋果' : '🍠 地瓜加工品'}
+                            <span>{cat === '蘋果' ? '🍎 蘋果' : '🍠 地瓜加工品'}</span>
+                            <span className="ml-3 font-normal opacity-70">目前總庫存 {catStock} 箱</span>
                           </td>
                         </tr>
                         {catItems.map(item => {
