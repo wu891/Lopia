@@ -26,9 +26,9 @@ const ORDER_STORES = STORES
 type Category = '蘋果' | '地瓜加工品'
 const CATEGORY_ORDER: Category[] = ['蘋果', '地瓜加工品']
 
-// 品名含「蘋」→ 蘋果類，其餘 → 地瓜加工品
+// 品名含「地瓜」→ 地瓜加工品，其餘（Sunfuji 等）→ 蘋果
 function getCategory(item: InventoryItem): Category {
-  return item.name.includes('蘋') ? '蘋果' : '地瓜加工品'
+  return item.name.includes('地瓜') ? '地瓜加工品' : '蘋果'
 }
 
 function stockColor(n: number) {
