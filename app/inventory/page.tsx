@@ -74,6 +74,8 @@ export default function InventoryPage() {
   const [importingDelivery, setImportingDelivery] = useState(false)
   const [importMsg, setImportMsg] = useState<{ ok: boolean; text: string } | null>(null)
   const [generatingExcel, setGeneratingExcel] = useState(false)
+  // 產出後的下載連結（blob URL）
+  const [excelDownload, setExcelDownload] = useState<{ url: string; filename: string } | null>(null)
 
   const initGrid = useCallback((loadedItems: InventoryItem[]) => {
     const g: Record<string, Record<string, number>> = {}
@@ -257,22 +259,22 @@ export default function InventoryPage() {
     }
 
     setGrid(newGrid)
+    setExcelDownload(null)
     setImportMsg(
       unmatched.length
         ? {
             ok: false,
             text: `已填入，但 ${unmatched.length} 個項目未比對到：${unmatched.slice(0, 2).join('、')}${unmatched.length > 2 ? '…等' : ''}，請手動補填`,
           }
-        : { ok: true, text: `第 ${round.roundNo} 回成功填入訂單格！正在產出貨單 Excel…` }
+        : { ok: true, text: `第 ${round.roundNo} 回成功填入訂單格！` }
     )
 
-    // 自動產出店鋪貨單 + 出貨總表 Excel 並下載
+    // 背景產出店鋪貨單 + 出貨總表 Excel，完成後顯示下載按鈕
     setGeneratingExcel(true)
     void (async () => {
       try {
         const dateStr = shipDate || new Date().toISOString().slice(0, 10)
-        const d = dateStr.replace(/-/g, '')
-        const shipmentNo = `S${d}01`
+        const shipmentNo = `S${dateStr.replace(/-/g, '')}01`
         const storeOrders = round.stores.map(s => ({
           storeName: s.name,
           products: s.products,
@@ -285,22 +287,15 @@ export default function InventoryPage() {
         })
         if (!res.ok) {
           const err = await res.json().catch(() => ({ error: '下載失敗' }))
-          setImportMsg(prev => prev ? { ...prev, text: prev.text.replace('正在產出貨單 Excel…', `⚠️ 貨單 Excel 產出失敗：${err.error}`) } : null)
+          setImportMsg(prev => prev ? { ...prev, text: `${prev.text}　⚠️ 貨單產出失敗：${err.error}` } : null)
         } else {
           const blob = await res.blob()
           const shipNo = res.headers.get('X-Shipment-No') ?? shipmentNo
-          const url = URL.createObjectURL(blob)
-          const a = document.createElement('a')
-          a.href = url
-          a.download = `${shipNo}_${batchName}_店鋪貨單.xlsx`
-          document.body.appendChild(a)
-          a.click()
-          document.body.removeChild(a)
-          URL.revokeObjectURL(url)
-          setImportMsg(prev => prev ? { ...prev, text: prev.text.replace('正在產出貨單 Excel…', `✅ 貨單已下載（${shipNo}）`) } : null)
+          const filename = `${shipNo}_${batchName}_店鋪貨單.xlsx`
+          setExcelDownload({ url: URL.createObjectURL(blob), filename })
         }
       } catch (e) {
-        setImportMsg(prev => prev ? { ...prev, text: prev.text.replace('正在產出貨單 Excel…', `⚠️ 貨單 Excel 產出失敗：${e instanceof Error ? e.message : ''}`) } : null)
+        setImportMsg(prev => prev ? { ...prev, text: `${prev.text}　⚠️ 貨單產出失敗：${e instanceof Error ? e.message : ''}` } : null)
       } finally {
         setGeneratingExcel(false)
       }
@@ -443,6 +438,30 @@ export default function InventoryPage() {
           </div>
         )}
 
+        {/* Excel 下載按鈕（產出完成後顯示） */}
+        {generatingExcel && (
+          <div className="text-sm px-4 py-3 rounded-xl bg-gray-50 text-gray-500 border border-gray-200 flex items-center gap-2">
+            <svg className="animate-spin w-4 h-4" viewBox="0 0 24 24" fill="none">
+              <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/>
+              <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z"/>
+            </svg>
+            正在產出店鋪貨單 + 出貨總表…
+          </div>
+        )}
+        {!generatingExcel && excelDownload && (
+          <div className="flex items-center gap-3 px-4 py-3 rounded-xl bg-emerald-50 border border-emerald-200">
+            <span className="text-sm text-emerald-700 font-medium flex-1">📊 店鋪貨單已產出（含出貨總表）</span>
+            <a
+              href={excelDownload.url}
+              download={excelDownload.filename}
+              className="text-xs px-3 py-1.5 bg-emerald-600 text-white rounded-lg font-semibold hover:bg-emerald-700 transition-colors flex-shrink-0"
+              onClick={() => setTimeout(() => { URL.revokeObjectURL(excelDownload.url); setExcelDownload(null) }, 3000)}
+            >
+              📥 下載 Excel
+            </a>
+          </div>
+        )}
+
         {/* 出貨指示預覽面板 */}
         {deliveryRounds && (
           <div className="bg-blue-50 border border-blue-200 rounded-xl px-4 py-3 space-y-3">
@@ -452,7 +471,7 @@ export default function InventoryPage() {
                 <span className="text-xs text-blue-500 truncate">{deliveryFileName}</span>
               </div>
               <button
-                onClick={() => { setDeliveryRounds(null); setDeliveryFileName(''); setImportMsg(null) }}
+                onClick={() => { setDeliveryRounds(null); setDeliveryFileName(''); setImportMsg(null); setExcelDownload(null) }}
                 className="text-xs text-blue-400 hover:text-blue-700 px-2 py-1 rounded hover:bg-blue-100 flex-shrink-0 ml-2">
                 ✕ 關閉
               </button>
