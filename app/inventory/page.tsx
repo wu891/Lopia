@@ -1,5 +1,5 @@
 'use client'
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, Fragment } from 'react'
 import PasswordModal, { isAuthed } from '@/components/PasswordModal'
 import { STORES } from '@/lib/stores'
 
@@ -22,6 +22,14 @@ const ORDER_STORES = STORES
     const bi = order.indexOf(b.excelSheetName ?? '')
     return (ai === -1 ? 999 : ai) - (bi === -1 ? 999 : bi)
   })
+
+type Category = '蘋果' | '地瓜加工品'
+const CATEGORY_ORDER: Category[] = ['蘋果', '地瓜加工品']
+
+// 品名含「蘋」→ 蘋果類，其餘 → 地瓜加工品
+function getCategory(item: InventoryItem): Category {
+  return item.name.includes('蘋') ? '蘋果' : '地瓜加工品'
+}
 
 function stockColor(n: number) {
   if (n <= 0) return 'text-gray-400'
@@ -325,33 +333,51 @@ export default function InventoryPage() {
                     <th className="text-right px-2 py-2.5 font-semibold text-lopia-red text-xs min-w-[44px]">合計</th>
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-gray-100">
-                  {items.map(item => {
-                    const rt = rowTotal(item.id)
+                <tbody>
+                  {CATEGORY_ORDER.map(cat => {
+                    const catItems = items.filter(i => getCategory(i) === cat)
+                    if (catItems.length === 0) return null
                     return (
-                      <tr key={item.id} className={`hover:bg-gray-50 transition-colors ${rt > 0 ? 'bg-red-50/30' : ''}`}>
-                        <td className="px-3 py-2 sticky left-0 bg-white z-10 border-r border-gray-100" style={{ background: rt > 0 ? '#fff5f5' : 'white' }}>
-                          <div className="font-medium text-gray-800 leading-tight">{item.name}</div>
-                          {item.spec && <div className="text-xs text-gray-400">{item.spec}</div>}
-                        </td>
-                        <td className={`px-2 py-2 text-right tabular-nums text-xs ${stockColor(item.stock)}`}>
-                          {item.stock}
-                        </td>
-                        {ORDER_STORES.map(store => (
-                          <td key={store.id} className="px-1 py-1.5 text-center">
-                            <input
-                              type="number"
-                              min="0"
-                              value={grid[item.id]?.[store.name_zh] ?? 0}
-                              onChange={e => setBox(item.id, store.name_zh, Number(e.target.value))}
-                              className="w-10 text-center text-xs border border-gray-200 rounded px-1 py-1 focus:outline-none focus:ring-1 focus:ring-lopia-red tabular-nums"
-                            />
+                      <Fragment key={cat}>
+                        {/* 分類標頭列 */}
+                        <tr key={`hdr-${cat}`} className="border-t-2 border-gray-300">
+                          <td
+                            colSpan={2 + ORDER_STORES.length + 1}
+                            className="px-3 py-1.5 text-xs font-bold tracking-wide sticky left-0 z-10"
+                            style={{ background: cat === '蘋果' ? '#fef3c7' : '#f0fdf4', color: cat === '蘋果' ? '#92400e' : '#166534' }}
+                          >
+                            {cat === '蘋果' ? '🍎 蘋果' : '🍠 地瓜加工品'}
                           </td>
-                        ))}
-                        <td className={`px-2 py-2 text-right tabular-nums text-xs font-bold ${rt > 0 ? 'text-lopia-red' : 'text-gray-300'}`}>
-                          {rt > 0 ? rt : '—'}
-                        </td>
-                      </tr>
+                        </tr>
+                        {catItems.map(item => {
+                          const rt = rowTotal(item.id)
+                          return (
+                            <tr key={item.id} className={`hover:bg-gray-50 transition-colors border-b border-gray-100 ${rt > 0 ? 'bg-red-50/30' : ''}`}>
+                              <td className="px-3 py-2 sticky left-0 bg-white z-10 border-r border-gray-100" style={{ background: rt > 0 ? '#fff5f5' : 'white' }}>
+                                <div className="font-medium text-gray-800 leading-tight">{item.name}</div>
+                                {item.spec && <div className="text-xs text-gray-400">{item.spec}</div>}
+                              </td>
+                              <td className={`px-2 py-2 text-right tabular-nums text-xs ${stockColor(item.stock)}`}>
+                                {item.stock}
+                              </td>
+                              {ORDER_STORES.map(store => (
+                                <td key={store.id} className="px-1 py-1.5 text-center">
+                                  <input
+                                    type="number"
+                                    min="0"
+                                    value={grid[item.id]?.[store.name_zh] ?? 0}
+                                    onChange={e => setBox(item.id, store.name_zh, Number(e.target.value))}
+                                    className="w-10 text-center text-xs border border-gray-200 rounded px-1 py-1 focus:outline-none focus:ring-1 focus:ring-lopia-red tabular-nums"
+                                  />
+                                </td>
+                              ))}
+                              <td className={`px-2 py-2 text-right tabular-nums text-xs font-bold ${rt > 0 ? 'text-lopia-red' : 'text-gray-300'}`}>
+                                {rt > 0 ? rt : '—'}
+                              </td>
+                            </tr>
+                          )
+                        })}
+                      </Fragment>
                     )
                   })}
                 </tbody>
