@@ -73,9 +73,10 @@ export default function InventoryPage() {
   const [deliveryFileName, setDeliveryFileName] = useState('')
   const [importingDelivery, setImportingDelivery] = useState(false)
   const [importMsg, setImportMsg] = useState<{ ok: boolean; text: string } | null>(null)
-  const [generatingExcel, setGeneratingExcel] = useState(false)
-  // 產出後的下載連結（blob URL）
-  const [excelDownload, setExcelDownload] = useState<{ url: string; filename: string } | null>(null)
+  // 正在產出 Excel 的回次（null = 閒置中）
+  const [generatingRound, setGeneratingRound] = useState<number | null>(null)
+  // 產出後的下載連結（blob URL），記錄是哪一回次的
+  const [excelDownload, setExcelDownload] = useState<{ url: string; filename: string; roundNo: number } | null>(null)
 
   const initGrid = useCallback((loadedItems: InventoryItem[]) => {
     const g: Record<string, Record<string, number>> = {}
@@ -269,8 +270,9 @@ export default function InventoryPage() {
         : { ok: true, text: `第 ${round.roundNo} 回成功填入訂單格！` }
     )
 
-    // 背景產出店鋪貨單 + 出貨總表 Excel，完成後顯示下載按鈕
-    setGeneratingExcel(true)
+    // 背景產出店鋪貨單 + 出貨總表 Excel，完成後在回次卡片內顯示下載按鈕
+    const thisRoundNo = round.roundNo
+    setGeneratingRound(thisRoundNo)
     void (async () => {
       try {
         const dateStr = shipDate || new Date().toISOString().slice(0, 10)
@@ -292,12 +294,12 @@ export default function InventoryPage() {
           const blob = await res.blob()
           const shipNo = res.headers.get('X-Shipment-No') ?? shipmentNo
           const filename = `${shipNo}_${batchName}_店鋪貨單.xlsx`
-          setExcelDownload({ url: URL.createObjectURL(blob), filename })
+          setExcelDownload({ url: URL.createObjectURL(blob), filename, roundNo: thisRoundNo })
         }
       } catch (e) {
         setImportMsg(prev => prev ? { ...prev, text: `${prev.text}　⚠️ 貨單產出失敗：${e instanceof Error ? e.message : ''}` } : null)
       } finally {
-        setGeneratingExcel(false)
+        setGeneratingRound(null)
       }
     })()
 
@@ -438,30 +440,6 @@ export default function InventoryPage() {
           </div>
         )}
 
-        {/* Excel 下載按鈕（產出完成後顯示） */}
-        {generatingExcel && (
-          <div className="text-sm px-4 py-3 rounded-xl bg-gray-50 text-gray-500 border border-gray-200 flex items-center gap-2">
-            <svg className="animate-spin w-4 h-4" viewBox="0 0 24 24" fill="none">
-              <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/>
-              <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z"/>
-            </svg>
-            正在產出店鋪貨單 + 出貨總表…
-          </div>
-        )}
-        {!generatingExcel && excelDownload && (
-          <div className="flex items-center gap-3 px-4 py-3 rounded-xl bg-emerald-50 border border-emerald-200">
-            <span className="text-sm text-emerald-700 font-medium flex-1">📊 店鋪貨單已產出（含出貨總表）</span>
-            <a
-              href={excelDownload.url}
-              download={excelDownload.filename}
-              className="text-xs px-3 py-1.5 bg-emerald-600 text-white rounded-lg font-semibold hover:bg-emerald-700 transition-colors flex-shrink-0"
-              onClick={() => setTimeout(() => { URL.revokeObjectURL(excelDownload.url); setExcelDownload(null) }, 3000)}
-            >
-              📥 下載 Excel
-            </a>
-          </div>
-        )}
-
         {/* 出貨指示預覽面板 */}
         {deliveryRounds && (
           <div className="bg-blue-50 border border-blue-200 rounded-xl px-4 py-3 space-y-3">
@@ -480,19 +458,42 @@ export default function InventoryPage() {
               const totalBoxes = round.stores.reduce((sum, s) => sum + s.boxes, 0)
               return (
                 <div key={round.roundNo} className="bg-white rounded-lg border border-blue-100 p-3 space-y-2">
-                  <div className="flex items-center justify-between gap-2">
+                  <div className="flex items-center justify-between gap-2 flex-wrap">
                     <span className="text-sm font-bold text-gray-800">
                       第 {round.roundNo} 回　合計 {totalBoxes} 箱
                     </span>
-                    <button
-                      onClick={() => applyDeliveryRound(round, deliveryFileName)}
-                      disabled={generatingExcel}
-                      className={`text-xs px-3 py-1.5 rounded-lg font-semibold transition-colors flex-shrink-0
-                        ${generatingExcel
-                          ? 'bg-gray-300 text-gray-500 cursor-not-allowed'
-                          : 'bg-lopia-red text-white hover:bg-red-700'}`}>
-                      {generatingExcel ? '產出中…' : `確認填入第 ${round.roundNo} 回`}
-                    </button>
+                    <div className="flex items-center gap-2 flex-wrap justify-end">
+                      {/* 產出中：旋轉圈 */}
+                      {generatingRound === round.roundNo && (
+                        <span className="flex items-center gap-1.5 text-xs text-gray-500">
+                          <svg className="animate-spin w-3.5 h-3.5" viewBox="0 0 24 24" fill="none">
+                            <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/>
+                            <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z"/>
+                          </svg>
+                          產出中…
+                        </span>
+                      )}
+                      {/* 產出完成：綠色下載按鈕 */}
+                      {generatingRound === null && excelDownload?.roundNo === round.roundNo && (
+                        <a
+                          href={excelDownload.url}
+                          download={excelDownload.filename}
+                          className="text-xs px-3 py-1.5 bg-emerald-600 text-white rounded-lg font-semibold hover:bg-emerald-700 transition-colors"
+                          onClick={() => setTimeout(() => { URL.revokeObjectURL(excelDownload.url); setExcelDownload(null) }, 3000)}
+                        >
+                          📥 下載 Excel
+                        </a>
+                      )}
+                      <button
+                        onClick={() => applyDeliveryRound(round, deliveryFileName)}
+                        disabled={generatingRound !== null}
+                        className={`text-xs px-3 py-1.5 rounded-lg font-semibold transition-colors flex-shrink-0
+                          ${generatingRound !== null
+                            ? 'bg-gray-300 text-gray-500 cursor-not-allowed'
+                            : 'bg-lopia-red text-white hover:bg-red-700'}`}>
+                        確認填入第 {round.roundNo} 回
+                      </button>
+                    </div>
                   </div>
                   <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-2">
                     {round.stores.map(store => (
