@@ -14,12 +14,6 @@ interface InventoryItem {
   lastUpdated: string | null
 }
 
-interface SelectedProduct {
-  item: InventoryItem
-  totalBoxes: number
-}
-
-// 依 EXCEL_SHEET_ORDER 排列，只取有 excelSheetName 的門市（LOPIA 配送門市）
 const ORDER_STORES = STORES
   .filter(s => !!s.excelSheetName)
   .sort((a, b) => {
@@ -29,7 +23,13 @@ const ORDER_STORES = STORES
     return (ai === -1 ? 999 : ai) - (bi === -1 ? 999 : bi)
   })
 
-// 把 ISO 時間轉成 "6月12日（週四）" 格式（台北時區）
+function stockColor(n: number) {
+  if (n <= 0) return 'text-gray-400'
+  if (n <= 5) return 'text-red-500 font-bold'
+  if (n <= 20) return 'text-amber-600 font-semibold'
+  return 'text-emerald-600'
+}
+
 function formatSyncDate(iso: string): string {
   const d = new Date(iso)
   const taipei = new Date(d.toLocaleString('en-US', { timeZone: 'Asia/Taipei' }))
@@ -39,13 +39,6 @@ function formatSyncDate(iso: string): string {
   return `${month}月${day}日（週${weekday}）`
 }
 
-function stockColor(n: number) {
-  if (n <= 0) return 'text-gray-400'
-  if (n <= 5) return 'text-red-500 font-bold'
-  if (n <= 20) return 'text-amber-600 font-semibold'
-  return 'text-emerald-600 font-semibold'
-}
-
 export default function InventoryPage() {
   const [items, setItems] = useState<InventoryItem[]>([])
   const [loading, setLoading] = useState(true)
@@ -53,20 +46,26 @@ export default function InventoryPage() {
   const [authed, setAuthed] = useState(false)
   const [showModal, setShowModal] = useState(false)
 
-  // 向導狀態
-  const [step, setStep] = useState<1 | 2 | 3>(1)
-  const [selected, setSelected] = useState<SelectedProduct[]>([])
-  // dist[productId][storeName] = 箱數
-  const [dist, setDist] = useState<Record<string, Record<string, number>>>({})
+  // grid[productId][storeName] = 箱數
+  const [grid, setGrid] = useState<Record<string, Record<string, number>>>({})
+
+  // 訂單資訊
   const [shipDate, setShipDate] = useState('')
   const [roundNum, setRoundNum] = useState('')
   const [batchName, setBatchName] = useState('蘋果11')
+
   const [submitting, setSubmitting] = useState(false)
   const [submitMsg, setSubmitMsg] = useState<{ ok: boolean; text: string } | null>(null)
-
-  // 管理員同步
   const [syncing, setSyncing] = useState(false)
   const [syncMsg, setSyncMsg] = useState<string | null>(null)
+
+  const initGrid = useCallback((loadedItems: InventoryItem[]) => {
+    const g: Record<string, Record<string, number>> = {}
+    for (const item of loadedItems) {
+      g[item.id] = Object.fromEntries(ORDER_STORES.map(s => [s.name_zh, 0]))
+    }
+    setGrid(g)
+  }, [])
 
   const load = useCallback(async () => {
     setLoading(true)
@@ -75,13 +74,15 @@ export default function InventoryPage() {
       const res = await fetch('/api/inventory')
       const data = await res.json()
       if (!res.ok) throw new Error(data.error)
-      setItems(data.items ?? [])
+      const loaded = data.items ?? []
+      setItems(loaded)
+      initGrid(loaded)
     } catch (e) {
       setError(e instanceof Error ? e.message : '讀取失敗')
     } finally {
       setLoading(false)
     }
-  }, [])
+  }, [initGrid])
 
   useEffect(() => {
     setAuthed(isAuthed())
@@ -89,118 +90,70 @@ export default function InventoryPage() {
   }, [load])
 
   const lastSync = items.find(i => i.lastUpdated)?.lastUpdated
-  const lastSyncLabel = lastSync
-    ? new Date(lastSync).toLocaleString('zh-TW', {
-        timeZone: 'Asia/Taipei', month: 'numeric', day: 'numeric', hour: '2-digit', minute: '2-digit',
-      })
-    : '尚未同步'
-
-  // ── Step 1 helpers ────────────────────────────────────────────────
-  function toggleProduct(item: InventoryItem) {
-    setSelected(prev => {
-      const exists = prev.find(s => s.item.id === item.id)
-      if (exists) return prev.filter(s => s.item.id !== item.id)
-      return [...prev, { item, totalBoxes: 1 }]
-    })
-  }
-
-  function updateTotal(id: string, boxes: number) {
-    setSelected(prev =>
-      prev.map(s => s.item.id === id
-        ? { ...s, totalBoxes: Math.max(1, Math.min(boxes, s.item.stock)) }
-        : s
-      )
-    )
-  }
-
-  // ── Step 2 helpers ────────────────────────────────────────────────
-  function goToStep2() {
-    setDist(prev => {
-      const next: Record<string, Record<string, number>> = {}
-      for (const sel of selected) {
-        next[sel.item.id] = {}
-        for (const store of ORDER_STORES) {
-          next[sel.item.id][store.name_zh] = prev[sel.item.id]?.[store.name_zh] ?? 0
-        }
-      }
-      return next
-    })
-    setStep(2)
-  }
 
   function setBox(productId: string, storeName: string, v: number) {
-    setDist(prev => ({
+    setGrid(prev => ({
       ...prev,
       [productId]: { ...prev[productId], [storeName]: Math.max(0, v) },
     }))
   }
 
-  function allocated(productId: string) {
-    return Object.values(dist[productId] ?? {}).reduce((a, b) => a + b, 0)
+  function rowTotal(productId: string): number {
+    return Object.values(grid[productId] ?? {}).reduce((a, b) => a + b, 0)
   }
 
-  function step2Valid() {
-    return selected.every(s => allocated(s.item.id) === s.totalBoxes)
+  function colTotal(storeName: string): number {
+    return items.reduce((sum, item) => sum + (grid[item.id]?.[storeName] ?? 0), 0)
   }
 
-  // ── Step 3 submit ─────────────────────────────────────────────────
+  function grandTotal(): number {
+    return items.reduce((sum, item) => sum + rowTotal(item.id), 0)
+  }
+
   async function handleSubmit() {
-    if (!authed) {
-      setShowModal(true)
-      return
-    }
+    if (!authed) { setShowModal(true); return }
+    if (!shipDate) { setSubmitMsg({ ok: false, text: '請填寫出貨日期' }); return }
+    if (grandTotal() === 0) { setSubmitMsg({ ok: false, text: '請至少填入一筆箱數' }); return }
+
     setSubmitting(true)
     setSubmitMsg(null)
-    try {
-      const note = roundNum ? `第${roundNum}回` : ''
-      const rows = selected.flatMap(sel =>
-        ORDER_STORES
-          .filter(store => (dist[sel.item.id]?.[store.name_zh] ?? 0) > 0)
-          .map(store => ({
-            store: store.name_zh,
-            product: `${batchName} ${sel.item.name}${sel.item.spec ? `（${sel.item.spec}）` : ''}`,
-            quantity: `${dist[sel.item.id]?.[store.name_zh] ?? 0} ${sel.item.unit}`,
-            needDate: shipDate || null,
-            note,
-            status: '待處理',
-            source: 'LOPIA',
-          }))
-      )
 
-      if (!rows.length) {
-        setSubmitMsg({ ok: false, text: '沒有任何門市分配到箱數' })
-        setSubmitting(false)
-        return
-      }
+    const note = roundNum ? `第${roundNum}回` : ''
+    const rows = items.flatMap(item =>
+      ORDER_STORES
+        .filter(store => (grid[item.id]?.[store.name_zh] ?? 0) > 0)
+        .map(store => ({
+          store: store.name_zh,
+          product: `${batchName} ${item.name}${item.spec ? `（${item.spec}）` : ''}`,
+          quantity: `${grid[item.id][store.name_zh]} ${item.unit}`,
+          needDate: shipDate,
+          note,
+          status: '待處理',
+          source: 'LOPIA',
+        }))
+    )
 
-      let ok = 0
-      for (const row of rows) {
-        const res = await fetch('/api/demand', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(row),
-        })
-        if (res.ok) ok++
-      }
-
-      if (ok === rows.length) {
-        setSubmitMsg({ ok: true, text: `成功送出 ${ok} 筆訂單！` })
-        setSelected([])
-        setDist({})
-        setStep(1)
-        setRoundNum('')
-        setShipDate('')
-      } else {
-        setSubmitMsg({ ok: false, text: `${rows.length} 筆中 ${ok} 筆成功，其餘失敗，請重試` })
-      }
-    } catch (e) {
-      setSubmitMsg({ ok: false, text: e instanceof Error ? e.message : '送出失敗' })
-    } finally {
-      setSubmitting(false)
+    let ok = 0
+    for (const row of rows) {
+      const res = await fetch('/api/demand', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(row),
+      })
+      if (res.ok) ok++
     }
+
+    if (ok === rows.length) {
+      setSubmitMsg({ ok: true, text: `成功送出 ${ok} 筆訂單！` })
+      initGrid(items)
+      setRoundNum('')
+      setShipDate('')
+    } else {
+      setSubmitMsg({ ok: false, text: `${rows.length} 筆中 ${ok} 筆成功，請重試` })
+    }
+    setSubmitting(false)
   }
 
-  // ── Admin sync ────────────────────────────────────────────────────
   async function handleGmailSync() {
     setSyncing(true); setSyncMsg(null)
     try {
@@ -235,10 +188,7 @@ export default function InventoryPage() {
     }
   }
 
-  // 送出按鈕顯示筆數
-  const orderCount = selected.flatMap(sel =>
-    ORDER_STORES.filter(store => (dist[sel.item.id]?.[store.name_zh] ?? 0) > 0)
-  ).length
+  const orderCount = items.filter(i => rowTotal(i.id) > 0).length
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -250,9 +200,9 @@ export default function InventoryPage() {
       )}
 
       {/* 頁頭 */}
-      <div className="bg-white border-b border-gray-200 px-4 py-3 flex items-center gap-3">
+      <div className="bg-white border-b border-gray-200 px-4 py-3 flex items-center gap-3 sticky top-0 z-20">
         <div className="w-2 h-6 bg-lopia-red rounded-full" />
-        <h1 className="text-base font-bold text-gray-800">庫存查詢 ／ 線上訂單</h1>
+        <h1 className="text-base font-bold text-gray-800">線上訂單</h1>
         <div className="ml-auto">
           {authed ? (
             <span className="text-xs text-emerald-600 font-medium px-2 py-1 bg-emerald-50 rounded-lg">已登入</span>
@@ -266,7 +216,7 @@ export default function InventoryPage() {
         </div>
       </div>
 
-      <div className="max-w-2xl mx-auto px-4 py-6 space-y-4">
+      <div className="px-4 py-4 space-y-3 max-w-full">
 
         {/* 庫存日期橫幅 */}
         {lastSync && (
@@ -282,317 +232,167 @@ export default function InventoryPage() {
           </div>
         )}
 
-        {/* 步驟指示器 */}
-        <div className="flex items-center">
-          {([1, 2, 3] as const).map((s, i) => (
-            <div key={s} className={`flex items-center ${i < 2 ? 'flex-1' : ''}`}>
-              <div className="flex items-center gap-1.5">
-                <div className={`w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold transition-all
-                  ${step > s ? 'bg-emerald-500 text-white' : step === s ? 'bg-lopia-red text-white' : 'bg-gray-200 text-gray-400'}`}>
-                  {step > s ? '✓' : s}
-                </div>
-                <span className={`text-xs font-medium hidden sm:block
-                  ${step === s ? 'text-lopia-red' : step > s ? 'text-emerald-600' : 'text-gray-400'}`}>
-                  {s === 1 ? '選商品' : s === 2 ? '分配門市' : '確認送出'}
-                </span>
-              </div>
-              {i < 2 && (
-                <div className={`flex-1 h-px mx-2 transition-colors ${step > s ? 'bg-emerald-400' : 'bg-gray-200'}`} />
-              )}
+        {/* 訂單資訊列 */}
+        <div className="bg-white rounded-xl border border-gray-200 shadow-sm px-4 py-3">
+          <div className="flex flex-wrap items-end gap-4">
+            <div>
+              <label className="block text-xs font-semibold text-gray-600 mb-1">
+                出貨日期 <span className="text-red-500">*</span>
+              </label>
+              <input
+                type="date"
+                value={shipDate}
+                onChange={e => setShipDate(e.target.value)}
+                className="text-sm border border-gray-300 rounded-lg px-3 py-1.5 focus:outline-none focus:ring-2 focus:ring-lopia-red"
+              />
             </div>
-          ))}
-        </div>
-
-        {/* ── Step 1：選商品 ────────────────────────────────────────── */}
-        {step === 1 && (
-          <section>
-            <div className="flex items-center justify-between mb-3">
-              <h2 className="text-sm font-bold text-gray-700">選擇商品，輸入此批次總箱數</h2>
-              {authed && (
-                <div className="flex gap-2">
-                  <label className={`cursor-pointer text-xs px-2.5 py-1 rounded border font-medium
+            <div>
+              <label className="block text-xs font-semibold text-gray-600 mb-1">回数</label>
+              <div className="flex items-center gap-1">
+                <span className="text-sm text-gray-500">第</span>
+                <input
+                  type="number" min="1" value={roundNum} onChange={e => setRoundNum(e.target.value)}
+                  placeholder="11"
+                  className="w-16 text-sm border border-gray-300 rounded-lg px-2 py-1.5 focus:outline-none focus:ring-2 focus:ring-lopia-red"
+                />
+                <span className="text-sm text-gray-500">回</span>
+              </div>
+            </div>
+            <div>
+              <label className="block text-xs font-semibold text-gray-600 mb-1">批次名稱</label>
+              <input
+                type="text" value={batchName} onChange={e => setBatchName(e.target.value)}
+                className="w-28 text-sm border border-gray-300 rounded-lg px-3 py-1.5 focus:outline-none focus:ring-2 focus:ring-lopia-red"
+              />
+            </div>
+            {authed && (
+              <div className="flex items-end gap-2 ml-auto">
+                <label className={`cursor-pointer text-xs px-2.5 py-1.5 rounded border font-medium
+                  ${syncing ? 'opacity-40 bg-gray-50 border-gray-200 text-gray-400'
+                            : 'bg-white border-gray-300 text-gray-600 hover:border-lopia-red hover:text-lopia-red'}`}>
+                  {syncing ? '…' : '上傳 Excel'}
+                  <input type="file" accept=".xlsx" className="hidden" onChange={handleUpload} disabled={syncing} />
+                </label>
+                <button onClick={handleGmailSync} disabled={syncing}
+                  className={`text-xs px-2.5 py-1.5 rounded border font-medium
                     ${syncing ? 'opacity-40 bg-gray-50 border-gray-200 text-gray-400'
                               : 'bg-white border-gray-300 text-gray-600 hover:border-lopia-red hover:text-lopia-red'}`}>
-                    {syncing ? '…' : '上傳 Excel'}
-                    <input type="file" accept=".xlsx" className="hidden" onChange={handleUpload} disabled={syncing} />
-                  </label>
-                  <button
-                    onClick={handleGmailSync}
-                    disabled={syncing}
-                    className={`text-xs px-2.5 py-1 rounded border font-medium
-                      ${syncing ? 'opacity-40 bg-gray-50 border-gray-200 text-gray-400'
-                                : 'bg-white border-gray-300 text-gray-600 hover:border-lopia-red hover:text-lopia-red'}`}>
-                    Gmail 同步
-                  </button>
-                </div>
-              )}
-            </div>
-
-            {syncMsg && (
-              <p className={`text-xs mb-3 px-3 py-2 rounded-lg ${syncMsg.startsWith('錯誤') ? 'bg-red-50 text-red-600' : 'bg-green-50 text-green-700'}`}>
-                {syncMsg}
-              </p>
-            )}
-
-            {loading ? (
-              <p className="text-sm text-gray-400 text-center py-8">讀取中…</p>
-            ) : error ? (
-              <p className="text-sm text-red-500 text-center py-8">{error}</p>
-            ) : items.length === 0 ? (
-              <p className="text-sm text-gray-400 text-center py-8">庫存資料尚未同步，請先上傳 Excel 或從 Gmail 同步</p>
-            ) : (
-              <div className="space-y-2">
-                {items.map(item => {
-                  const sel = selected.find(s => s.item.id === item.id)
-                  const isSelected = !!sel
-                  return (
-                    <div
-                      key={item.id}
-                      onClick={() => item.stock > 0 && toggleProduct(item)}
-                      className={`bg-white rounded-xl border shadow-sm transition-all
-                        ${item.stock <= 0 ? 'opacity-40 cursor-not-allowed' : 'cursor-pointer'}
-                        ${isSelected ? 'border-lopia-red ring-1 ring-lopia-red' : 'border-gray-200 hover:border-gray-300'}`}
-                    >
-                      <div className="flex items-center gap-3 px-4 py-3">
-                        <div className={`w-5 h-5 rounded border-2 flex-shrink-0 flex items-center justify-center
-                          ${isSelected ? 'bg-lopia-red border-lopia-red' : 'border-gray-300'}`}>
-                          {isSelected && <span className="text-white text-xs leading-none">✓</span>}
-                        </div>
-                        <div className="flex-1 min-w-0">
-                          <p className="font-medium text-gray-800 text-sm">{item.name}</p>
-                          {item.spec && <p className="text-xs text-gray-400">{item.spec}</p>}
-                        </div>
-                        {item.temperature && (
-                          <span className={`text-xs px-1.5 py-0.5 rounded font-medium flex-shrink-0
-                            ${item.temperature === '冷藏品' ? 'bg-blue-50 text-blue-600'
-                            : item.temperature === '冷凍品' ? 'bg-purple-50 text-purple-600'
-                            : 'bg-green-50 text-green-600'}`}>
-                            {item.temperature}
-                          </span>
-                        )}
-                        <div className={`text-sm tabular-nums flex-shrink-0 ${stockColor(item.stock)}`}>
-                          {item.stock} {item.unit}
-                        </div>
-                      </div>
-
-                      {isSelected && (
-                        <div
-                          className="px-4 pb-3 flex items-center gap-2 border-t border-red-100"
-                          onClick={e => e.stopPropagation()}
-                        >
-                          <span className="text-xs text-gray-500">此批次總箱數：</span>
-                          <input
-                            type="number"
-                            min="1"
-                            max={item.stock}
-                            value={sel.totalBoxes}
-                            onChange={e => updateTotal(item.id, Number(e.target.value))}
-                            className="w-20 text-sm border border-gray-300 rounded-lg px-2 py-1.5 focus:outline-none focus:ring-2 focus:ring-lopia-red tabular-nums"
-                          />
-                          <span className="text-xs text-gray-400">（庫存 {item.stock} 箱）</span>
-                        </div>
-                      )}
-                    </div>
-                  )
-                })}
+                  Gmail 同步
+                </button>
               </div>
             )}
+          </div>
+          {syncMsg && (
+            <p className={`text-xs mt-2 ${syncMsg.startsWith('錯誤') ? 'text-red-600' : 'text-green-700'}`}>
+              {syncMsg}
+            </p>
+          )}
+        </div>
 
-            <div className="pt-4 flex items-center justify-between">
-              <span className="text-xs text-gray-400">已選 {selected.length} 項</span>
-              <button
-                disabled={selected.length === 0}
-                onClick={goToStep2}
-                className={`px-5 py-2.5 rounded-lg text-sm font-semibold text-white transition-colors
-                  ${selected.length === 0 ? 'bg-gray-300 cursor-not-allowed' : 'bg-lopia-red hover:bg-lopia-red-dark'}`}>
-                下一步：分配門市 →
-              </button>
-            </div>
-          </section>
+        {/* 送出結果 */}
+        {submitMsg && (
+          <div className={`text-sm px-4 py-3 rounded-xl ${submitMsg.ok ? 'bg-green-50 text-green-700 border border-green-200' : 'bg-red-50 text-red-600 border border-red-200'}`}>
+            {submitMsg.text}
+          </div>
         )}
 
-        {/* ── Step 2：分配門市 ──────────────────────────────────────── */}
-        {step === 2 && (
-          <section>
-            <h2 className="text-sm font-bold text-gray-700 mb-1">各門市分配箱數</h2>
-            <p className="text-xs text-gray-400 mb-4">每個商品的各門市加總需等於總箱數才能繼續。不配送的門市填 0。</p>
-
-            <div className="space-y-4">
-              {selected.map(sel => {
-                const done = allocated(sel.item.id)
-                const remaining = sel.totalBoxes - done
-                const isOk = remaining === 0
-                const isOver = remaining < 0
-                return (
-                  <div
-                    key={sel.item.id}
-                    className={`bg-white rounded-xl border overflow-hidden shadow-sm
-                      ${isOk ? 'border-emerald-300' : isOver ? 'border-red-300' : 'border-gray-200'}`}
-                  >
-                    <div className={`px-4 py-2.5 flex items-center justify-between
-                      ${isOk ? 'bg-emerald-50' : isOver ? 'bg-red-50' : 'bg-gray-50'}`}>
-                      <div>
-                        <span className="text-sm font-semibold text-gray-800">{sel.item.name}</span>
-                        {sel.item.spec && <span className="text-xs text-gray-400 ml-2">{sel.item.spec}</span>}
-                      </div>
-                      <span className={`text-xs font-semibold px-2 py-0.5 rounded-full
-                        ${isOk ? 'bg-emerald-100 text-emerald-700' : isOver ? 'bg-red-100 text-red-700' : 'bg-amber-100 text-amber-700'}`}>
-                        {isOk
-                          ? `✓ 共 ${sel.totalBoxes} 箱`
-                          : isOver
-                          ? `超出 ${Math.abs(remaining)} 箱`
-                          : `剩餘 ${remaining} 箱`}
-                      </span>
-                    </div>
-                    <div className="divide-y divide-gray-100">
-                      {ORDER_STORES.map(store => (
-                        <div key={store.id} className="flex items-center gap-3 px-4 py-2.5">
-                          <span className="text-sm text-gray-700 flex-1">{store.name_zh}</span>
-                          {store.status === 'coming_soon' && (
-                            <span className="text-xs text-amber-600 bg-amber-50 px-1.5 py-0.5 rounded">即將開幕</span>
-                          )}
-                          <input
-                            type="number"
-                            min="0"
-                            value={dist[sel.item.id]?.[store.name_zh] ?? 0}
-                            onChange={e => setBox(sel.item.id, store.name_zh, Number(e.target.value))}
-                            className="w-16 text-sm text-right border border-gray-300 rounded-lg px-2 py-1 focus:outline-none focus:ring-2 focus:ring-lopia-red tabular-nums"
-                          />
-                          <span className="text-xs text-gray-400 w-4">{sel.item.unit}</span>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                )
-              })}
-            </div>
-
-            <div className="pt-4 flex items-center justify-between">
-              <button onClick={() => setStep(1)} className="text-sm text-gray-500 hover:text-gray-700 px-4 py-2">
-                ← 上一步
-              </button>
-              <button
-                disabled={!step2Valid()}
-                onClick={() => setStep(3)}
-                className={`px-5 py-2.5 rounded-lg text-sm font-semibold text-white transition-colors
-                  ${!step2Valid() ? 'bg-gray-300 cursor-not-allowed' : 'bg-lopia-red hover:bg-lopia-red-dark'}`}>
-                下一步：確認送出 →
-              </button>
-            </div>
-          </section>
-        )}
-
-        {/* ── Step 3：確認送出 ──────────────────────────────────────── */}
-        {step === 3 && (
-          <section>
-            <h2 className="text-sm font-bold text-gray-700 mb-3">確認並送出</h2>
-
-            {submitMsg && (
-              <div className={`text-sm mb-4 px-4 py-3 rounded-lg
-                ${submitMsg.ok ? 'bg-green-50 text-green-700' : 'bg-red-50 text-red-600'}`}>
-                {submitMsg.text}
-              </div>
-            )}
-
-            <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-5 space-y-4">
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-xs font-semibold text-gray-600 mb-1.5">
-                    出貨日期 <span className="text-red-500">*</span>
-                  </label>
-                  <input
-                    type="date"
-                    value={shipDate}
-                    onChange={e => setShipDate(e.target.value)}
-                    required
-                    className="w-full text-sm border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-lopia-red"
-                  />
-                </div>
-                <div>
-                  <label className="block text-xs font-semibold text-gray-600 mb-1.5">回数</label>
-                  <div className="flex items-center gap-1">
-                    <span className="text-sm text-gray-500 flex-shrink-0">第</span>
-                    <input
-                      type="number"
-                      min="1"
-                      value={roundNum}
-                      onChange={e => setRoundNum(e.target.value)}
-                      placeholder="11"
-                      className="flex-1 text-sm border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-lopia-red"
-                    />
-                    <span className="text-sm text-gray-500 flex-shrink-0">回</span>
-                  </div>
-                </div>
-              </div>
-              <div>
-                <label className="block text-xs font-semibold text-gray-600 mb-1.5">批次名稱</label>
-                <input
-                  type="text"
-                  value={batchName}
-                  onChange={e => setBatchName(e.target.value)}
-                  placeholder="蘋果11"
-                  className="w-full text-sm border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-lopia-red"
-                />
-              </div>
-            </div>
-
-            {/* 摘要表格 */}
-            <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden mt-4">
-              <div className="px-4 py-2 bg-gray-50 border-b border-gray-100">
-                <span className="text-xs font-semibold text-gray-600">訂單摘要</span>
-              </div>
-              <table className="w-full text-sm">
+        {/* 訂單表格 */}
+        {loading ? (
+          <p className="text-sm text-gray-400 text-center py-10">讀取庫存中…</p>
+        ) : error ? (
+          <p className="text-sm text-red-500 text-center py-10">{error}</p>
+        ) : items.length === 0 ? (
+          <p className="text-sm text-gray-400 text-center py-10">庫存資料尚未同步，請先上傳 Excel 或從 Gmail 同步</p>
+        ) : (
+          <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
+            <div className="overflow-x-auto">
+              <table className="text-sm border-collapse" style={{ minWidth: '900px' }}>
                 <thead>
-                  <tr className="text-xs text-gray-500 border-b border-gray-100">
-                    <th className="text-left px-4 py-2">商品</th>
-                    <th className="text-left px-4 py-2">門市</th>
-                    <th className="text-right px-4 py-2">箱數</th>
+                  <tr className="bg-gray-50 border-b border-gray-200">
+                    {/* 商品欄（固定） */}
+                    <th className="text-left px-3 py-2.5 font-semibold text-gray-600 text-xs sticky left-0 bg-gray-50 z-10 border-r border-gray-200 min-w-[130px]">
+                      商品
+                    </th>
+                    <th className="text-right px-2 py-2.5 font-semibold text-gray-600 text-xs min-w-[52px]">庫存</th>
+                    {ORDER_STORES.map(store => (
+                      <th key={store.id} className="text-center px-1 py-2.5 font-semibold text-gray-600 text-xs min-w-[44px]">
+                        <div>{store.excelSheetName}</div>
+                        {store.status === 'coming_soon' && (
+                          <div className="text-amber-500 font-normal" style={{ fontSize: '9px' }}>即將</div>
+                        )}
+                      </th>
+                    ))}
+                    <th className="text-right px-2 py-2.5 font-semibold text-lopia-red text-xs min-w-[44px]">合計</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-gray-100">
-                  {selected.flatMap(sel =>
-                    ORDER_STORES
-                      .filter(store => (dist[sel.item.id]?.[store.name_zh] ?? 0) > 0)
-                      .map(store => (
-                        <tr key={`${sel.item.id}-${store.id}`} className="hover:bg-gray-50">
-                          <td className="px-4 py-2 font-medium text-gray-800">
-                            {sel.item.name}
-                            {sel.item.spec && (
-                              <span className="text-gray-400 font-normal text-xs ml-1">{sel.item.spec}</span>
-                            )}
+                  {items.map(item => {
+                    const rt = rowTotal(item.id)
+                    return (
+                      <tr key={item.id} className={`hover:bg-gray-50 transition-colors ${rt > 0 ? 'bg-red-50/30' : ''}`}>
+                        <td className="px-3 py-2 sticky left-0 bg-white z-10 border-r border-gray-100" style={{ background: rt > 0 ? '#fff5f5' : 'white' }}>
+                          <div className="font-medium text-gray-800 leading-tight">{item.name}</div>
+                          {item.spec && <div className="text-xs text-gray-400">{item.spec}</div>}
+                        </td>
+                        <td className={`px-2 py-2 text-right tabular-nums text-xs ${stockColor(item.stock)}`}>
+                          {item.stock}
+                        </td>
+                        {ORDER_STORES.map(store => (
+                          <td key={store.id} className="px-1 py-1.5 text-center">
+                            <input
+                              type="number"
+                              min="0"
+                              value={grid[item.id]?.[store.name_zh] ?? 0}
+                              onChange={e => setBox(item.id, store.name_zh, Number(e.target.value))}
+                              className="w-10 text-center text-xs border border-gray-200 rounded px-1 py-1 focus:outline-none focus:ring-1 focus:ring-lopia-red tabular-nums"
+                            />
                           </td>
-                          <td className="px-4 py-2 text-gray-600">{store.name_zh}</td>
-                          <td className="px-4 py-2 text-right tabular-nums font-semibold">
-                            {dist[sel.item.id]?.[store.name_zh] ?? 0} {sel.item.unit}
-                          </td>
-                        </tr>
-                      ))
-                  )}
-                  <tr className="bg-gray-50">
-                    <td colSpan={2} className="px-4 py-2 text-xs text-gray-500 font-semibold">合計</td>
-                    <td className="px-4 py-2 text-right tabular-nums font-semibold text-lopia-red">
-                      {selected.reduce((t, s) => t + s.totalBoxes, 0)} 箱
+                        ))}
+                        <td className={`px-2 py-2 text-right tabular-nums text-xs font-bold ${rt > 0 ? 'text-lopia-red' : 'text-gray-300'}`}>
+                          {rt > 0 ? rt : '—'}
+                        </td>
+                      </tr>
+                    )
+                  })}
+                </tbody>
+                <tfoot>
+                  <tr className="bg-gray-50 border-t-2 border-gray-200">
+                    <td className="px-3 py-2 text-xs font-semibold text-gray-600 sticky left-0 bg-gray-50 z-10 border-r border-gray-200">各店合計</td>
+                    <td />
+                    {ORDER_STORES.map(store => {
+                      const ct = colTotal(store.name_zh)
+                      return (
+                        <td key={store.id} className={`px-1 py-2 text-center text-xs font-semibold tabular-nums ${ct > 0 ? 'text-lopia-red' : 'text-gray-300'}`}>
+                          {ct > 0 ? ct : '—'}
+                        </td>
+                      )
+                    })}
+                    <td className="px-2 py-2 text-right text-sm font-bold text-lopia-red tabular-nums">
+                      {grandTotal() > 0 ? grandTotal() : '—'}
                     </td>
                   </tr>
-                </tbody>
+                </tfoot>
               </table>
             </div>
+          </div>
+        )}
 
-            <div className="pt-4 flex items-center justify-between gap-3">
-              <button onClick={() => setStep(2)} className="text-sm text-gray-500 hover:text-gray-700 px-4 py-2">
-                ← 上一步
-              </button>
-              <button
-                disabled={!shipDate || submitting}
-                onClick={handleSubmit}
-                className={`px-5 py-2.5 rounded-lg text-sm font-semibold text-white transition-colors
-                  ${!shipDate || submitting ? 'bg-gray-300 cursor-not-allowed' : 'bg-lopia-red hover:bg-lopia-red-dark'}`}>
-                {submitting
-                  ? '送出中…'
-                  : `確認送出（${orderCount} 筆）`}
-              </button>
-            </div>
-          </section>
+        {/* 送出按鈕 */}
+        {!loading && !error && items.length > 0 && (
+          <div className="flex items-center justify-between">
+            <span className="text-xs text-gray-400">
+              {orderCount > 0 ? `已填寫 ${orderCount} 種商品，共 ${grandTotal()} 箱` : '請填入箱數後送出'}
+            </span>
+            <button
+              disabled={!shipDate || grandTotal() === 0 || submitting}
+              onClick={handleSubmit}
+              className={`px-6 py-2.5 rounded-lg text-sm font-semibold text-white transition-colors
+                ${!shipDate || grandTotal() === 0 || submitting
+                  ? 'bg-gray-300 cursor-not-allowed'
+                  : 'bg-lopia-red hover:bg-lopia-red-dark'}`}>
+              {submitting ? '送出中…' : `確認送出（共 ${grandTotal()} 箱）`}
+            </button>
+          </div>
         )}
       </div>
     </div>
