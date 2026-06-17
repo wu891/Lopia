@@ -51,6 +51,7 @@ export default function InventoryPage() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [authed, setAuthed] = useState(false)
+  const [showModal, setShowModal] = useState(false)
 
   // 向導狀態
   const [step, setStep] = useState<1 | 2 | 3>(1)
@@ -145,7 +146,7 @@ export default function InventoryPage() {
   // ── Step 3 submit ─────────────────────────────────────────────────
   async function handleSubmit() {
     if (!authed) {
-      setSubmitMsg({ ok: false, text: '請先點右上角「登入」驗證密碼後再送出' })
+      setShowModal(true)
       return
     }
     setSubmitting(true)
@@ -241,12 +242,28 @@ export default function InventoryPage() {
 
   return (
     <div className="min-h-screen bg-gray-50">
-      <PasswordModal onAuth={() => setAuthed(true)} />
+      {showModal && (
+        <PasswordModal
+          onSuccess={() => { setAuthed(true); setShowModal(false) }}
+          onCancel={() => setShowModal(false)}
+        />
+      )}
 
       {/* 頁頭 */}
       <div className="bg-white border-b border-gray-200 px-4 py-3 flex items-center gap-3">
         <div className="w-2 h-6 bg-lopia-red rounded-full" />
         <h1 className="text-base font-bold text-gray-800">庫存查詢 ／ 線上訂單</h1>
+        <div className="ml-auto">
+          {authed ? (
+            <span className="text-xs text-emerald-600 font-medium px-2 py-1 bg-emerald-50 rounded-lg">已登入</span>
+          ) : (
+            <button
+              onClick={() => setShowModal(true)}
+              className="text-xs text-gray-500 hover:text-lopia-red font-medium px-2.5 py-1 border border-gray-200 hover:border-lopia-red rounded-lg transition-colors">
+              登入
+            </button>
+          )}
+        </div>
       </div>
 
       <div className="max-w-2xl mx-auto px-4 py-6 space-y-4">
