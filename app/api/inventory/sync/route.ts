@@ -7,12 +7,13 @@ import { requireAuth } from '@/lib/auth'
 export const dynamic = 'force-dynamic'
 
 // ── 共用：把 items 存進 Notion ──────────────────────────────────────────
-async function syncItems(buffer: Buffer, source: string) {
+// syncTime 傳入時使用（例如 Gmail 信件寄出時間），未傳入則用現在時間（手動上傳）
+async function syncItems(buffer: Buffer, source: string, syncTime?: string) {
   const items = parseInventoryExcel(buffer)
-  const syncTime = new Date().toISOString()
-  const result = await upsertInventory(items, syncTime)
+  const time = syncTime ?? new Date().toISOString()
+  const result = await upsertInventory(items, time)
   console.log(`[inventory sync] source=${source} updated=${result.updated} created=${result.created}`)
-  return { ...result, total: items.length, syncTime }
+  return { ...result, total: items.length, syncTime: time }
 }
 
 // ── Gmail 拉取 ───────────────────────────────────────────────────────────
@@ -34,7 +35,7 @@ async function syncItems(buffer: Buffer, source: string) {
 //      選取範圍：https://www.googleapis.com/auth/gmail.readonly → 授權 → 換取 token
 //   3. 把 Refresh token 複製到 Vercel env：GMAIL_REFRESH_TOKEN
 //   Vercel env vars：GMAIL_CLIENT_ID, GMAIL_CLIENT_SECRET, GMAIL_REFRESH_TOKEN
-async function pullFromGmail(): Promise<Buffer> {
+async function pullFromGmail(): Promise<{ buffer: Buffer; emailDate: string }> {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   let auth: any
 
@@ -83,6 +84,11 @@ async function pullFromGmail(): Promise<Buffer> {
   const msgId = messages[0].id!
   const msg = await gmail.users.messages.get({ userId: 'me', id: msgId })
 
+  // 信件寄出時間（internalDate 是 Unix ms 時間戳）
+  const emailDate = msg.data.internalDate
+    ? new Date(Number(msg.data.internalDate)).toISOString()
+    : new Date().toISOString()
+
   // 找 xlsx 附件
   const parts = msg.data.payload?.parts ?? []
   let attachmentId: string | null = null
@@ -102,7 +108,8 @@ async function pullFromGmail(): Promise<Buffer> {
 
   // Gmail 回傳 base64url 編碼
   const data = att.data.data ?? ''
-  return Buffer.from(data.replace(/-/g, '+').replace(/_/g, '/'), 'base64')
+  const buffer = Buffer.from(data.replace(/-/g, '+').replace(/_/g, '/'), 'base64')
+  return { buffer, emailDate }
 }
 
 // ── GET：Vercel Cron 觸發（每小時）──────────────────────────────────────
@@ -115,8 +122,8 @@ export async function GET(req: NextRequest) {
   }
 
   try {
-    const buffer = await pullFromGmail()
-    const result = await syncItems(buffer, 'gmail-cron')
+    const { buffer, emailDate } = await pullFromGmail()
+    const result = await syncItems(buffer, 'gmail-cron', emailDate)
     return NextResponse.json({ ok: true, ...result })
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err)
@@ -153,8 +160,8 @@ export async function POST(req: NextRequest) {
 
   // 手動觸發 Gmail 拉取
   try {
-    const buffer = await pullFromGmail()
-    const result = await syncItems(buffer, 'gmail-manual')
+    const { buffer, emailDate } = await pullFromGmail()
+    const result = await syncItems(buffer, 'gmail-manual', emailDate)
     return NextResponse.json({ ok: true, ...result })
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err)

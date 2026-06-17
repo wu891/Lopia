@@ -29,6 +29,16 @@ const ORDER_STORES = STORES
     return (ai === -1 ? 999 : ai) - (bi === -1 ? 999 : bi)
   })
 
+// 把 ISO 時間轉成 "6月12日（週四）" 格式（台北時區）
+function formatSyncDate(iso: string): string {
+  const d = new Date(iso)
+  const taipei = new Date(d.toLocaleString('en-US', { timeZone: 'Asia/Taipei' }))
+  const month = taipei.getMonth() + 1
+  const day = taipei.getDate()
+  const weekday = ['日', '一', '二', '三', '四', '五', '六'][taipei.getDay()]
+  return `${month}月${day}日（週${weekday}）`
+}
+
 function stockColor(n: number) {
   if (n <= 0) return 'text-gray-400'
   if (n <= 5) return 'text-red-500 font-bold'
@@ -237,10 +247,23 @@ export default function InventoryPage() {
       <div className="bg-white border-b border-gray-200 px-4 py-3 flex items-center gap-3">
         <div className="w-2 h-6 bg-lopia-red rounded-full" />
         <h1 className="text-base font-bold text-gray-800">庫存查詢 ／ 線上訂單</h1>
-        <span className="ml-auto text-xs text-gray-400">庫存更新：{lastSyncLabel}</span>
       </div>
 
       <div className="max-w-2xl mx-auto px-4 py-6 space-y-4">
+
+        {/* 庫存日期橫幅 */}
+        {lastSync && (
+          <div className="flex items-start gap-2.5 bg-amber-50 border border-amber-200 rounded-xl px-4 py-3">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-amber-600 mt-0.5 flex-shrink-0">
+              <rect x="3" y="4" width="18" height="18" rx="2" ry="2"/>
+              <line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/>
+              <line x1="3" y1="10" x2="21" y2="10"/>
+            </svg>
+            <p className="text-sm text-amber-800">
+              目前庫存資料以 <span className="font-semibold">{formatSyncDate(lastSync)}</span> 優儲寄出的報表為準
+            </p>
+          </div>
+        )}
 
         {/* 步驟指示器 */}
         <div className="flex items-center">
