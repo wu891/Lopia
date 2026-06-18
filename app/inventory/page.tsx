@@ -77,6 +77,42 @@ export default function InventoryPage() {
   const [generatingRound, setGeneratingRound] = useState<number | null>(null)
   // 產出後的下載連結（blob URL），記錄是哪一回次的
   const [excelDownload, setExcelDownload] = useState<{ url: string; filename: string; roundNo: number } | null>(null)
+  // 派貨通知：正在發送中的回次 / 已成功發送的回次
+  const [dispatchingRound, setDispatchingRound] = useState<number | null>(null)
+  const [dispatchedRound, setDispatchedRound]   = useState<number | null>(null)
+
+  // 發送派貨通知 Email 給倉庫（呼叫 /api/notify，type='dispatch'）
+  async function handleDispatch(round: ParsedDeliveryRound) {
+    setDispatchingRound(round.roundNo)
+    try {
+      const res = await fetch('/api/notify', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          type: 'dispatch',
+          batchName,
+          roundNo: round.roundNo,
+          dispatchDate: shipDate || new Date().toISOString().slice(0, 10),
+          storeOrders: round.stores.map(s => ({
+            storeName:    s.name,
+            products:     s.products,
+            boxes:        s.boxes,
+            deliveryDate: shipDate || undefined,
+          })),
+        }),
+      })
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({ error: '發送失敗' }))
+        throw new Error(err.error)
+      }
+      setDispatchedRound(round.roundNo)
+      setTimeout(() => setDispatchedRound(null), 6000)
+    } catch (e) {
+      alert(`派貨通知發送失敗：${e instanceof Error ? e.message : '未知錯誤'}`)
+    } finally {
+      setDispatchingRound(null)
+    }
+  }
 
   const initGrid = useCallback((loadedItems: InventoryItem[]) => {
     const g: Record<string, Record<string, number>> = {}
@@ -483,6 +519,34 @@ export default function InventoryPage() {
                         >
                           📥 下載 Excel
                         </a>
+                      )}
+                      {/* 通知倉庫：派貨 Email */}
+                      {dispatchedRound === round.roundNo ? (
+                        <span className="flex items-center gap-1.5 text-xs font-semibold text-green-600 px-2 py-1.5">
+                          <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
+                            <polyline points="20 6 9 17 4 12"/>
+                          </svg>
+                          已通知倉庫
+                        </span>
+                      ) : (
+                        <button
+                          onClick={() => handleDispatch(round)}
+                          disabled={dispatchingRound !== null}
+                          className={`flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-lg font-semibold border transition-colors flex-shrink-0
+                            ${dispatchingRound !== null
+                              ? 'bg-gray-50 border-gray-200 text-gray-400 cursor-not-allowed'
+                              : 'bg-white border-amber-300 text-amber-700 hover:bg-amber-50 hover:border-amber-400'}`}
+                        >
+                          {dispatchingRound === round.roundNo ? (
+                            <>
+                              <svg className="animate-spin w-3 h-3" viewBox="0 0 24 24" fill="none">
+                                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/>
+                                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z"/>
+                              </svg>
+                              發送中…
+                            </>
+                          ) : '📧 通知倉庫'}
+                        </button>
                       )}
                       <button
                         onClick={() => applyDeliveryRound(round, deliveryFileName)}

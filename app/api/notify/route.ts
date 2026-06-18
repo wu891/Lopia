@@ -37,6 +37,89 @@ export async function POST(req: NextRequest) {
   try {
     const body = await req.json()
 
+    // ── Warehouse dispatch notification ──────────────────────────────────────
+    // 派貨通知：告訴倉庫「甚麼時候、哪間店、哪個商品、幾箱」
+    // 觸發時機：Colin 在 inventory 頁確認出貨回次後點「通知倉庫」
+    if (body.type === 'dispatch') {
+      const { batchName, roundNo, storeOrders, dispatchDate } = body as {
+        batchName: string
+        roundNo: number | string
+        storeOrders: { storeName: string; products: { name: string; quantity: number }[]; boxes: number; deliveryDate?: string }[]
+        dispatchDate?: string
+      }
+
+      const recipient =
+        process.env.DISPATCH_EMAIL ??        // 倉庫專用收件人（優先）
+        process.env.NOTIFY_EMAILS ??         // 沒設就用一般通知名單
+        ''
+      if (!recipient) return NextResponse.json({ ok: true, skipped: 'no dispatch recipient' })
+      if (!process.env.GMAIL_USER || !process.env.GMAIL_APP_PASSWORD)
+        return NextResponse.json({ ok: true, skipped: 'gmail not configured' })
+
+      const transporter = nodemailer.createTransport({
+        service: 'gmail',
+        auth: { user: process.env.GMAIL_USER, pass: process.env.GMAIL_APP_PASSWORD },
+      })
+
+      const safeBatch = htmlEscape(batchName ?? '—')
+      const safeRound = htmlEscape(String(roundNo ?? '—'))
+      const safeDate  = htmlEscape(dispatchDate ?? '待確認')
+
+      // 產生各門市列
+      const storeRows = (storeOrders ?? []).map(o => {
+        const products = o.products.map(p => htmlEscape(`${p.name} ×${p.quantity}`)).join('、')
+        const date     = htmlEscape(o.deliveryDate ?? dispatchDate ?? '待確認')
+        return `<tr>
+          <td style="padding:8px 12px;border-bottom:1px solid #f1f5f9;font-weight:600;color:#334155">${htmlEscape(o.storeName)}</td>
+          <td style="padding:8px 12px;border-bottom:1px solid #f1f5f9;text-align:center;font-weight:700;color:#E8002D">${o.boxes}</td>
+          <td style="padding:8px 12px;border-bottom:1px solid #f1f5f9;color:#475569;font-size:13px">${products || '—'}</td>
+          <td style="padding:8px 12px;border-bottom:1px solid #f1f5f9;color:#64748b;font-size:13px">${date}</td>
+        </tr>`
+      }).join('')
+
+      const totalBoxes = (storeOrders ?? []).reduce((s, o) => s + (o.boxes ?? 0), 0)
+      const storeCount = (storeOrders ?? []).length
+
+      const html = `
+<div style="font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;max-width:620px;margin:0 auto">
+  <div style="background:#1a1a2e;padding:20px 24px;border-radius:8px 8px 0 0;display:flex;align-items:center;gap:12px">
+    <div style="background:#E8002D;color:white;padding:4px 10px;border-radius:4px;font-size:13px;font-weight:700;letter-spacing:1px">LOPIA</div>
+    <p style="color:white;font-size:18px;font-weight:700;margin:0">派貨通知</p>
+  </div>
+  <div style="border:1px solid #e2e8f0;border-top:none;border-radius:0 0 8px 8px;padding:0">
+    <!-- 摘要列 -->
+    <div style="padding:16px 24px;background:#f8fafc;border-bottom:1px solid #e2e8f0;display:flex;gap:24px;flex-wrap:wrap">
+      <div><p style="margin:0;font-size:11px;color:#94a3b8;text-transform:uppercase;letter-spacing:.05em">批次</p><p style="margin:4px 0 0;font-weight:700;color:#1e293b">${safeBatch}</p></div>
+      <div><p style="margin:0;font-size:11px;color:#94a3b8;text-transform:uppercase;letter-spacing:.05em">回次</p><p style="margin:4px 0 0;font-weight:700;color:#1e293b">第 ${safeRound} 回</p></div>
+      <div><p style="margin:0;font-size:11px;color:#94a3b8;text-transform:uppercase;letter-spacing:.05em">出貨日</p><p style="margin:4px 0 0;font-weight:700;color:#1e293b">${safeDate}</p></div>
+      <div><p style="margin:0;font-size:11px;color:#94a3b8;text-transform:uppercase;letter-spacing:.05em">門市數</p><p style="margin:4px 0 0;font-weight:700;color:#E8002D">${storeCount} 間</p></div>
+      <div><p style="margin:0;font-size:11px;color:#94a3b8;text-transform:uppercase;letter-spacing:.05em">合計箱數</p><p style="margin:4px 0 0;font-weight:700;color:#E8002D">${totalBoxes} 箱</p></div>
+    </div>
+    <!-- 各門市明細 -->
+    <table style="width:100%;border-collapse:collapse">
+      <thead>
+        <tr style="background:#f1f5f9">
+          <th style="padding:8px 12px;text-align:left;font-size:11px;font-weight:700;color:#64748b;text-transform:uppercase;letter-spacing:.05em">門市</th>
+          <th style="padding:8px 12px;text-align:center;font-size:11px;font-weight:700;color:#64748b;text-transform:uppercase;letter-spacing:.05em">箱數</th>
+          <th style="padding:8px 12px;text-align:left;font-size:11px;font-weight:700;color:#64748b;text-transform:uppercase;letter-spacing:.05em">商品</th>
+          <th style="padding:8px 12px;text-align:left;font-size:11px;font-weight:700;color:#64748b;text-transform:uppercase;letter-spacing:.05em">預計到貨日</th>
+        </tr>
+      </thead>
+      <tbody>${storeRows}</tbody>
+    </table>
+    <p style="margin:16px 24px 20px;font-size:12px;color:#94a3b8">此信件由 LOPIA 進口追蹤系統自動發送 — 如有疑問請聯絡 TMJ 業務</p>
+  </div>
+</div>`
+
+      await transporter.sendMail({
+        from: `"LOPIA 進口系統" <${process.env.GMAIL_USER}>`,
+        to: recipient,
+        subject: `【LOPIA 派貨通知】${String(batchName ?? '').slice(0, 60)} 第${roundNo}回 — ${storeCount}間門市 / ${totalBoxes}箱`,
+        html,
+      })
+      return NextResponse.json({ ok: true })
+    }
+
     // ── Chase doc reminder ────────────────────────────────────────────────────
     if (body.type === 'chase') {
       const { batchName, missingDocs, departJP } = body
