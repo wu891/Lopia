@@ -1,6 +1,6 @@
 'use client'
 // 門市庫存入口頁 — 門市員工自助查詢
-// 功能：選擇門市 → 查看即將到貨 / 倉庫庫存 / 我的需求 / 提交新需求
+// 功能：選擇門市 → 查看即將到貨 / 倉庫庫存
 // 不需要 Colin 密碼；門市選擇存在 localStorage，重開頁面不用再選
 import { useState, useEffect, useCallback } from 'react'
 import { STORES } from '@/lib/stores'
@@ -25,16 +25,6 @@ interface Batch {
   deliveryStatus: string | null
 }
 
-interface DemandItem {
-  id: string
-  store: string
-  product: string
-  quantity: string
-  needDate: string | null
-  status: string
-  note: string
-}
-
 interface InventoryItem {
   id: string
   name: string
@@ -44,7 +34,7 @@ interface InventoryItem {
   lastUpdated: string | null
 }
 
-type Tab = 'incoming' | 'inventory' | 'demand'
+type Tab = 'incoming' | 'inventory'
 
 // ── 工具函式 ──────────────────────────────────────────────────────────────────
 function todayTW(): string {
@@ -130,131 +120,14 @@ function StoreSelector({ onSelect }: { onSelect: (name: string) => void }) {
   )
 }
 
-// ── 提交需求表單 ──────────────────────────────────────────────────────────────
-function DemandForm({
-  storeName,
-  onSuccess,
-  onCancel,
-}: {
-  storeName: string
-  onSuccess: () => void
-  onCancel: () => void
-}) {
-  const [product, setProduct]   = useState('')
-  const [quantity, setQuantity] = useState('')
-  const [needDate, setNeedDate] = useState('')
-  const [note, setNote]         = useState('')
-  const [submitting, setSubmitting] = useState(false)
-  const [error, setError]       = useState('')
-
-  async function handleSubmit(e: React.FormEvent) {
-    e.preventDefault()
-    if (!product.trim()) return
-    setSubmitting(true)
-    setError('')
-    try {
-      const res = await fetch('/api/store/demand', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          store: storeName,
-          product: product.trim(),
-          quantity: quantity.trim(),
-          needDate: needDate || null,
-          note: note.trim(),
-        }),
-      })
-      if (!res.ok) {
-        const data = await res.json().catch(() => ({}))
-        throw new Error(data.error ?? 'Failed')
-      }
-      onSuccess()
-    } catch (err) {
-      setError(err instanceof Error ? err.message : '送出失敗，請重試。')
-    } finally {
-      setSubmitting(false)
-    }
-  }
-
-  return (
-    <div className="bg-white border border-gray-200 rounded-xl p-4">
-      <div className="flex items-center justify-between mb-3">
-        <p className="text-sm font-bold text-gray-800">新增進貨需求</p>
-        <button onClick={onCancel} className="text-gray-400 hover:text-gray-600 transition-colors">
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-            <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
-          </svg>
-        </button>
-      </div>
-      <form onSubmit={handleSubmit} className="space-y-3">
-        <div>
-          <label className="block text-xs font-semibold text-gray-600 mb-1">
-            商品名稱 <span className="text-red-500">*</span>
-          </label>
-          <input
-            type="text"
-            value={product}
-            onChange={e => setProduct(e.target.value)}
-            placeholder="例：蘋果 Sunfuji、草莓..."
-            required
-            className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-lopia-red"
-          />
-        </div>
-        <div className="grid grid-cols-2 gap-3">
-          <div>
-            <label className="block text-xs font-semibold text-gray-600 mb-1">數量</label>
-            <input
-              type="text"
-              value={quantity}
-              onChange={e => setQuantity(e.target.value)}
-              placeholder="例：10 箱"
-              className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-lopia-red"
-            />
-          </div>
-          <div>
-            <label className="block text-xs font-semibold text-gray-600 mb-1">希望到貨日</label>
-            <input
-              type="date"
-              value={needDate}
-              onChange={e => setNeedDate(e.target.value)}
-              className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-lopia-red"
-            />
-          </div>
-        </div>
-        <div>
-          <label className="block text-xs font-semibold text-gray-600 mb-1">備註</label>
-          <textarea
-            value={note}
-            onChange={e => setNote(e.target.value)}
-            placeholder="補充說明..."
-            rows={2}
-            className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-lopia-red resize-none"
-          />
-        </div>
-        {error && <p className="text-red-500 text-xs">{error}</p>}
-        <button
-          type="submit"
-          disabled={!product.trim() || submitting}
-          className="w-full py-3 bg-lopia-red text-white font-semibold rounded-xl text-sm disabled:opacity-40 active:opacity-80 transition-opacity"
-        >
-          {submitting ? '送出中...' : '送出需求'}
-        </button>
-      </form>
-    </div>
-  )
-}
-
 // ── 主要頁面元件 ──────────────────────────────────────────────────────────────
 export default function StorePage() {
   const [selectedStore, setSelectedStore] = useState<string | null>(null)
   const [records, setRecords]       = useState<ShipmentRecord[]>([])
   const [batches, setBatches]       = useState<Batch[]>([])
-  const [demandItems, setDemandItems] = useState<DemandItem[]>([])
   const [inventory, setInventory]   = useState<InventoryItem[]>([])
   const [loading, setLoading]       = useState(false)
   const [activeTab, setActiveTab]   = useState<Tab>('incoming')
-  const [showForm, setShowForm]     = useState(false)
-  const [successMsg, setSuccessMsg] = useState('')
 
   // 從 localStorage 讀取上次選的門市
   useEffect(() => {
@@ -275,22 +148,20 @@ export default function StorePage() {
     setActiveTab('incoming')
   }
 
-  // 讀取資料（批次、出貨紀錄、需求、庫存）
+  // 讀取資料（批次、出貨紀錄、庫存）
   const fetchData = useCallback(async () => {
     setLoading(true)
     try {
-      const [recRes, shiRes, demRes, invRes] = await Promise.all([
+      const [recRes, shiRes, invRes] = await Promise.all([
         fetch('/api/records',   { cache: 'no-store' }),
         fetch('/api/shipments', { cache: 'no-store' }),
-        fetch('/api/demand',    { cache: 'no-store' }),
         fetch('/api/inventory', { cache: 'no-store' }),
       ])
-      const [r, s, d, inv] = await Promise.all([
-        recRes.json(), shiRes.json(), demRes.json(), invRes.json(),
+      const [r, s, inv] = await Promise.all([
+        recRes.json(), shiRes.json(), invRes.json(),
       ])
       setRecords(r.records ?? [])
       setBatches(s.shipments ?? [])
-      setDemandItems(d.items ?? [])
       setInventory(inv.items ?? [])
     } catch (e) {
       console.error('[StorePage fetchData]', e)
@@ -316,11 +187,6 @@ export default function StorePage() {
       r.planStatus !== '已取消'
     )
     .sort((a, b) => (a.date ?? '') < (b.date ?? '') ? -1 : 1)
-
-  // 這家門市的需求（排除已完成）
-  const storeDemand = demandItems
-    .filter(d => d.store === selectedStore && d.status !== '已完成')
-    .sort((a, b) => (a.needDate ?? '9999') < (b.needDate ?? '9999') ? -1 : 1)
 
   function getBatch(batchId: string | null): Batch | null {
     return batches.find(b => b.id === batchId) ?? null
@@ -356,12 +222,11 @@ export default function StorePage() {
         </div>
 
         {/* ── Tab 列 ── */}
-        <div className="max-w-lg mx-auto grid grid-cols-3 border-t border-gray-100">
+        <div className="max-w-lg mx-auto grid grid-cols-2 border-t border-gray-100">
           {(
             [
               ['incoming',  '即將到貨', storeRecords.length],
               ['inventory', '倉庫庫存', inventory.length],
-              ['demand',    '我的需求', storeDemand.length],
             ] as [Tab, string, number][]
           ).map(([key, label, count]) => (
             <button
@@ -528,87 +393,6 @@ export default function StorePage() {
               </div>
             )}
 
-            {/* ══ 我的需求 ══ */}
-            {activeTab === 'demand' && (
-              <div className="space-y-3">
-                {/* 提交按鈕 */}
-                {!showForm && (
-                  <button
-                    onClick={() => setShowForm(true)}
-                    className="w-full py-3 border-2 border-dashed border-gray-300 rounded-xl
-                      text-sm font-semibold text-gray-500 hover:border-lopia-red hover:text-lopia-red
-                      transition-colors"
-                  >
-                    + 提交新進貨需求
-                  </button>
-                )}
-
-                {/* 成功訊息 */}
-                {successMsg && (
-                  <div className="flex items-start gap-2 bg-green-50 border border-green-200 rounded-xl px-4 py-3">
-                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor"
-                      strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"
-                      className="text-green-500 flex-shrink-0 mt-0.5">
-                      <polyline points="20 6 9 17 4 12"/>
-                    </svg>
-                    <p className="text-sm text-green-700 font-medium">{successMsg}</p>
-                  </div>
-                )}
-
-                {/* 需求表單 */}
-                {showForm && (
-                  <DemandForm
-                    storeName={selectedStore}
-                    onSuccess={() => {
-                      setShowForm(false)
-                      setSuccessMsg('需求已送出！TMJ 業務會盡快確認並安排。')
-                      fetchData()
-                      setTimeout(() => setSuccessMsg(''), 5000)
-                    }}
-                    onCancel={() => setShowForm(false)}
-                  />
-                )}
-
-                {/* 需求清單 */}
-                {storeDemand.length === 0 && !showForm ? (
-                  <div className="text-center py-14">
-                    <p className="text-sm text-gray-400">目前沒有待處理的需求</p>
-                    <p className="text-xs text-gray-300 mt-1">點選上方按鈕提交新需求</p>
-                  </div>
-                ) : (
-                  storeDemand.map(d => (
-                    <div key={d.id} className="bg-white border border-gray-200 rounded-xl p-4">
-                      <div className="flex items-start justify-between gap-3">
-                        <div className="flex-1 min-w-0">
-                          <p className="text-sm font-semibold text-gray-800 leading-tight">
-                            {d.product || '—'}
-                          </p>
-                          {d.quantity && (
-                            <p className="text-xs text-gray-500 mt-1">數量：{d.quantity}</p>
-                          )}
-                          {d.needDate && (
-                            <p className="text-xs text-gray-500">
-                              希望到貨：{formatDate(d.needDate)}
-                            </p>
-                          )}
-                          {d.note && (
-                            <p className="text-xs text-gray-400 mt-1 italic">{d.note}</p>
-                          )}
-                        </div>
-                        <span className={`text-[11px] px-2 py-0.5 rounded-full border font-medium flex-shrink-0 ${statusBadge(d.status)}`}>
-                          {d.status}
-                        </span>
-                      </div>
-                    </div>
-                  ))
-                )}
-
-                {/* 說明 */}
-                <p className="text-xs text-gray-400 text-center pt-2">
-                  也可以直接傳 LINE 給 TMJ 業務提出需求
-                </p>
-              </div>
-            )}
           </>
         )}
       </div>
