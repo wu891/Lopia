@@ -15,7 +15,7 @@ export async function GET() {
 }
 
 export async function POST(req: NextRequest) {
-  if (!(await requireAuth('edit'))) {
+  if (!(await requireAuth(['edit', 'demand']))) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   }
   try {

@@ -15,7 +15,7 @@
 import { cookies } from 'next/headers'
 import { createHmac, timingSafeEqual } from 'crypto'
 
-export type AuthScope = 'edit' | 'portal'
+export type AuthScope = 'edit' | 'portal' | 'demand'
 
 const COOKIE_NAME = 'lopia_auth'
 const COOKIE_TTL_SEC = 8 * 60 * 60 // 8h
@@ -24,6 +24,7 @@ function getSecret(scope: AuthScope): string {
   // AUTH_SECRET 是專用 HMAC key；若未設則 fallback 到對應 password
   if (process.env.AUTH_SECRET) return process.env.AUTH_SECRET + ':' + scope
   if (scope === 'portal') return process.env.LOGISTICS_PASSWORD ?? ''
+  if (scope === 'demand') return process.env.DEMAND_PASSWORD ?? ''
   return process.env.EDIT_PASSWORD ?? ''
 }
 

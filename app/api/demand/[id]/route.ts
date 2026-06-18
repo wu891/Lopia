@@ -3,7 +3,7 @@ import { updateDemandItem, deleteDemandItem } from '@/lib/notion'
 import { requireAuth, clampLen } from '@/lib/auth'
 
 export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
-  if (!(await requireAuth('edit'))) {
+  if (!(await requireAuth(['edit', 'demand']))) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   }
   try {
@@ -26,7 +26,7 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
 }
 
 export async function DELETE(_req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
-  if (!(await requireAuth('edit'))) {
+  if (!(await requireAuth(['edit', 'demand']))) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   }
   try {

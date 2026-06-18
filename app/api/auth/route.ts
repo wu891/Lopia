@@ -23,16 +23,20 @@ export async function POST(req: NextRequest) {
     if (!process.env.EDIT_PASSWORD) {
       return NextResponse.json({ ok: false, error: '系統未設定密碼，請聯絡管理員' }, { status: 500 })
     }
-    if (!safePasswordCompare(password, process.env.EDIT_PASSWORD)) {
+    // 先比對 edit 密碼，再比對 demand 專屬密碼
+    const isEdit   = safePasswordCompare(password, process.env.EDIT_PASSWORD)
+    const isDemand = !isEdit && safePasswordCompare(password, process.env.DEMAND_PASSWORD)
+    if (!isEdit && !isDemand) {
       recordAuthFail(ip)
       return NextResponse.json({ ok: false, error: '密碼錯誤' }, { status: 401 })
     }
     clearAuthFails(ip)
-    const cookie = buildAuthCookie('edit')
+    const scope = isEdit ? 'edit' : 'demand'
+    const cookie = buildAuthCookie(scope)
     if (!cookie) {
       return NextResponse.json({ ok: false, error: '系統設定錯誤' }, { status: 500 })
     }
-    const res = NextResponse.json({ ok: true })
+    const res = NextResponse.json({ ok: true, scope })
     res.cookies.set(cookie.name, cookie.value, cookie.options)
     return res
   } catch {
