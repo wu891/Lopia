@@ -15,6 +15,14 @@ interface InventoryItem {
   lastUpdated: string | null
 }
 
+// 校正庫存的差異預覽結果（對應後端 diffInventory）
+interface InventoryDiff {
+  create:    { code: string; name: string; stock: number }[]
+  update:    { code: string; name: string; oldStock: number; newStock: number }[]
+  unchanged: { code: string; name: string; stock: number }[]
+  remove:    { code: string; name: string; stock: number }[]
+}
+
 const ORDER_STORES = STORES
   .filter(s => !!s.excelSheetName)
   .sort((a, b) => {
@@ -67,6 +75,14 @@ export default function InventoryPage() {
   const [submitMsg, setSubmitMsg] = useState<{ ok: boolean; text: string } | null>(null)
   const [syncing, setSyncing] = useState(false)
   const [syncMsg, setSyncMsg] = useState<string | null>(null)
+
+  // 校正庫存（上傳報表 → 預覽差異 → 確認後套用）
+  const [reconcileDiff, setReconcileDiff] = useState<InventoryDiff | null>(null)
+  const [reconcileFile, setReconcileFile] = useState<File | null>(null)
+  const [reconcileFileName, setReconcileFileName] = useState('')
+  const [reconcilePreviewing, setReconcilePreviewing] = useState(false)
+  const [reconcileApplying, setReconcileApplying] = useState(false)
+  const [reconcileMsg, setReconcileMsg] = useState<{ ok: boolean; text: string } | null>(null)
 
   // 出貨指示匯入
   const [deliveryRounds, setDeliveryRounds] = useState<ParsedDeliveryRound[] | null>(null)
@@ -241,6 +257,52 @@ export default function InventoryPage() {
     } finally {
       setSyncing(false); e.target.value = ''
     }
+  }
+
+  // 校正庫存 step 1：上傳報表 → 取得差異預覽（不寫入任何資料）
+  async function handleReconcilePreview(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0]; if (!file) return
+    setReconcilePreviewing(true); setReconcileDiff(null); setReconcileFile(null); setReconcileMsg(null)
+    try {
+      const form = new FormData()
+      form.append('file', file)
+      form.append('mode', 'preview')
+      const res = await fetch('/api/inventory/sync', { method: 'POST', body: form })
+      const data = await res.json()
+      if (!res.ok) throw new Error(data.error)
+      setReconcileDiff(data.diff)
+      setReconcileFile(file)            // 留著檔案，確認時再傳一次
+      setReconcileFileName(file.name)
+    } catch (err) {
+      setReconcileMsg({ ok: false, text: `解析失敗：${err instanceof Error ? err.message : '未知錯誤'}` })
+    } finally {
+      setReconcilePreviewing(false); e.target.value = ''
+    }
+  }
+
+  // 校正庫存 step 2：確認後套用（更新/新增報表品項，移除報表沒有的舊品項）
+  async function handleReconcileApply() {
+    if (!reconcileFile) return
+    setReconcileApplying(true); setReconcileMsg(null)
+    try {
+      const form = new FormData()
+      form.append('file', reconcileFile)
+      form.append('mode', 'replace')
+      const res = await fetch('/api/inventory/sync', { method: 'POST', body: form })
+      const data = await res.json()
+      if (!res.ok) throw new Error(data.error)
+      setReconcileMsg({ ok: true, text: `校正完成：更新 ${data.updated}、新增 ${data.created}、移除 ${data.removed} 筆` })
+      setReconcileDiff(null); setReconcileFile(null); setReconcileFileName('')
+      load()
+    } catch (err) {
+      setReconcileMsg({ ok: false, text: `錯誤：${err instanceof Error ? err.message : '失敗'}` })
+    } finally {
+      setReconcileApplying(false)
+    }
+  }
+
+  function cancelReconcile() {
+    setReconcileDiff(null); setReconcileFile(null); setReconcileFileName(''); setReconcileMsg(null)
   }
 
   async function handleDeliveryUpload(e: React.ChangeEvent<HTMLInputElement>) {
@@ -438,6 +500,15 @@ export default function InventoryPage() {
                   {syncing ? '…' : '上傳 Excel'}
                   <input type="file" accept=".xlsx" className="hidden" onChange={handleUpload} disabled={syncing} />
                 </label>
+                <label
+                  title="上傳最新庫存報表，自動比對差異並移除已出貨品項（會先預覽，確認後才套用）"
+                  className={`cursor-pointer text-xs px-2.5 py-1.5 rounded border font-medium
+                  ${reconcilePreviewing || reconcileApplying
+                    ? 'opacity-40 bg-gray-50 border-gray-200 text-gray-400'
+                    : 'bg-lopia-red/5 border-lopia-red/40 text-lopia-red hover:bg-lopia-red/10 hover:border-lopia-red'}`}>
+                  {reconcilePreviewing ? '比對中…' : '🔄 校正庫存'}
+                  <input type="file" accept=".xlsx" className="hidden" onChange={handleReconcilePreview} disabled={reconcilePreviewing || reconcileApplying} />
+                </label>
                 <button onClick={handleGmailSync} disabled={syncing}
                   className={`text-xs px-2.5 py-1.5 rounded border font-medium
                     ${syncing ? 'opacity-40 bg-gray-50 border-gray-200 text-gray-400'
@@ -461,6 +532,104 @@ export default function InventoryPage() {
             </p>
           )}
         </div>
+
+        {/* 校正庫存：訊息 */}
+        {reconcileMsg && (
+          <div className={`text-sm px-4 py-3 rounded-xl ${reconcileMsg.ok ? 'bg-green-50 text-green-700 border border-green-200' : 'bg-red-50 text-red-600 border border-red-200'}`}>
+            {reconcileMsg.text}
+          </div>
+        )}
+
+        {/* 校正庫存：差異預覽面板 */}
+        {reconcileDiff && (
+          <div className="bg-white border-2 border-lopia-red/30 rounded-xl px-4 py-3 space-y-3">
+            <div className="flex items-center justify-between gap-2">
+              <div className="flex items-center gap-2 min-w-0">
+                <span className="text-sm font-bold text-gray-800 flex-shrink-0">🔄 庫存校正預覽</span>
+                <span className="text-xs text-gray-400 truncate">{reconcileFileName}</span>
+              </div>
+              <button onClick={cancelReconcile} disabled={reconcileApplying}
+                className="text-xs text-gray-400 hover:text-gray-700 px-2 py-1 rounded hover:bg-gray-100 flex-shrink-0">
+                ✕ 取消
+              </button>
+            </div>
+
+            {/* 摘要 */}
+            <div className="flex flex-wrap gap-2 text-xs">
+              <span className="px-2 py-1 rounded-lg bg-green-50 text-green-700 font-medium">新增 {reconcileDiff.create.length}</span>
+              <span className="px-2 py-1 rounded-lg bg-amber-50 text-amber-700 font-medium">數量變更 {reconcileDiff.update.length}</span>
+              <span className="px-2 py-1 rounded-lg bg-red-50 text-red-700 font-medium">移除 {reconcileDiff.remove.length}</span>
+              <span className="px-2 py-1 rounded-lg bg-gray-50 text-gray-500 font-medium">不變 {reconcileDiff.unchanged.length}</span>
+            </div>
+
+            {/* 將移除（出貨完了）— 最重要，紅色強調 */}
+            {reconcileDiff.remove.length > 0 && (
+              <div className="bg-red-50 border border-red-200 rounded-lg p-2.5">
+                <div className="text-xs font-bold text-red-700 mb-1.5">🗑️ 將移除（報表已無，視為出貨完了）</div>
+                <div className="space-y-0.5">
+                  {reconcileDiff.remove.map(r => (
+                    <div key={r.code} className="text-xs text-red-800 flex justify-between gap-2">
+                      <span className="truncate">{r.name}</span>
+                      <span className="text-red-400 flex-shrink-0 tabular-nums">原 {r.stock} 箱</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* 數量變更 */}
+            {reconcileDiff.update.length > 0 && (
+              <div className="bg-amber-50 border border-amber-200 rounded-lg p-2.5">
+                <div className="text-xs font-bold text-amber-700 mb-1.5">✏️ 數量變更</div>
+                <div className="space-y-0.5">
+                  {reconcileDiff.update.map(u => (
+                    <div key={u.code} className="text-xs text-amber-800 flex justify-between gap-2">
+                      <span className="truncate">{u.name}</span>
+                      <span className="flex-shrink-0 tabular-nums">{u.oldStock} → <span className="font-bold">{u.newStock}</span> 箱</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* 新增 */}
+            {reconcileDiff.create.length > 0 && (
+              <div className="bg-green-50 border border-green-200 rounded-lg p-2.5">
+                <div className="text-xs font-bold text-green-700 mb-1.5">➕ 新增</div>
+                <div className="space-y-0.5">
+                  {reconcileDiff.create.map(c => (
+                    <div key={c.code} className="text-xs text-green-800 flex justify-between gap-2">
+                      <span className="truncate">{c.name}</span>
+                      <span className="text-green-500 flex-shrink-0 tabular-nums">{c.stock} 箱</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* 全部沒變的提示 */}
+            {reconcileDiff.create.length === 0 && reconcileDiff.update.length === 0 && reconcileDiff.remove.length === 0 && (
+              <p className="text-xs text-gray-500">報表與目前庫存完全一致，沒有需要校正的地方。</p>
+            )}
+
+            {/* 動作列 */}
+            <div className="flex items-center justify-end gap-2 pt-1">
+              <button onClick={cancelReconcile} disabled={reconcileApplying}
+                className="text-xs px-3 py-1.5 rounded-lg border border-gray-300 text-gray-600 hover:bg-gray-50 font-medium">
+                取消
+              </button>
+              <button
+                onClick={handleReconcileApply}
+                disabled={reconcileApplying || (reconcileDiff.create.length === 0 && reconcileDiff.update.length === 0 && reconcileDiff.remove.length === 0)}
+                className={`text-xs px-4 py-1.5 rounded-lg font-semibold text-white transition-colors
+                  ${reconcileApplying || (reconcileDiff.create.length === 0 && reconcileDiff.update.length === 0 && reconcileDiff.remove.length === 0)
+                    ? 'bg-gray-300 cursor-not-allowed'
+                    : 'bg-lopia-red hover:bg-lopia-red-dark'}`}>
+                {reconcileApplying ? '校正中…' : '確認校正'}
+              </button>
+            </div>
+          </div>
+        )}
 
         {/* 送出結果 */}
         {submitMsg && (

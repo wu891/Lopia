@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { google } from 'googleapis'
 import { parseInventoryExcel } from '@/lib/parseInventoryExcel'
-import { upsertInventory } from '@/lib/inventoryNotion'
+import { upsertInventory, diffInventory, reconcileInventory } from '@/lib/inventoryNotion'
 import { requireAuth } from '@/lib/auth'
 
 export const dynamic = 'force-dynamic'
@@ -145,13 +145,33 @@ export async function POST(req: NextRequest) {
     try {
       const form = await req.formData()
       const file = form.get('file') as File | null
+      const mode = String(form.get('mode') ?? 'upsert') // upsert(預設) / preview / replace
       if (!file) return NextResponse.json({ error: 'No file' }, { status: 400 })
       if (!file.name.endsWith('.xlsx')) {
         return NextResponse.json({ error: '請上傳 .xlsx 格式的檔案' }, { status: 400 })
       }
       const buffer = Buffer.from(await file.arrayBuffer())
-      const result = await syncItems(buffer, 'manual-upload')
-      return NextResponse.json({ ok: true, ...result })
+      const items = parseInventoryExcel(buffer)
+
+      // preview：只比對差異、不寫入，給前端預覽確認用
+      if (mode === 'preview') {
+        const diff = await diffInventory(items)
+        return NextResponse.json({ ok: true, diff, total: items.length })
+      }
+
+      // replace（校正）：報表內更新/新增，報表沒有的舊品項移除
+      if (mode === 'replace') {
+        const time = new Date().toISOString()
+        const result = await reconcileInventory(items, time)
+        console.log(`[inventory reconcile] updated=${result.updated} created=${result.created} removed=${result.removed}`)
+        return NextResponse.json({ ok: true, ...result, total: items.length, syncTime: time })
+      }
+
+      // 預設（沿用舊「上傳 Excel」按鈕）：只更新/新增，不移除
+      const time = new Date().toISOString()
+      const result = await upsertInventory(items, time)
+      console.log(`[inventory sync] source=manual-upload updated=${result.updated} created=${result.created}`)
+      return NextResponse.json({ ok: true, ...result, total: items.length, syncTime: time })
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err)
       return NextResponse.json({ error: msg }, { status: 500 })
