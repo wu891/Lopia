@@ -141,7 +141,7 @@ export async function POST(req: NextRequest) {
   </div>
   <div style="border:1px solid #eee;border-top:none;border-radius:0 0 8px 8px;padding:20px 24px">
     <p style="margin:0 0 12px;color:#333">以下の書類が未提出です。至急ご確認ください。</p>
-    <p style="margin:0 0 6px;font-weight:600;color:#444">バッチ：${safeBatchName}</p>
+    <p style="margin:0 0 6px;font-weight:600;color:#444">ロット：${safeBatchName}</p>
     <p style="margin:0 0 6px;color:#444">出発日：${safeDepartJP}</p>
     <p style="margin:8px 0 4px;color:#444">未提出書類：</p>
     <ul style="margin:0;padding-left:20px;color:#d32f2f;font-weight:600">${missingList}</ul>

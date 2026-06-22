@@ -135,7 +135,7 @@ export default function AddBatchForm({ lang, onBatchAdded }: Props) {
   }
 
   function handleSaveClick() {
-    if (!ivName.trim()) { setSaveError(lang === 'ja' ? 'バッチ名は必須です' : '請填寫批次名稱'); return }
+    if (!ivName.trim()) { setSaveError(lang === 'ja' ? 'ロット名は必須です' : '請填寫批次名稱'); return }
     if (isAuthed()) {
       doSave()
     } else {
@@ -164,7 +164,7 @@ export default function AddBatchForm({ lang, onBatchAdded }: Props) {
         <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
           <line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/>
         </svg>
-        {isJa ? '新規バッチ登録' : '新增批次'}
+        {isJa ? '新規ロット登録' : '新增批次'}
       </button>
 
       {/* Password modal */}
@@ -189,7 +189,7 @@ export default function AddBatchForm({ lang, onBatchAdded }: Props) {
               <div className="flex items-center gap-2">
                 <span className="text-xl">📦</span>
                 <h2 className="font-bold text-gray-800 text-base">
-                  {isJa ? '新規バッチ登録' : '新增批次'}
+                  {isJa ? '新規ロット登録' : '新增批次'}
                 </h2>
               </div>
               <button onClick={cancel} className="text-gray-400 hover:text-gray-600 text-xl leading-none">×</button>
@@ -208,7 +208,7 @@ export default function AddBatchForm({ lang, onBatchAdded }: Props) {
                   {/* ── Required ── */}
                   <div>
                     <label className={labelCls}>
-                      {isJa ? 'バッチ名（必須）' : '批次名稱（必填）'}
+                      {isJa ? 'ロット名（必須）' : '批次名稱（必填）'}
                     </label>
                     <input
                       type="text"

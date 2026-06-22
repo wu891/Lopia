@@ -374,7 +374,7 @@ export default function BatchItemList({ batchId, lang, parentTotalBoxes = null, 
             </span>
             {(!totalOk || !shippedOk) && (
               <span className="text-amber-700">
-                {lang === 'ja' ? '※ 親バッチと不一致' : '※ 與母批次不一致'}
+                {lang === 'ja' ? '※ 親ロットと不一致' : '※ 與母批次不一致'}
               </span>
             )}
           </div>

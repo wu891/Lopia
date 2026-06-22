@@ -634,7 +634,7 @@ export default function DeliveryPlan({ batchId, batchName, totalBoxes, records, 
             <span className="flex-shrink-0 mt-0.5">⚠</span>
             <span>
               {lang === 'ja'
-                ? `${undatedRoundsCount} 回次は日付未設定のため保存されません。日付を入力してください。`
+                ? `${undatedRoundsCount} 回は日付未設定のため保存されません。日付を入力してください。`
                 : `${undatedRoundsCount} 個輪次尚未設定日期，儲存時將被略過。請補填出貨日期。`}
             </span>
           </div>
