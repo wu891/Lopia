@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { parseDeliveryExcel, EXCEL_STORE_MAP } from '@/lib/parseDeliveryExcel'
-import { generateShipmentOrder, generateShipmentNo, StoreOrder } from '@/lib/generateShipmentOrder'
+import { generateShipmentOrder, generateShipmentNo, buildItemSpec, StoreOrder } from '@/lib/generateShipmentOrder'
 import { requireAuth } from '@/lib/auth'
 
 export async function POST(req: NextRequest) {
@@ -89,9 +89,10 @@ export async function POST(req: NextRequest) {
                             else summaryMap.set(key, { boxSpec: p.boxSpec, total: p.quantity })
                   }
           }
-          const summary = Array.from(summaryMap.entries()).map(([key, v]) => ({
-                  name: key.split('__')[0], boxSpec: v.boxSpec, total: v.total,
-          }))
+          const summary = Array.from(summaryMap.entries()).map(([key, v]) => {
+                  const { detailedName, spec } = buildItemSpec(key.split('__')[0], v.boxSpec)
+                  return { name: detailedName, boxSpec: spec, total: v.total }
+          })
           const numbersBlock = summary.map(s => s.total).join('\n')
           const checklist = {
                   日期為配送日: true,

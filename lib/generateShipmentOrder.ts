@@ -34,6 +34,28 @@ function fmtDate(dateStr: string): string {
   return dateStr.replace(/-/g, '/')
 }
 
+// ── 商品名稱組合 ────────────────────────────────────────────────────────────────
+// 蘋果品種關鍵字 → 入數單位用「玉」；其餘（葡萄等）維持「房」。
+const APPLE_NAME_RE = /ふじ|名月|シナノ|王林|りんご|林檎|つがる|紅玉|ジョナ|ゴールド|アップル/
+
+/**
+ * 把「品種」和「入數」組成完整商品名與規格字串。
+ *   buildItemSpec('ぐんま名月', '32房') → { detailedName: 'ぐんま名月 32玉', spec: '32玉' }
+ * 規則：
+ *   - 蘋果品種用「玉」，其餘維持原本的「房」。
+ *   - 若品種名稱本身已含尺寸單位（玉/房，例如供應商已寫「サンふじ（特A 28玉）」），
+ *     視為已是完整名，不再重複附加。
+ */
+export function buildItemSpec(name: string, boxSpec: string): { detailedName: string; spec: string } {
+  const unit = APPLE_NAME_RE.test(name || '') ? '玉' : '房'
+  // 去掉 boxSpec 尾端既有單位，取出純尺寸數字（"32房"→"32"、"32玉"→"32"）
+  const rawSize = (boxSpec || '').replace(/[房玉粒個入数數\s]+$/g, '').trim()
+  const spec = rawSize ? `${rawSize}${unit}` : (boxSpec || '')
+  const alreadyDetailed = /[玉房]/.test(name || '')
+  const detailedName = spec && !alreadyDetailed ? `${name} ${spec}` : name
+  return { detailedName, spec }
+}
+
 // ── Style helpers ──────────────────────────────────────────────────────────────
 
 function fill(argb: string): ExcelJS.Fill {
@@ -162,7 +184,7 @@ function addStoreSheet(wb: ExcelJS.Workbook, order: StoreOrder, shipmentNo: stri
   ws.getRow(8).height = 6
 
   // R9 — table header
-  ws.addRow(['商品名稱', '入數', '箱數', '單價(TWD/箱)', '小計(TWD)'])
+  ws.addRow(['商品名稱', '規格', '箱數', '單價(TWD/箱)', '小計(TWD)'])
   applyRow(ws.getRow(9), {
     bg: C_BLUE_DARK, bold: true, color: C_WHITE, size: 11,
     align: 'center', valign: 'middle', borders: true, height: 19.5
@@ -177,9 +199,11 @@ function addStoreSheet(wb: ExcelJS.Workbook, order: StoreOrder, shipmentNo: stri
     const p = order.products[i]
     const rowNum = prodRowStart + i
 
+    // 商品名稱 = 品種＋尺寸玉（例：ぐんま名月 32玉）；規格欄顯示 32玉
+    const { detailedName, spec } = buildItemSpec(p.name, p.boxSpec)
     const row = ws.addRow([
-      p.name,
-      (p.boxSpec || '—').replace(/房/g, ''),
+      detailedName,
+      spec || '—',
       p.quantity || 0,
       p.unitPrice || 0,
       { formula: `C${rowNum}*D${rowNum}` },
@@ -316,7 +340,7 @@ function addSummarySheet(wb: ExcelJS.Workbook, storeOrders: StoreOrder[], shipme
   applyRow(ws.getRow(1), { bg: C_BLUE_LIGHT, bold: true, size: 13, align: 'center', valign: 'middle', height: 22 })
 
   // R2 — header
-  ws.addRow(['商品名稱', '入數', '單價(TWD)', ...shortNames, '總箱數', '總金額(TWD)'])
+  ws.addRow(['商品名稱', '規格', '單價(TWD)', ...shortNames, '總箱數', '總金額(TWD)'])
   const hRow = ws.getRow(2)
   hRow.height = 20
   hRow.eachCell({ includeEmpty: true }, (cell, col) => {
@@ -366,9 +390,10 @@ function addSummarySheet(wb: ExcelJS.Workbook, storeOrders: StoreOrder[], shipme
 
     const rowNum = productRowStart + i
 
+    const { detailedName, spec } = buildItemSpec(info.name, info.boxSpec)
     const row = ws.addRow([
-      info.name,
-      (info.boxSpec || '—').replace(/房/g, ''),
+      detailedName,
+      spec || '—',
       info.unitPrice,          // always a single price per row now
       ...storeCounts,
       { formula: `SUM(${firstStoreLetter}${rowNum}:${lastStoreLetter}${rowNum})` },

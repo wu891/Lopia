@@ -235,7 +235,7 @@ function ShipmentReport({ summary, numbers, checklist }: {
             <thead>
               <tr className="text-gray-500 border-b border-emerald-200">
                 <th className="text-left pb-1.5 font-medium">商品名稱</th>
-                <th className="text-right pb-1.5 font-medium pr-4">入數</th>
+                <th className="text-right pb-1.5 font-medium pr-4">規格</th>
                 <th className="text-right pb-1.5 font-medium">總箱數</th>
               </tr>
             </thead>
