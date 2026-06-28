@@ -13,7 +13,8 @@ import { Client } from '@notionhq/client'
 import { AllocationLine } from './allocateGrades'
 import { StockEntry } from './parseMudoStock'
 
-const DB_ID = process.env.NOTION_APPLE11_DB ?? ''
+// 蘋果11庫存歷史 DB（workspace 內，DB id 非機密）。可用 env 覆寫。
+const DB_ID = process.env.NOTION_APPLE11_DB ?? '37e1cd3a36b94ac9bba26c6b7c4afc19'
 
 export interface Apple11CyclePayload {
   date: string            // 'YYYY-MM-DD'

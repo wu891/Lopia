@@ -56,11 +56,15 @@ function extractGrade(name: string): string {
   return g.replace(/\s+/g, ' ').trim()
 }
 
-/** 蘋果判定：規格 NN PCS/箱 且名稱含「玉」且非地瓜 */
+/**
+ * 蘋果判定：規格為「NN PCS/箱」且非地瓜即視為蘋果。
+ * （蘋果按顆數計 → 規格用 PCS；地瓜加工品用「NN入/箱」。名稱不一定寫「玉」，
+ *   例如「特選 26 Sun Fuji」就沒有玉字，故不能硬要求名稱含「玉」。
+ *   品種偵測 detectVariety 會再做二次把關，抓不出品種者另行排除。）
+ */
 function isApple(spec: string, name: string): boolean {
   if (/地瓜/.test(name)) return false
-  if (!/\d+\s*PCS/i.test(spec)) return false
-  return /玉/.test(name)
+  return /\d+\s*PCS/i.test(spec)
 }
 
 /** 找出表頭列與各欄索引（用欄名定位，較耐格式漂移） */
