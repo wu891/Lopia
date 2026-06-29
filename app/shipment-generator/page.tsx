@@ -984,40 +984,91 @@ function YushuPanel() {
   )
 }
 
-// ── 🍎 蘋果11 庫存出貨 Panel ──────────────────────────────────────────────────
+// ── 🍎 蘋果11 庫存出貨 Panel（v2：系統記住庫存、自動扣） ───────────────────────
 
 interface Apple11Summary { store: string; name: string; bango: string; qty: number }
+interface StockInfo { seeded: boolean; total: number; byVariety: Record<string, number>; items: { bango: string; name: string; qty: number }[]; error?: string }
+interface DiffRow { bango: string; name: string; systemQty: number; warehouseQty: number; delta: number; kind: string }
+interface Preview { mode: 'seed' | 'reconcile'; willSeed?: boolean; total?: number; byVariety?: Record<string, number>; diff?: { changedRows: DiffRow[]; systemTotal: number; warehouseTotal: number } }
+
+function dlFile(name: string, b64: string) {
+  const bytes = Uint8Array.from(atob(b64), c => c.charCodeAt(0))
+  const blob = new Blob([bytes], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' })
+  const url = URL.createObjectURL(blob); const a = document.createElement('a')
+  a.href = url; a.download = name; a.click(); URL.revokeObjectURL(url)
+}
+
+const VARIETY_ORDER = ['サンふじ', 'ぐんま名月', '有袋ふじ', 'シナノゴールド']
 
 function Apple11Panel() {
-  const [stockFile, setStockFile] = useState<File | null>(null)
-  const [stockDate, setStockDate] = useState('')          // 倉庫檔日期(顯示用)
-  const [planFile, setPlanFile]   = useState<File | null>(null)
-  const [availRounds, setRounds]  = useState<number[]>([])
-  const [round, setRound]         = useState<number | null>(null)
-  const [date, setDate]           = useState('')
-  const [suffix, setSuffix]       = useState('01')
-  const [batchLabel, setBatch]    = useState('')
-  const [outputType, setOut]      = useState<'both' | 'store' | 'chuku'>('both')
-  const [analyzing, setAnalyzing] = useState(false)
-  const [generating, setGen]      = useState(false)
-  const [error, setError]         = useState<string | null>(null)
-  const [done, setDone]           = useState<string[]>([])
-  const [summary, setSummary]     = useState<Apple11Summary[]>([])
-  const [unknownStores, setUnknown] = useState<string[]>([])
-  const [notionNote, setNotion]   = useState<string>('')
+  // 庫存
+  const [stock, setStock] = useState<StockInfo | null>(null)
+  const [loadingStock, setLoadingStock] = useState(true)
 
+  // 對帳
+  const [stockFile, setStockFile] = useState<File | null>(null)
+  const [preview, setPreview] = useState<Preview | null>(null)
+  const [reconciling, setReconciling] = useState(false)
+  const [committing, setCommitting] = useState(false)
+  const [reconErr, setReconErr] = useState<string | null>(null)
   const stockRef = useRef<HTMLInputElement>(null)
-  const planRef  = useRef<HTMLInputElement>(null)
+
+  // 出貨
+  const [planFile, setPlanFile] = useState<File | null>(null)
+  const [availRounds, setRounds] = useState<number[]>([])
+  const [round, setRound] = useState<number | null>(null)
+  const [date, setDate] = useState('')
+  const [suffix, setSuffix] = useState('01')
+  const [batchLabel, setBatch] = useState('')
+  const [outputType, setOut] = useState<'both' | 'store' | 'chuku'>('both')
+  const [force, setForce] = useState(false)
+  const [analyzing, setAnalyzing] = useState(false)
+  const [generating, setGen] = useState(false)
+  const [genErr, setGenErr] = useState<string | null>(null)
+  const [done, setDone] = useState<string[]>([])
+  const [summary, setSummary] = useState<Apple11Summary[]>([])
+  const [unknownStores, setUnknown] = useState<string[]>([])
+  const [notionNote, setNotion] = useState('')
+  const [remainTotal, setRemain] = useState<number | null>(null)
+  const planRef = useRef<HTMLInputElement>(null)
+
+  const loadStock = useCallback(async () => {
+    setLoadingStock(true)
+    try {
+      const res = await fetch('/api/apple11/stock', { cache: 'no-store' })
+      setStock(await res.json())
+    } catch { setStock({ seeded: false, total: 0, byVariety: {}, items: [], error: '讀取庫存失敗' }) }
+    finally { setLoadingStock(false) }
+  }, [])
+
+  useEffect(() => { loadStock() }, [loadStock])
 
   async function handleStock(f: File) {
-    setStockFile(f); setError(null)
-    // 從檔名抓 8 碼日期當倉庫檔日期
-    const m = f.name.match(/(\d{8})/)
-    if (m) setStockDate(m[1])
+    setStockFile(f); setReconErr(null); setPreview(null); setReconciling(true)
+    try {
+      const form = new FormData(); form.append('action', 'preview'); form.append('stockFile', f)
+      const res = await fetch('/api/apple11/stock', { method: 'POST', body: form })
+      const d = await res.json()
+      if (!res.ok) { setReconErr(d.error ?? '對帳失敗'); return }
+      setPreview(d)
+    } catch { setReconErr('網路錯誤') } finally { setReconciling(false) }
+  }
+
+  async function commitStock() {
+    if (!stockFile) return
+    setCommitting(true); setReconErr(null)
+    try {
+      const form = new FormData(); form.append('action', 'commit'); form.append('stockFile', stockFile)
+      const res = await fetch('/api/apple11/stock', { method: 'POST', body: form })
+      const d = await res.json()
+      if (!res.ok) { setReconErr(d.error ?? '寫入失敗'); return }
+      setPreview(null); setStockFile(null)
+      await loadStock()
+    } catch { setReconErr('網路錯誤') } finally { setCommitting(false) }
   }
 
   async function handlePlan(f: File) {
-    setPlanFile(f); setRounds([]); setRound(null); setError(null); setAnalyzing(true)
+    setPlanFile(f); setRounds([]); setRound(null); setGenErr(null); setAnalyzing(true)
     try {
       const XLSX = await import('xlsx')
       const wb = XLSX.read(await f.arrayBuffer(), { type: 'array', bookSheets: true })
@@ -1029,105 +1080,124 @@ function Apple11Panel() {
     } catch { /* ignore */ } finally { setAnalyzing(false) }
   }
 
-  const canGen = !!stockFile && !!planFile && round !== null && !!date && !!suffix
+  const canGen = !!planFile && round !== null && !!date && !!suffix && !!stock?.seeded
 
   async function handleGenerate() {
     if (!canGen) return
-    setGen(true); setError(null); setDone([]); setSummary([]); setUnknown([]); setNotion('')
+    setGen(true); setGenErr(null); setDone([]); setSummary([]); setUnknown([]); setNotion(''); setRemain(null)
     try {
       const form = new FormData()
-      form.append('stockFile', stockFile!)
-      form.append('planFile', planFile!)
-      form.append('round', String(round))
-      form.append('date', date)
-      form.append('suffix', suffix)
-      form.append('batchLabel', batchLabel)
-      form.append('outputType', outputType)
-      form.append('stockDate', stockDate)
-
-      const res = await fetch('/api/generate-apple11', { method: 'POST', body: form })
-      if (!res.ok) {
-        const d = await res.json().catch(() => ({}))
-        setError(d.error ?? '產生失敗')
-        return
-      }
-      function dl(name: string, b64: string) {
-        const bytes = Uint8Array.from(atob(b64), c => c.charCodeAt(0))
-        const blob  = new Blob([bytes], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' })
-        const url = URL.createObjectURL(blob); const a = document.createElement('a')
-        a.href = url; a.download = name; a.click(); URL.revokeObjectURL(url)
-      }
+      form.append('planFile', planFile!); form.append('round', String(round)); form.append('date', date)
+      form.append('suffix', suffix); form.append('batchLabel', batchLabel); form.append('outputType', outputType)
+      if (force) form.append('force', '1')
+      const res = await fetch('/api/apple11/generate', { method: 'POST', body: form })
+      if (!res.ok) { const d = await res.json().catch(() => ({})); setGenErr(d.error ?? '產生失敗'); return }
       if (outputType === 'both') {
         const json = await res.json()
-        dl(json.storeFile.name, json.storeFile.data)
-        dl(json.chukuFile.name, json.chukuFile.data)
-        setDone([json.storeFile.name, json.chukuFile.name])
-        setSummary(json.summary ?? [])
-        setUnknown(json.unknownStores ?? [])
-        setNotion(json.notion?.note ?? '')
+        dlFile(json.storeFile.name, json.storeFile.data); dlFile(json.chukuFile.name, json.chukuFile.data)
+        setDone([json.storeFile.name, json.chukuFile.name]); setSummary(json.summary ?? [])
+        setUnknown(json.unknownStores ?? []); setNotion(json.notion?.note ?? ''); setRemain(json.remainTotal ?? null)
       } else {
         const blob = await res.blob()
         const cd = res.headers.get('Content-Disposition') ?? ''
         const name = decodeURIComponent(cd.match(/filename\*=UTF-8''(.+)/)?.[1] ?? 'output.xlsx')
         const url = URL.createObjectURL(blob); const a = document.createElement('a')
-        a.href = url; a.download = name; a.click(); URL.revokeObjectURL(url)
-        setDone([name])
+        a.href = url; a.download = name; a.click(); URL.revokeObjectURL(url); setDone([name])
       }
-    } catch { setError('網路錯誤，請稍後再試') } finally { setGen(false) }
-  }
-
-  function FileZone({ label, file, onFile, inputRef }: {
-    label: string; file: File | null; onFile: (f: File) => void; inputRef: React.RefObject<HTMLInputElement>
-  }) {
-    return (
-      <div onClick={() => inputRef.current?.click()}
-        className={`relative border-2 border-dashed rounded-xl p-5 text-center cursor-pointer transition-all ${
-          file ? 'border-emerald-300 bg-emerald-50' : 'border-gray-200 hover:border-lopia-red hover:bg-gray-50'}`}>
-        <input ref={inputRef} type="file" accept=".xlsx,.xls" className="hidden"
-          onChange={e => { const f = e.target.files?.[0]; if (f) onFile(f); e.target.value = '' }} />
-        {file ? (<><p className="font-semibold text-emerald-700 text-sm">{file.name}</p>
-          <p className="text-xs text-gray-400 mt-1">點擊重新選擇</p></>)
-          : (<><p className="font-semibold text-gray-600 text-sm">{label}</p>
-            <p className="text-xs text-gray-400 mt-1">點擊或拖曳 .xlsx / .xls</p></>)}
-      </div>
-    )
+      setForce(false)
+      await loadStock()  // 扣帳後刷新庫存
+    } catch { setGenErr('網路錯誤，請稍後再試') } finally { setGen(false) }
   }
 
   return (
     <div className="max-w-2xl mx-auto px-4 py-6 space-y-5">
-      <div className="bg-amber-50 border border-amber-200 rounded-xl px-4 py-3 text-xs text-amber-800">
-        🍎 上傳「倉庫最新庫存檔」＋「計画書(台湾ロピアりんご11)」→ 系統照<b>出貨等級優先順序</b>從真實庫存分配品番，
-        產出店鋪貨單＋出庫總單，並寫進 Notion 歷史。庫存不足會直接擋下。
-      </div>
-
-      {/* Step 1 上傳 */}
+      {/* 目前庫存 */}
       <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
-        <div className="px-5 py-3.5 border-b border-gray-100 flex items-center gap-2">
-          <span className="w-5 h-5 rounded-full bg-lopia-red text-white text-[10px] font-bold flex items-center justify-center shrink-0">1</span>
-          <h2 className="font-semibold text-gray-800 text-sm">上傳檔案</h2>
-          {analyzing && <Spinner size={14} />}
+        <div className="px-5 py-3.5 border-b border-gray-100 flex items-center justify-between">
+          <h2 className="font-semibold text-gray-800 text-sm">📦 目前系統庫存</h2>
+          <button onClick={loadStock} className="text-xs text-gray-400 hover:text-lopia-red">{loadingStock ? '讀取中…' : '重新整理'}</button>
         </div>
-        <div className="px-5 py-4 grid grid-cols-1 sm:grid-cols-2 gap-3">
-          <div>
-            <p className="text-xs text-gray-500 font-medium mb-1.5">倉庫最新庫存檔（日商夢多）</p>
-            <FileZone label="上傳庫存明細" file={stockFile} onFile={handleStock} inputRef={stockRef} />
-            {stockDate && <p className="text-xs text-emerald-600 mt-1.5">庫存日期：{stockDate}</p>}
-          </div>
-          <div>
-            <p className="text-xs text-gray-500 font-medium mb-1.5">計画書（台湾ロピアりんご11）</p>
-            <FileZone label="上傳計画書" file={planFile} onFile={handlePlan} inputRef={planRef} />
-            {availRounds.length > 0 && <p className="text-xs text-emerald-600 mt-1.5">偵測到回目：{availRounds.map(r => `第${r}回`).join('、')}</p>}
-          </div>
+        <div className="px-5 py-4">
+          {loadingStock ? <p className="text-xs text-gray-400">讀取中…</p>
+            : stock?.error ? <p className="text-xs text-red-600">⚠ {stock.error}</p>
+            : !stock?.seeded ? <p className="text-xs text-amber-700">系統還沒有庫存。請在下方「更新庫存」上傳倉庫檔做初始化。</p>
+            : (
+              <div className="flex flex-wrap gap-x-5 gap-y-1 text-sm">
+                <span className="font-bold text-emerald-700">總計 {stock.total} 箱</span>
+                {VARIETY_ORDER.filter(v => stock.byVariety[v]).map(v => (
+                  <span key={v} className="text-gray-600">{v}：<b>{stock.byVariety[v]}</b></span>
+                ))}
+              </div>
+            )}
         </div>
       </div>
 
-      {/* Step 2 設定 */}
-      <div className={`bg-white rounded-xl border shadow-sm overflow-hidden transition-opacity ${!stockFile || !planFile ? 'opacity-40 pointer-events-none' : 'border-gray-200'}`}>
-        <div className="px-5 py-3.5 border-b border-gray-100 flex items-center gap-2">
-          <span className="w-5 h-5 rounded-full bg-lopia-red text-white text-[10px] font-bold flex items-center justify-center shrink-0">2</span>
-          <h2 className="font-semibold text-gray-800 text-sm">設定出貨資訊</h2>
+      {/* 更新庫存（對帳） */}
+      <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
+        <div className="px-5 py-3.5 border-b border-gray-100">
+          <h2 className="font-semibold text-gray-800 text-sm">🔄 更新庫存（對帳）</h2>
+          <p className="text-xs text-gray-400 mt-0.5">收到倉庫最新庫存就上傳，系統會比對差異、確認後以倉庫為準更新。</p>
+        </div>
+        <div className="px-5 py-4 space-y-3">
+          <div onClick={() => stockRef.current?.click()}
+            className={`relative border-2 border-dashed rounded-xl p-4 text-center cursor-pointer transition-all ${stockFile ? 'border-emerald-300 bg-emerald-50' : 'border-gray-200 hover:border-lopia-red hover:bg-gray-50'}`}>
+            <input ref={stockRef} type="file" accept=".xlsx,.xls" className="hidden"
+              onChange={e => { const f = e.target.files?.[0]; if (f) handleStock(f); e.target.value = '' }} />
+            {stockFile ? <p className="font-semibold text-emerald-700 text-sm">{stockFile.name}</p>
+              : <p className="font-semibold text-gray-600 text-sm">點擊上傳倉庫庫存檔（日商夢多）</p>}
+            {reconciling && <p className="text-xs text-gray-400 mt-1">比對中…</p>}
+          </div>
+          {reconErr && <div className="px-3 py-2 bg-red-50 border border-red-200 rounded-lg text-xs text-red-600">❌ {reconErr}</div>}
+
+          {preview?.mode === 'seed' && (
+            <div className="bg-amber-50 border border-amber-200 rounded-lg px-4 py-3 space-y-2">
+              <p className="text-sm font-semibold text-amber-800">首次初始化：將以這張當系統起始庫存</p>
+              <p className="text-xs text-amber-700">總計 {preview.total} 箱　{VARIETY_ORDER.filter(v => preview.byVariety?.[v]).map(v => `${v} ${preview.byVariety![v]}`).join('、')}</p>
+              <button onClick={commitStock} disabled={committing}
+                className="px-4 py-2 bg-lopia-red text-white text-sm font-semibold rounded-lg disabled:opacity-50">{committing ? '寫入中…' : '確認初始化'}</button>
+            </div>
+          )}
+
+          {preview?.mode === 'reconcile' && preview.diff && (
+            <div className="bg-amber-50 border border-amber-200 rounded-lg px-4 py-3 space-y-2">
+              <p className="text-sm font-semibold text-amber-800">差異對照（系統 → 倉庫實際）</p>
+              <p className="text-xs text-amber-700">系統現存 {preview.diff.systemTotal} 箱 → 倉庫實際 {preview.diff.warehouseTotal} 箱</p>
+              {preview.diff.changedRows.length === 0 ? <p className="text-xs text-emerald-700">完全一致，無差異。</p> : (
+                <ul className="text-xs space-y-0.5 max-h-52 overflow-auto font-mono">
+                  {preview.diff.changedRows.map(r => (
+                    <li key={r.bango} className={r.delta < 0 ? 'text-red-600' : r.delta > 0 ? 'text-blue-600' : 'text-gray-500'}>
+                      {r.bango} {r.name}：{r.systemQty} → {r.warehouseQty}（{r.delta > 0 ? '+' : ''}{r.delta}）{r.kind === 'new' ? ' 新增' : r.kind === 'gone' ? ' 倉庫已無' : ''}
+                    </li>
+                  ))}
+                </ul>
+              )}
+              <button onClick={commitStock} disabled={committing}
+                className="px-4 py-2 bg-lopia-red text-white text-sm font-semibold rounded-lg disabled:opacity-50">{committing ? '更新中…' : '以倉庫為準，確認更新'}</button>
+            </div>
+          )}
+        </div>
+      </div>
+
+      {/* 產生出貨 */}
+      <div className={`bg-white rounded-xl border shadow-sm overflow-hidden transition-opacity ${!stock?.seeded ? 'opacity-50' : 'border-gray-200'}`}>
+        <div className="px-5 py-3.5 border-b border-gray-100">
+          <h2 className="font-semibold text-gray-800 text-sm">🍎 產生出貨（自動扣庫存）</h2>
+          <p className="text-xs text-gray-400 mt-0.5">只要上傳計画書、選回目與日期；系統用目前庫存分配品番、扣帳、產貨單。</p>
         </div>
         <div className="px-5 py-4 space-y-4">
+          <div>
+            <p className="text-xs text-gray-500 font-medium mb-1.5">計画書（台湾ロピアりんご11）</p>
+            <div onClick={() => planRef.current?.click()}
+              className={`relative border-2 border-dashed rounded-xl p-4 text-center cursor-pointer transition-all ${planFile ? 'border-emerald-300 bg-emerald-50' : 'border-gray-200 hover:border-lopia-red hover:bg-gray-50'}`}>
+              <input ref={planRef} type="file" accept=".xlsx,.xls" className="hidden"
+                onChange={e => { const f = e.target.files?.[0]; if (f) handlePlan(f); e.target.value = '' }} />
+              {planFile ? <p className="font-semibold text-emerald-700 text-sm">{planFile.name}</p>
+                : <p className="font-semibold text-gray-600 text-sm">點擊上傳計画書</p>}
+              {analyzing && <p className="text-xs text-gray-400 mt-1">分析中…</p>}
+            </div>
+            {availRounds.length > 0 && <p className="text-xs text-emerald-600 mt-1.5">偵測到回目：{availRounds.map(r => `第${r}回`).join('、')}</p>}
+          </div>
+
           <div className="flex flex-wrap gap-3">
             <div className="flex flex-col gap-1">
               <label className="text-xs text-gray-500 font-medium">回目</label>
@@ -1135,10 +1205,8 @@ function Apple11Panel() {
                 {availRounds.length > 0 ? availRounds.map(r => (
                   <button key={r} onClick={() => setRound(r)}
                     className={`px-3 py-2 rounded-lg text-sm font-medium border transition-colors ${round === r ? 'bg-lopia-red text-white border-lopia-red' : 'bg-white text-gray-600 border-gray-200 hover:border-lopia-red hover:text-lopia-red'}`}>第 {r} 回</button>
-                )) : (
-                  <input type="number" min="1" value={round ?? ''} onChange={e => setRound(parseInt(e.target.value) || null)}
-                    placeholder="例：2" className="w-24 border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-lopia-red" />
-                )}
+                )) : <input type="number" min="1" value={round ?? ''} onChange={e => setRound(parseInt(e.target.value) || null)}
+                    placeholder="例：3" className="w-24 border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-lopia-red" />}
               </div>
             </div>
             <div className="flex flex-col gap-1">
@@ -1154,57 +1222,56 @@ function Apple11Panel() {
             <div className="flex flex-col gap-1 flex-1 min-w-[140px]">
               <label className="text-xs text-gray-500 font-medium">批次名稱（檔名用）</label>
               <input type="text" value={batchLabel} onChange={e => setBatch(e.target.value)}
-                placeholder="例：第2回 / 蘋果11.2" className="border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-lopia-red" />
+                placeholder="例：第3回 / 蘋果11.3" className="border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-lopia-red" />
             </div>
           </div>
-          {date && suffix && (
-            <div className="bg-gray-50 rounded-lg px-3 py-2 text-xs text-gray-500">
-              單號預覽：<span className="font-mono font-semibold text-gray-700">S{date.replace(/-/g, '')}{suffix.padStart(2, '0')}</span>
+
+          {date && suffix && <div className="bg-gray-50 rounded-lg px-3 py-2 text-xs text-gray-500">單號預覽：<span className="font-mono font-semibold text-gray-700">S{date.replace(/-/g, '')}{suffix.padStart(2, '0')}</span></div>}
+
+          <div className="flex gap-2 flex-wrap">
+            {([['both', '兩份都產出'], ['store', '僅店鋪貨單'], ['chuku', '僅出庫總單']] as ['both' | 'store' | 'chuku', string][]).map(([v, l]) => (
+              <button key={v} onClick={() => setOut(v)}
+                className={`px-4 py-2 rounded-lg text-sm font-medium border transition-colors ${outputType === v ? 'bg-lopia-red text-white border-lopia-red' : 'bg-white text-gray-600 border-gray-200 hover:border-lopia-red hover:text-lopia-red'}`}>{l}</button>
+            ))}
+          </div>
+
+          {genErr && <div className="px-4 py-2.5 bg-red-50 border border-red-200 rounded-lg text-xs text-red-600">
+            ❌ {genErr}
+            {genErr.includes('已經出過貨') && (
+              <label className="flex items-center gap-1.5 mt-2 text-red-700 cursor-pointer">
+                <input type="checkbox" checked={force} onChange={e => setForce(e.target.checked)} className="w-3.5 h-3.5 accent-lopia-red" />
+                我了解，強制重跑（會再扣一次庫存）
+              </label>
+            )}
+          </div>}
+
+          <button onClick={handleGenerate} disabled={!canGen || generating}
+            className="w-full flex items-center justify-center gap-2 py-3.5 bg-lopia-red text-white font-semibold rounded-xl text-base hover:bg-lopia-red-dark transition-colors disabled:opacity-50 shadow-sm">
+            {generating ? <><Spinner size={18} /> 產生中…</> : <>🍎 分配品番、扣庫存並產生貨單</>}
+          </button>
+
+          {done.length > 0 && (
+            <div className="bg-emerald-50 border border-emerald-200 rounded-xl px-5 py-4 space-y-2">
+              <div className="flex items-center gap-2">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#059669" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
+                <span className="text-sm font-bold text-emerald-700">已扣帳、產生並下載</span>
+              </div>
+              {done.map(n => <p key={n} className="text-xs text-emerald-600 font-mono ml-6">📄 {n}</p>)}
+              {remainTotal !== null && <p className="text-xs text-gray-600 ml-6">扣帳後庫存剩餘：<b>{remainTotal}</b> 箱</p>}
+              {notionNote && <p className="text-xs text-gray-500 ml-6">🗂 {notionNote}</p>}
+              {unknownStores.length > 0 && <p className="text-xs text-amber-700 ml-6">⚠ 無法對應的店名（已略過）：{unknownStores.join('、')}</p>}
+              {summary.length > 0 && (
+                <details className="ml-6">
+                  <summary className="text-xs text-gray-400 cursor-pointer hover:text-gray-600">分配明細（{summary.length} 行，品番）</summary>
+                  <ul className="mt-2 text-xs text-gray-600 space-y-0.5 max-h-60 overflow-auto">
+                    {summary.map((s, i) => <li key={i} className="font-mono">{s.store}　{s.bango}　{s.name}　×{s.qty}</li>)}
+                  </ul>
+                </details>
+              )}
             </div>
           )}
-          <div>
-            <label className="text-xs text-gray-500 font-medium mb-2 block">產出選項</label>
-            <div className="flex gap-2 flex-wrap">
-              {([['both', '兩份都產出'], ['store', '僅店鋪貨單'], ['chuku', '僅出庫總單']] as ['both' | 'store' | 'chuku', string][]).map(([v, l]) => (
-                <button key={v} onClick={() => setOut(v)}
-                  className={`px-4 py-2 rounded-lg text-sm font-medium border transition-colors ${outputType === v ? 'bg-lopia-red text-white border-lopia-red' : 'bg-white text-gray-600 border-gray-200 hover:border-lopia-red hover:text-lopia-red'}`}>{l}</button>
-              ))}
-            </div>
-          </div>
         </div>
       </div>
-
-      {/* Step 3 產生 */}
-      <div className={`transition-opacity ${!canGen ? 'opacity-40 pointer-events-none' : ''}`}>
-        {error && <div className="mb-3 px-4 py-2.5 bg-red-50 border border-red-200 rounded-lg text-xs text-red-600">❌ {error}</div>}
-        <button onClick={handleGenerate} disabled={!canGen || generating}
-          className="w-full flex items-center justify-center gap-2 py-3.5 bg-lopia-red text-white font-semibold rounded-xl text-base hover:bg-lopia-red-dark transition-colors disabled:opacity-50 shadow-sm">
-          {generating ? <><Spinner size={18} /> 產生中…</> : <>🍎 分配品番並產生貨單</>}
-        </button>
-      </div>
-
-      {/* Result */}
-      {done.length > 0 && (
-        <div className="bg-emerald-50 border border-emerald-200 rounded-xl px-5 py-4 space-y-2">
-          <div className="flex items-center gap-2">
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#059669" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
-            <span className="text-sm font-bold text-emerald-700">已產生並下載</span>
-          </div>
-          {done.map(n => <p key={n} className="text-xs text-emerald-600 font-mono ml-6">📄 {n}</p>)}
-          {notionNote && <p className="text-xs text-gray-500 ml-6">🗂 {notionNote}</p>}
-          {unknownStores.length > 0 && (
-            <p className="text-xs text-amber-700 ml-6">⚠ 計画書有無法對應的店名（已略過）：{unknownStores.join('、')}</p>
-          )}
-          {summary.length > 0 && (
-            <details className="ml-6">
-              <summary className="text-xs text-gray-400 cursor-pointer hover:text-gray-600">分配明細（{summary.length} 行，品番）</summary>
-              <ul className="mt-2 text-xs text-gray-600 space-y-0.5 max-h-60 overflow-auto">
-                {summary.map((s, i) => <li key={i} className="font-mono">{s.store}　{s.bango}　{s.name}　×{s.qty}</li>)}
-              </ul>
-            </details>
-          )}
-        </div>
-      )}
     </div>
   )
 }
