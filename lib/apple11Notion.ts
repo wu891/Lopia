@@ -35,6 +35,25 @@ function clip(s: string, max = 1900): string {
   return s.length <= max ? s : s.slice(0, max - 1) + '…'
 }
 
+/**
+ * 防重複扣帳：查歷史庫是否已有此單號的出貨紀錄。
+ * 查不到 / 無權限 → 回 false（不擋，best-effort）。
+ */
+export async function hasShipment(shipmentNo: string): Promise<boolean> {
+  if (!process.env.NOTION_API_KEY || !DB_ID) return false
+  try {
+    const notion = new Client({ auth: process.env.NOTION_API_KEY })
+    const res = await notion.databases.query({
+      database_id: DB_ID,
+      filter: { property: '單號', title: { equals: shipmentNo } },
+      page_size: 1,
+    })
+    return res.results.length > 0
+  } catch {
+    return false
+  }
+}
+
 export async function logApple11Cycle(p: Apple11CyclePayload): Promise<NotionLogResult> {
   if (!process.env.NOTION_API_KEY || !DB_ID) {
     return { ok: false, note: '未設定 Notion 蘋果11 資料庫，已略過紀錄' }
