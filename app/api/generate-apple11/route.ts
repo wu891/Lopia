@@ -57,6 +57,14 @@ export async function POST(req: NextRequest) {
         else demandMap.set(k, { store: st.code, variety: row.variety, tama: row.tama, qty: row.cases })
       }
     }
+    // 店名對不上 → 直接擋下（否則那批貨不會出現在任何單據）
+    if (unknownStores.size > 0) {
+      return NextResponse.json({
+        error: `計画書有無法對應的店名，已擋下未產生：${Array.from(unknownStores).join('、')}。請修正計画書分頁名，或在 lib/apple11Stores.ts 補上對應後再產生。`,
+        unknownStores: Array.from(unknownStores),
+      }, { status: 409 })
+    }
+
     const demands = Array.from(demandMap.values())
 
     // 4. 等級分配（不足整批擋下）

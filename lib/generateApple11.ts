@@ -78,15 +78,20 @@ function buildTemplate(stores: PlanStore[]): PlanRow[] {
 }
 function casesOf(store: PlanStore | undefined, row: PlanRow): number {
   if (!store) return 0
-  const hit = store.rows.find(r => r.variety === row.variety && r.tama === row.tama && r.price === row.price)
-  return hit ? hit.cases : 0
+  // 加總所有符合 (品種,玉数,原価) 的列（同店同品項可能有重複列，不能只取第一筆）
+  return store.rows
+    .filter(r => r.variety === row.variety && r.tama === row.tama && r.price === row.price)
+    .reduce((s, r) => s + r.cases, 0)
 }
-/** LPA 店 → 計画書 store（用 code/alias 對應） */
+/**
+ * LPA 店 → 計画書 store。若多個分頁對到同一店（主名＋alias 同時出現），
+ * 合併其列，確保店鋪貨單/總表與出庫總單(走 lines)的總量一致。
+ */
 function planStoreFor(plan: PlanRoundData, lpa: Apple11Store): PlanStore | undefined {
-  return plan.stores.find(s => {
-    const r = resolveApple11Store(s.code)
-    return r?.lpaNo === lpa.lpaNo
-  })
+  const matches = plan.stores.filter(s => resolveApple11Store(s.code)?.lpaNo === lpa.lpaNo)
+  if (matches.length === 0) return undefined
+  if (matches.length === 1) return matches[0]
+  return { code: matches[0].code, rows: matches.flatMap(m => m.rows) }
 }
 
 // ── 店鋪貨單：單店一頁 ────────────────────────────────────────────────────────
@@ -155,7 +160,7 @@ function addStoreSheet(wb: ExcelJS.Workbook, lpa: Apple11Store, shipmentNo: stri
   }
 
   // 寫一列（含樣式）
-  function writeRow(rn: number, cat: string, name: string, tama: number, qty: number | '', price: number, amount: number | ExcelJS.CellFormulaValue | '', zero: boolean) {
+  function writeRow(rn: number, cat: string, name: string, tama: number, qty: number | null, price: number, amount: number | ExcelJS.CellFormulaValue | null, zero: boolean) {
     ws.addRow([cat, name, tama, qty, price, amount])
     const r = ws.getRow(rn); r.height = 17
     r.eachCell({ includeEmpty: true }, cell => {
@@ -170,14 +175,15 @@ function addStoreSheet(wb: ExcelJS.Workbook, lpa: Apple11Store, shipmentNo: stri
     styleCell(ws, `F${rn}`, { align: 'right', numFmt: '#,##0' })
   }
 
-  let rn = 10
-  const qtyRefs: string[] = [], amtRefs: string[] = []
+  const firstDataRow = 10
+  let rn = firstDataRow
   for (const row of template) {
     const cases = casesOf(store, row)
     const tag = tokkaTag(row)
     if (cases <= 0) {
-      writeRow(rn, '', `${row.variety}${tag}`, row.tama, '', row.price, '', true)
-      qtyRefs.push(`D${rn}`); amtRefs.push(`F${rn}`); rn++
+      // 0 箱列：箱數/小計留「真正空白」(null)，避免合計把空字串當文字運算
+      writeRow(rn, '', `${row.variety}${tag}`, row.tama, null, row.price, null, true)
+      rn++
     } else {
       // 依等級拆列（少拆行的分配結果；跨等級就多列）
       for (const c of drawGrades(`${row.variety}|${row.tama}`, cases)) {
@@ -185,13 +191,16 @@ function addStoreSheet(wb: ExcelJS.Workbook, lpa: Apple11Store, shipmentNo: stri
           ? `${row.variety}${tag}（${c.grade} ${row.tama}玉）`
           : `${row.variety}${tag} ${row.tama}玉`
         writeRow(rn, '水果', name, row.tama, c.qty, row.price, { formula: `D${rn}*E${rn}` }, false)
-        qtyRefs.push(`D${rn}`); amtRefs.push(`F${rn}`); rn++
+        rn++
       }
     }
   }
 
-  // 合計
-  ws.addRow(['合　計', '', '', { formula: qtyRefs.join('+') }, '箱', { formula: amtRefs.join('+') }])
+  // 合計（用 SUM 範圍：自動忽略空白列，不會因 0 箱空格報 #VALUE!）
+  const lastDataRow = rn - 1
+  const sumD = lastDataRow >= firstDataRow ? { formula: `SUM(D${firstDataRow}:D${lastDataRow})` } : 0
+  const sumF = lastDataRow >= firstDataRow ? { formula: `SUM(F${firstDataRow}:F${lastDataRow})` } : 0
+  ws.addRow(['合　計', '', '', sumD, '箱', sumF])
   const tr = ws.getRow(rn); tr.height = 18
   tr.eachCell({ includeEmpty: true }, cell => {
     cell.fill = fill(C_GRAY); cell.font = { bold: true, name: 'Arial', size: 11 }
@@ -253,10 +262,11 @@ function addSummarySheet(wb: ExcelJS.Workbook, shipmentNo: string, dateStr: stri
     styleCell(ws, `${colLetter(amtCol)}${rn}`, { align: 'right', bg: C_GRAY_LIGHT, bold: true, numFmt: '#,##0' })
     rn++
   }
-  // 合計
-  ws.addRow(['合　計', '', '', ...stores.map((_, i) => ({ formula: `SUM(${colLetter(4 + i)}3:${colLetter(4 + i)}${rn - 1})` })),
-    { formula: `SUM(${colLetter(3 + sc + 1)}3:${colLetter(3 + sc + 1)}${rn - 1})` },
-    { formula: `SUM(${colLetter(3 + sc + 2)}3:${colLetter(3 + sc + 2)}${rn - 1})` }])
+  // 合計（無資料列時用 0，避免反向 SUM 範圍 SUM(x3:x2)）
+  const hasData = rn > 3
+  const sumCol = (col: number) => hasData ? { formula: `SUM(${colLetter(col)}3:${colLetter(col)}${rn - 1})` } : 0
+  ws.addRow(['合　計', '', '', ...stores.map((_, i) => sumCol(4 + i)),
+    sumCol(3 + sc + 1), sumCol(3 + sc + 2)])
   ws.mergeCells(rn, 1, rn, 3)
   const tr = ws.getRow(rn); tr.height = 18
   tr.eachCell({ includeEmpty: true }, cell => {
