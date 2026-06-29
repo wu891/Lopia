@@ -65,7 +65,9 @@ function parseStoreSheet(ws: XLSX.WorkSheet): PlanRow[] {
     if (variety == null) continue           // 合計列 / 空列：B 欄非品種
     const tama = typeof tamaRaw === 'number' ? tamaRaw : parseInt(String(tamaRaw ?? ''), 10)
     if (!tama || isNaN(tama)) continue
-    const cases = typeof r[2] === 'number' ? r[2] : parseFloat(String(r[2] ?? '0')) || 0
+    // ケース＝箱數，必為整數；四捨五入避免小數造成逐列顯示與合計對不上
+    const casesRaw = typeof r[2] === 'number' ? r[2] : parseFloat(String(r[2] ?? '0')) || 0
+    const cases = Math.round(casesRaw)
     const price = typeof r[4] === 'number' ? r[4] : parseFloat(String(r[4] ?? '0')) || 0
     out.push({ variety, tama, price, cases })
   }
