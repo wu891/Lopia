@@ -90,19 +90,23 @@ function planStoreFor(plan: PlanRoundData, lpa: Apple11Store): PlanStore | undef
 }
 
 // ── 店鋪貨單：單店一頁 ────────────────────────────────────────────────────────
-function addStoreSheet(wb: ExcelJS.Workbook, lpa: Apple11Store, shipmentNo: string, dateStr: string, template: PlanRow[], store: PlanStore | undefined) {
+function addStoreSheet(wb: ExcelJS.Workbook, lpa: Apple11Store, shipmentNo: string, dateStr: string, template: PlanRow[], store: PlanStore | undefined, storeLines: AllocationLine[]) {
   const ws = wb.addWorksheet(lpa.fullName.slice(0, 31), { views: [{ showGridLines: false }] })
   ws.columns = [
-    { key: 'name', width: 26 }, { key: 'spec', width: 9 }, { key: 'qty', width: 8 },
-    { key: 'price', width: 14 }, { key: 'amount', width: 14 },
+    { width: 7 },   // A 商品類別
+    { width: 28 },  // B 商品名稱
+    { width: 7 },   // C 入數(玉数)
+    { width: 8 },   // D 箱數
+    { width: 14 },  // E 單價
+    { width: 14 },  // F 小計
   ]
 
-  ws.addRow([COMPANY_NAME]); ws.mergeCells('A1:E1')
+  ws.addRow([COMPANY_NAME]); ws.mergeCells('A1:F1')
   applyRow(ws.getRow(1), { bg: C_BLUE_LIGHT, bold: true, size: 12, align: 'center', height: 22 })
-  ws.addRow([COMPANY_INFO]); ws.mergeCells('A2:E2')
+  ws.addRow([COMPANY_INFO]); ws.mergeCells('A2:F2')
   applyRow(ws.getRow(2), { bg: C_BLUE_LIGHT, size: 10, align: 'center', height: 16 })
   ws.addRow(['']); ws.getRow(3).height = 6
-  ws.addRow(['出貨單 / 納品書']); ws.mergeCells('A4:E4')
+  ws.addRow(['出貨單 / 納品書']); ws.mergeCells('A4:F4')
   applyRow(ws.getRow(4), { bold: true, size: 16, color: C_BLUE_DARK, align: 'center', height: 28 })
   ws.addRow(['出貨單號：', shipmentNo]); applyRow(ws.getRow(5), { height: 18 })
   styleCell(ws, 'A5', { color: 'FF888888', size: 11 }); styleCell(ws, 'B5', { bold: true, size: 11 })
@@ -112,7 +116,7 @@ function addStoreSheet(wb: ExcelJS.Workbook, lpa: Apple11Store, shipmentNo: stri
   styleCell(ws, 'A7', { color: 'FF888888', size: 11 }); styleCell(ws, 'B7', { bold: true, size: 13, color: C_RED_STORE })
   ws.addRow(['']); ws.getRow(8).height = 4
 
-  ws.addRow(['商品名稱', '規格', '箱數', '單價(TWD/箱)', '小計(TWD)'])
+  ws.addRow(['商品類別', '商品名稱', '入數', '箱數', '單價(TWD/箱)', '小計(TWD)'])
   ws.getRow(9).height = 20
   ws.getRow(9).eachCell({ includeEmpty: true }, cell => {
     cell.fill = fill(C_BLUE_DARK)
@@ -121,42 +125,86 @@ function addStoreSheet(wb: ExcelJS.Workbook, lpa: Apple11Store, shipmentNo: stri
     cell.border = allBorders()
   })
 
+  // 特価判定：同(品種,玉數)有多個價格時，非最高價者為特価
+  const maxPrice = new Map<string, number>()
+  for (const row of template) {
+    const k = `${row.variety}|${row.tama}`
+    maxPrice.set(k, Math.max(maxPrice.get(k) ?? 0, row.price))
+  }
+  const tokkaTag = (row: PlanRow) => row.price < (maxPrice.get(`${row.variety}|${row.tama}`) ?? row.price) ? '【特価】' : ''
+
+  // 本店各(品種,玉數)分配到的等級池（可被多個價格列依序領取）
+  const pool = new Map<string, { grade: string; qty: number }[]>()
+  for (const l of storeLines) {
+    const k = `${l.variety}|${l.tama}`
+    if (!pool.has(k)) pool.set(k, [])
+    pool.get(k)!.push({ grade: l.grade, qty: l.qty })
+  }
+  function drawGrades(k: string, need: number): { grade: string; qty: number }[] {
+    const arr = pool.get(k) ?? []
+    const out: { grade: string; qty: number }[] = []
+    let left = need
+    for (const e of arr) {
+      if (left <= 0) break
+      if (e.qty <= 0) continue
+      const take = Math.min(e.qty, left); e.qty -= take; left -= take
+      out.push({ grade: e.grade, qty: take })
+    }
+    if (left > 0) out.push({ grade: '', qty: left })  // 理論上不會發生
+    return out
+  }
+
+  // 寫一列（含樣式）
+  function writeRow(rn: number, cat: string, name: string, tama: number, qty: number | '', price: number, amount: number | ExcelJS.CellFormulaValue | '', zero: boolean) {
+    ws.addRow([cat, name, tama, qty, price, amount])
+    const r = ws.getRow(rn); r.height = 17
+    r.eachCell({ includeEmpty: true }, cell => {
+      cell.fill = fill((rn % 2 === 0) ? 'FFFAFAFA' : 'FFFFFFFF')
+      cell.font = { name: 'Arial', size: 10, ...(zero ? { color: { argb: C_ZERO_TEXT } } : {}) }
+      cell.border = allBorders(); cell.alignment = { vertical: 'middle' }
+    })
+    styleCell(ws, `A${rn}`, { align: 'center' })
+    styleCell(ws, `C${rn}`, { align: 'center', numFmt: '0' })
+    styleCell(ws, `D${rn}`, { align: 'center', bold: !zero, numFmt: '0' })
+    styleCell(ws, `E${rn}`, { align: 'right', numFmt: '#,##0' })
+    styleCell(ws, `F${rn}`, { align: 'right', numFmt: '#,##0' })
+  }
+
   let rn = 10
   const qtyRefs: string[] = [], amtRefs: string[] = []
   for (const row of template) {
     const cases = casesOf(store, row)
-    const rowBg = (rn % 2 === 0) ? 'FFFAFAFA' : 'FFFFFFFF'
-    ws.addRow([`${row.variety} ${row.tama}玉`, `${row.tama}玉`, cases, row.price,
-      cases > 0 ? { formula: `C${rn}*D${rn}` } : 0])
-    const r = ws.getRow(rn); r.height = 17
-    const isZero = cases === 0
-    r.eachCell({ includeEmpty: true }, cell => {
-      cell.fill = fill(rowBg)
-      cell.font = { name: 'Arial', size: 10, ...(isZero ? { color: { argb: C_ZERO_TEXT } } : {}) }
-      cell.border = allBorders()
-      cell.alignment = { vertical: 'middle' }
-    })
-    styleCell(ws, `B${rn}`, { align: 'center' })
-    styleCell(ws, `C${rn}`, { align: 'center', bold: !isZero, numFmt: '0' })
-    styleCell(ws, `D${rn}`, { align: 'right', numFmt: '#,##0' })
-    styleCell(ws, `E${rn}`, { align: 'right', numFmt: '#,##0' })
-    qtyRefs.push(`C${rn}`); amtRefs.push(`E${rn}`)
-    rn++
+    const tag = tokkaTag(row)
+    if (cases <= 0) {
+      writeRow(rn, '', `${row.variety}${tag}`, row.tama, '', row.price, '', true)
+      qtyRefs.push(`D${rn}`); amtRefs.push(`F${rn}`); rn++
+    } else {
+      // 依等級拆列（少拆行的分配結果；跨等級就多列）
+      for (const c of drawGrades(`${row.variety}|${row.tama}`, cases)) {
+        const name = c.grade
+          ? `${row.variety}${tag}（${c.grade} ${row.tama}玉）`
+          : `${row.variety}${tag} ${row.tama}玉`
+        writeRow(rn, '水果', name, row.tama, c.qty, row.price, { formula: `D${rn}*E${rn}` }, false)
+        qtyRefs.push(`D${rn}`); amtRefs.push(`F${rn}`); rn++
+      }
+    }
   }
-  ws.addRow(['合　計', '', { formula: qtyRefs.join('+') }, '箱', { formula: amtRefs.join('+') }])
+
+  // 合計
+  ws.addRow(['合　計', '', '', { formula: qtyRefs.join('+') }, '箱', { formula: amtRefs.join('+') }])
   const tr = ws.getRow(rn); tr.height = 18
   tr.eachCell({ includeEmpty: true }, cell => {
     cell.fill = fill(C_GRAY); cell.font = { bold: true, name: 'Arial', size: 11 }
     cell.border = allBorders(); cell.alignment = { vertical: 'middle' }
   })
-  ws.mergeCells(`A${rn}:B${rn}`)
+  ws.mergeCells(`A${rn}:C${rn}`)
   styleCell(ws, `A${rn}`, { align: 'center' })
-  styleCell(ws, `C${rn}`, { align: 'center', numFmt: '0' })
-  styleCell(ws, `D${rn}`, { align: 'center' })
-  styleCell(ws, `E${rn}`, { align: 'right', numFmt: '#,##0' })
+  styleCell(ws, `D${rn}`, { align: 'center', numFmt: '0' })
+  styleCell(ws, `E${rn}`, { align: 'center' })
+  styleCell(ws, `F${rn}`, { align: 'right', numFmt: '#,##0' })
   const sigRn = rn + 2
   ws.addRow(['']); ws.addRow(['收貨簽名：___________________________　　日期：___________'])
-  ws.mergeCells(`A${sigRn}:E${sigRn}`); styleCell(ws, `A${sigRn}`, { size: 10 }); ws.getRow(sigRn).height = 18
+  ws.mergeCells(`A${sigRn}:F${sigRn}`); styleCell(ws, `A${sigRn}`, { size: 10 }); ws.getRow(sigRn).height = 18
 }
 
 // ── 店鋪貨單：總表 ────────────────────────────────────────────────────────────
@@ -282,7 +330,8 @@ export async function generateApple11StoreExcel(opts: Apple11GenOptions): Promis
   const dateStr = opts.deliveryDate.replace(/-/g, '/')
   const template = buildTemplate(opts.plan.stores)
   for (const lpa of APPLE11_STORES) {
-    addStoreSheet(wb, lpa, opts.shipmentNo, dateStr, template, planStoreFor(opts.plan, lpa))
+    const storeLines = opts.lines.filter(l => resolveApple11Store(l.store)?.lpaNo === lpa.lpaNo)
+    addStoreSheet(wb, lpa, opts.shipmentNo, dateStr, template, planStoreFor(opts.plan, lpa), storeLines)
   }
   addSummarySheet(wb, opts.shipmentNo, dateStr, template, opts.plan)
   return Buffer.from(await wb.xlsx.writeBuffer())
