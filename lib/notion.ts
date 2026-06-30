@@ -630,26 +630,62 @@ export async function getExcelRows(): Promise<ExcelRow[]> {
   })
 }
 
+// Notion 速率限制約每秒 3 筆；遇到 429 / 5xx / conflict 自動退避重試
+async function notionRetry<T>(fn: () => Promise<T>, tries = 6): Promise<T> {
+  let delay = 400
+  for (let i = 0; i < tries; i++) {
+    try {
+      return await fn()
+    } catch (e) {
+      const err = e as { code?: string | number; status?: number; headers?: Record<string, string> }
+      const code = err?.code ?? err?.status
+      const retriable =
+        code === 'rate_limited' || code === 429 || code === 'conflict_error' ||
+        code === 'internal_server_error' || code === 'service_unavailable' ||
+        (typeof code === 'number' && code >= 500)
+      if (!retriable || i === tries - 1) throw e
+      const ra = Number(err?.headers?.['retry-after'])
+      await new Promise(res => setTimeout(res, Number.isFinite(ra) && ra > 0 ? ra * 1000 : delay))
+      delay = Math.min(delay * 2, 8000)
+    }
+  }
+  throw new Error('notionRetry: unreachable')
+}
+
+// 限制同時併發數（預設 3，貼合 Notion 速率限制），避免一次送上百筆被擋
+async function mapLimit<T, R>(items: T[], limit: number, fn: (x: T) => Promise<R>): Promise<R[]> {
+  const out: R[] = new Array(items.length)
+  let idx = 0
+  async function worker() {
+    while (idx < items.length) {
+      const i = idx++
+      out[i] = await fn(items[i])
+    }
+  }
+  await Promise.all(Array.from({ length: Math.min(limit, items.length || 1) }, worker))
+  return out
+}
+
 export async function saveExcelRows(rows: ExcelRow[], shipmentNos: string[]): Promise<void> {
   const DB = process.env.NOTION_EXCEL_ROWS_DB
   if (!DB) return
 
-  // Delete existing rows for the given shipment numbers to avoid duplicates
+  // 先刪掉同出貨單號的舊資料避免重複（限併發 + 重試）
   if (shipmentNos.length > 0) {
     for (const sno of shipmentNos) {
-      const existing = await notion.databases.query({
+      const existing = await notionRetry(() => notion.databases.query({
         database_id: DB,
         filter: { property: 'ShipmentNo', rich_text: { equals: sno } },
-      })
-      await Promise.all(existing.results.map(p =>
-        notion.pages.update({ page_id: p.id, archived: true })
-      ))
+      }))
+      await mapLimit(existing.results, 3, p =>
+        notionRetry(() => notion.pages.update({ page_id: p.id, archived: true }))
+      )
     }
   }
 
-  // Create new rows
-  await Promise.all(rows.map(r =>
-    notion.pages.create({
+  // 建立新資料（限併發 3 + 遇限流自動重試，避免一次上百筆同時送被 Notion 擋下）
+  await mapLimit(rows, 3, r =>
+    notionRetry(() => notion.pages.create({
       parent: { database_id: DB },
       properties: {
         '名稱': { title: [{ text: { content: `${r.shipmentNo}_${r.store}_${r.product}` } }] },
@@ -662,8 +698,8 @@ export async function saveExcelRows(rows: ExcelRow[], shipmentNos: string[]): Pr
         '單價': { number: r.unitPrice },
         '類別': { select: { name: r.category } },
       },
-    })
-  ))
+    }))
+  )
 }
 
 // ── Batch Prices ──────────────────────────────────────────────────────────────

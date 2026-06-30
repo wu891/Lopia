@@ -1829,44 +1829,59 @@ async function ensureEditAuth() {
     }
 }
 
-// 把 Excel 出貨資料寫進 Notion（需要編輯權限）。成功/失敗都會明確跳提示，不再默默失敗。
+// 把 Excel 出貨資料寫進 Notion（需要編輯權限）。
+// 重要：依「出貨單號」分組、一張一批依序送，避免一次上百筆被 Notion 限流(429)或函式逾時。
+// 成功/失敗都會明確跳提示，不再默默失敗。
 async function pushExcelRowsToNotion(rowsToAdd, shipmentNos) {
-    const payload = rowsToAdd.map(r => ({
-        shipmentNo: r.shipmentNo,
-        date: r.date,
-        store: r.store,
-        product: r.product,
-        spec: r.spec || '',
-        quantity: r.quantity,
-        unitPrice: r.unitPrice,
-        category: r.category,
+    // 依出貨單號分組
+    const groups = {};
+    rowsToAdd.forEach(r => {
+        const k = r.shipmentNo || '未編號';
+        if (!groups[k]) groups[k] = [];
+        groups[k].push(r);
+    });
+    const entries = Object.entries(groups);
+    if (!entries.length) return;
+
+    const toPayload = rs => rs.map(r => ({
+        shipmentNo: r.shipmentNo, date: r.date, store: r.store, product: r.product,
+        spec: r.spec || '', quantity: r.quantity, unitPrice: r.unitPrice, category: r.category,
     }));
-    const doPost = () => fetch(`${API_BASE}/api/excel-rows`, {
+    const postGroup = (sno, rs) => fetch(`${API_BASE}/api/excel-rows`, {
         method: 'POST',
         credentials: 'same-origin',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ rows: payload, shipmentNos: shipmentNos || [] }),
+        body: JSON.stringify({ rows: toPayload(rs), shipmentNos: [sno] }),
     });
-    try {
-        let res = await doPost();
-        // 401 = 沒有編輯權限 → 問密碼後重試一次
-        if (res.status === 401) {
-            const ok = await ensureEditAuth();
-            if (!ok) {
-                showToast('⚠️ 尚未存進 Notion：資料只暫存在這台電腦的瀏覽器，按「同步」就會不見', 'error');
-                return;
+
+    let okCount = 0, okRows = 0, authed = false;
+    const failNos = [];
+    for (let i = 0; i < entries.length; i++) {
+        const [sno, rs] = entries[i];
+        showToast(`正在存進 Notion… ${i + 1}/${entries.length}（${sno}，${rs.length} 列）`, 'success');
+        try {
+            let res = await postGroup(sno, rs);
+            // 第一批遇到 401（沒權限）→ 問一次編輯密碼，之後各批沿用
+            if (res.status === 401 && !authed) {
+                const ok = await ensureEditAuth();
+                if (!ok) {
+                    showToast(`⚠️ 已存 ${okCount}/${entries.length} 張；其餘未存進 Notion（沒有編輯權限），資料只在本機`, 'error');
+                    return;
+                }
+                authed = true;
+                res = await postGroup(sno, rs);
             }
-            res = await doPost();
+            if (res.ok) { okCount++; okRows += rs.length; }
+            else { const t = await res.text().catch(() => ''); failNos.push(`${sno}(${res.status}${t ? ' ' + t.slice(0, 40) : ''})`); }
+        } catch (e) {
+            failNos.push(`${sno}(連線失敗)`);
         }
-        if (res.ok) {
-            const j = await res.json().catch(() => ({}));
-            showToast(`✅ 已永久存進 Notion ${j.count ?? payload.length} 筆`, 'success');
-        } else {
-            const t = await res.text().catch(() => '');
-            showToast(`⚠️ 存進 Notion 失敗（${res.status}）：資料只在本機。${t.slice(0, 80)}`, 'error');
-        }
-    } catch (e) {
-        showToast('⚠️ 存進 Notion 連線失敗：資料只在本機。' + e.message, 'error');
+    }
+
+    if (failNos.length === 0) {
+        showToast(`✅ 已永久存進 Notion：${okCount} 張出貨單、共 ${okRows} 列`, 'success');
+    } else {
+        showToast(`⚠️ ${okCount}/${entries.length} 張成功存進 Notion；失敗：${failNos.join('、').slice(0, 140)}`, 'error');
     }
 }
 

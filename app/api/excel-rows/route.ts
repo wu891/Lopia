@@ -2,6 +2,9 @@ import { NextRequest, NextResponse } from 'next/server'
 import { getExcelRows, saveExcelRows } from '@/lib/notion'
 import { requireAuth } from '@/lib/auth'
 
+// 寫 Notion 要逐筆建立多列，拉高函式逾時上限（前端已改成「一張單一批」依序送，單批通常 < 45 列）
+export const maxDuration = 60
+
 export async function GET() {
   try {
     const rows = await getExcelRows()
