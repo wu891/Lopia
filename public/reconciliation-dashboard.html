@@ -530,7 +530,7 @@ const STORE_MAP = {
     '漢神':'台中漢神中港店','中漢':'台中漢神中港店','中港':'台中漢神中港店',
     '北蛋':'台北大巨蛋店','sogo':'台南 SOGO 新天店','高漢':'高雄漢神百貨店'
 };
-const PROCESSED_KW = ['ジュース','果汁','ジャム','果醬','ドライ','果乾','ゼリー','果凍','チョコ','ケーキ','クッキー','餅乾','アイス','プリン','加工','調味','醬','sauce','ソース','漬け','醃','干し','乾燥','冷凍','罐','瓶','ボトル','大学芋','大學芋','スティック','揚げ','フライ','コロッケ','焼き芋','干しいも','いもスティック','天ぷら','炒め'];
+const PROCESSED_KW = ['ジュース','果汁','ジャム','果醬','ドライ','果乾','ゼリー','果凍','チョコ','ケーキ','クッキー','餅乾','アイス','プリン','加工','調味','醬','sauce','ソース','漬け','醃','干し','乾燥','冷凍','罐','瓶','ボトル','大学芋','大學芋','スティック','揚げ','フライ','コロッケ','焼き芋','干しいも','いもスティック','天ぷら','炒め','地瓜條','芋條','酥脆地瓜'];
 const VEG_KW = ['地瓜','さつまいも','サツマイモ','甘薯','馬鈴薯','じゃがいも','キャベツ','高麗菜','白菜','大根','蘿蔔','にんじん','紅蘿蔔','トマト','番茄','レタス','ほうれん草','きゅうり','なす','茄子','玉ねぎ','洋蔥','ねぎ','蔥','にんにく','大蒜','ブロッコリー','アスパラ','とうもろこし','えだまめ','毛豆','芋','野菜','蔬菜'];
 
 function classifyProduct(name) {
@@ -1801,30 +1801,72 @@ async function confirmExcelImport() {
     document.getElementById('excel-modal').classList.remove('active');
     excelPreviewRows = [];
     refreshAll();
-    showToast(`已加入 ${allData.filter(r=>r.source==='excel').length} 筆 Excel 出貨資料`, 'success');
+    showToast(`已加入 ${allData.filter(r=>r.source==='excel').length} 筆（本機）｜正在存進 Notion…`, 'success');
 
-    // Write back to Notion (non-blocking — fails gracefully if DB not set up)
+    // 寫回 Notion：以前失敗只 console.warn（默默失敗），現在改成「需要權限就問密碼、成功/失敗都跳提示」
+    await pushExcelRowsToNotion(rowsToAdd, [...nos]);
+    if (btn) btn.disabled = false;
+}
+
+// 確保有「編輯權限」：對帳系統是獨立網頁、沒有登入流程，所以寫 Notion 前先問編輯密碼，向 /api/auth 換取權限 cookie
+async function ensureEditAuth() {
+    const pw = prompt('請輸入「編輯密碼」，才能把資料永久存進 Notion：');
+    if (!pw) return false;
     try {
-        const payload = rowsToAdd.map(r => ({
-            shipmentNo: r.shipmentNo,
-            date: r.date,
-            store: r.store,
-            product: r.product,
-            spec: r.spec || '',
-            quantity: r.quantity,
-            unitPrice: r.unitPrice,
-            category: r.category,
-        }));
-        const res = await fetch(`${API_BASE}/api/excel-rows`, {
+        const res = await fetch(`${API_BASE}/api/auth`, {
             method: 'POST',
+            credentials: 'same-origin',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ rows: payload, shipmentNos: [...nos] }),
+            body: JSON.stringify({ password: pw }),
         });
-        if (!res.ok) console.warn('Excel rows Notion sync failed:', await res.text());
+        const j = await res.json().catch(() => ({}));
+        if (res.ok && j.ok) return true;
+        showToast(`密碼驗證失敗：${j.error || ('錯誤 ' + res.status)}`, 'error');
+        return false;
     } catch (e) {
-        console.warn('Excel rows Notion sync error:', e);
-    } finally {
-        if (btn) btn.disabled = false;
+        showToast('密碼驗證連線失敗：' + e.message, 'error');
+        return false;
+    }
+}
+
+// 把 Excel 出貨資料寫進 Notion（需要編輯權限）。成功/失敗都會明確跳提示，不再默默失敗。
+async function pushExcelRowsToNotion(rowsToAdd, shipmentNos) {
+    const payload = rowsToAdd.map(r => ({
+        shipmentNo: r.shipmentNo,
+        date: r.date,
+        store: r.store,
+        product: r.product,
+        spec: r.spec || '',
+        quantity: r.quantity,
+        unitPrice: r.unitPrice,
+        category: r.category,
+    }));
+    const doPost = () => fetch(`${API_BASE}/api/excel-rows`, {
+        method: 'POST',
+        credentials: 'same-origin',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ rows: payload, shipmentNos: shipmentNos || [] }),
+    });
+    try {
+        let res = await doPost();
+        // 401 = 沒有編輯權限 → 問密碼後重試一次
+        if (res.status === 401) {
+            const ok = await ensureEditAuth();
+            if (!ok) {
+                showToast('⚠️ 尚未存進 Notion：資料只暫存在這台電腦的瀏覽器，按「同步」就會不見', 'error');
+                return;
+            }
+            res = await doPost();
+        }
+        if (res.ok) {
+            const j = await res.json().catch(() => ({}));
+            showToast(`✅ 已永久存進 Notion ${j.count ?? payload.length} 筆`, 'success');
+        } else {
+            const t = await res.text().catch(() => '');
+            showToast(`⚠️ 存進 Notion 失敗（${res.status}）：資料只在本機。${t.slice(0, 80)}`, 'error');
+        }
+    } catch (e) {
+        showToast('⚠️ 存進 Notion 連線失敗：資料只在本機。' + e.message, 'error');
     }
 }
 
