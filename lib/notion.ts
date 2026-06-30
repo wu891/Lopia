@@ -667,7 +667,7 @@ async function mapLimit<T, R>(items: T[], limit: number, fn: (x: T) => Promise<R
 }
 
 export async function saveExcelRows(rows: ExcelRow[], shipmentNos: string[]): Promise<void> {
-  const DB = process.env.NOTION_EXCEL_ROWS_DB
+  const DB = process.env.NOTION_EXCEL_ROWS_DB?.trim() // trim 防 env 尾端換行（printf vs echo 陷阱）；缺這個會讓寫入 database_id 帶 \n → Notion 400 → 500
   if (!DB) return
 
   // 先刪掉同出貨單號的舊資料避免重複（限併發 + 重試）
@@ -748,7 +748,7 @@ export async function getBatchPrices(): Promise<Record<string, BatchPriceEntry[]
 }
 
 export async function saveBatchPrices(prices: Record<string, BatchPriceEntry[]>): Promise<void> {
-  const BATCH_PRICES_DB = process.env.NOTION_BATCH_PRICES_DB
+  const BATCH_PRICES_DB = process.env.NOTION_BATCH_PRICES_DB?.trim() // trim 防 env 尾端換行（printf vs echo 陷阱）
   if (!BATCH_PRICES_DB) return
 
   for (const batchId of Object.keys(prices)) {
