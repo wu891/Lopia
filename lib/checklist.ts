@@ -154,6 +154,25 @@ export async function deleteChecklist(id: string): Promise<void> {
   await notion.pages.update({ page_id: id, archived: true })
 }
 
+// 更新基本資料：出貨單號／配送日期／出貨內容。
+// 勾選與退回紀錄完全不動（content 存在狀態 JSON 裡，所以要連同原本的 state 一起寫回）
+export async function updateChecklistInfo(id: string, state: ChecklistState, data: {
+  shipmentNo: string
+  deliveryDate: string | null
+  content: string | null
+}): Promise<Checklist> {
+  const next: ChecklistState = { ...state, content: data.content ?? undefined }
+  const page = await notion.pages.update({
+    page_id: id,
+    properties: {
+      '出貨單號': { title: [{ text: { content: data.shipmentNo } }] },
+      '配送日期': { date: data.deliveryDate ? { start: data.deliveryDate } : null },
+      ...stateProps(next),
+    },
+  })
+  return pageToChecklist(page)
+}
+
 // 把整份新狀態寫回 Notion
 export async function saveChecklistState(id: string, state: ChecklistState): Promise<Checklist> {
   const page = await notion.pages.update({

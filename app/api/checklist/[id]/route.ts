@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import {
   getChecklistById, saveChecklistState, deleteChecklist,
+  updateChecklistInfo, getChecklistByShipmentNo,
   applyCheck, applyReject, canCheck,
   currentLayerId, personName, LAST_LAYER_ID,
 } from '@/lib/checklist'
@@ -69,7 +70,7 @@ export async function DELETE(_req: NextRequest, { params }: { params: Promise<{ 
   }
 }
 
-// PATCH：勾/取消勾（action=check）或 退回（action=reject）
+// PATCH：勾/取消勾（action=check）、修改基本資料（action=edit）或 退回（action=reject）
 export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const who = await requireWho()
   if (!who) return NextResponse.json({ error: '請先登入' }, { status: 401 })
@@ -110,6 +111,25 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
       if (checked && afterLayer > beforeLayer) {
         await pushToGroup(nextUpMessage(saved.shipmentNo, afterLayer))
       }
+      return NextResponse.json({ item: saved })
+    }
+
+    // edit：修改基本資料（出貨單號／配送日期／出貨內容），不動勾選與退回紀錄
+    if (action === 'edit') {
+      const shipmentNo = clampLen(String(body.shipmentNo ?? ''), 100).trim()
+      if (!shipmentNo) return NextResponse.json({ error: '出貨單號不能空白' }, { status: 400 })
+      const deliveryDate = typeof body.deliveryDate === 'string' && body.deliveryDate ? body.deliveryDate : null
+      const content = clampLen(String(body.content ?? ''), 300).trim() || null
+
+      // 如果改了單號，先確認沒有跟別張單撞號
+      if (shipmentNo !== current.shipmentNo) {
+        const dup = await getChecklistByShipmentNo(shipmentNo)
+        if (dup && dup.id !== id) {
+          return NextResponse.json({ error: `${shipmentNo} 已經有檢查清單了` }, { status: 400 })
+        }
+      }
+
+      const saved = await updateChecklistInfo(id, current.state, { shipmentNo, deliveryDate, content })
       return NextResponse.json({ item: saved })
     }
 
