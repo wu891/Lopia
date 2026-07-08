@@ -150,13 +150,9 @@ export default function ChecklistPage() {
       )}
 
       <main className="max-w-3xl mx-auto px-3 sm:px-4 py-4">
-        {!configured && (
-          <div className="rounded-lg bg-amber-50 border border-amber-300 p-4 text-sm text-amber-800 mb-4">
-            系統尚未設定檢查清單資料庫（NOTION_CHECKLIST_DB）。請先完成 Vercel 環境變數設定。
-          </div>
-        )}
-
-        {!who ? (
+        {!configured ? (
+          <SetupPanel flash={flash} onDone={loadAll} />
+        ) : !who ? (
           <LoginPanel pinsReady={pinsReady} onLogin={setWho} flash={flash} />
         ) : (
           <>
@@ -235,6 +231,71 @@ function LoginPanel({ pinsReady, onLogin, flash }: {
         onClick={submit}
         className="w-full py-3 rounded-lg bg-[#1a2744] text-white font-bold disabled:opacity-40"
       >{busy ? '登入中…' : '登入'}</button>
+    </div>
+  )
+}
+
+// ── 一次性建置（尚未設定資料庫時顯示）────────────────────────────────────────
+function SetupPanel({ flash, onDone }: {
+  flash: (t: 'err' | 'ok', m: string) => void
+  onDone: () => void
+}) {
+  const [pw, setPw] = useState('')
+  const [busy, setBusy] = useState(false)
+  const [dbId, setDbId] = useState<string | null>(null)
+
+  async function run() {
+    if (!pw) return
+    setBusy(true)
+    try {
+      // 先用編輯密碼登入主站（設定 edit cookie），再呼叫建置端點
+      const a = await fetch('/api/auth', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ password: pw }),
+      })
+      const ad = await a.json()
+      if (!ad.ok) { flash('err', ad.error ?? '編輯密碼錯誤'); return }
+
+      const s = await fetch('/api/checklist/setup', { method: 'POST' })
+      const sd = await s.json()
+      if (s.ok && sd.databaseId) { setDbId(sd.databaseId); flash('ok', '資料庫已建立') }
+      else if (sd.alreadyConfigured) { flash('ok', '已設定，重新整理即可'); onDone() }
+      else flash('err', sd.error ?? '建立失敗')
+    } catch {
+      flash('err', '建立失敗')
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  return (
+    <div className="rounded-xl bg-white border border-slate-200 p-5 shadow-sm">
+      <div className="font-bold text-slate-800 mb-1">第一次使用：建立檢查清單資料庫</div>
+      <p className="text-sm text-slate-500 leading-relaxed mb-3">
+        系統還沒接上 Notion 資料庫。輸入<b>主站編輯密碼</b>後按下方按鈕，會自動幫你建好資料庫並顯示一組 ID。
+      </p>
+      {!dbId ? (
+        <>
+          <input
+            type="password" placeholder="輸入主站編輯密碼"
+            value={pw} onChange={e => setPw(e.target.value)}
+            onKeyDown={e => { if (e.key === 'Enter') run() }}
+            className="w-full border border-slate-300 rounded-lg px-3 py-3 text-base mb-3"
+          />
+          <button disabled={!pw || busy} onClick={run}
+            className="w-full py-3 rounded-lg bg-[#1a2744] text-white font-bold disabled:opacity-40">
+            {busy ? '建立中…' : '建立資料庫'}
+          </button>
+        </>
+      ) : (
+        <div className="rounded-lg bg-emerald-50 border border-emerald-300 p-3 text-sm text-emerald-800">
+          <div className="font-bold mb-1">✅ 資料庫已建立！接下來請到 Vercel 設定環境變數：</div>
+          <div className="font-mono text-xs bg-white border border-emerald-200 rounded p-2 my-2 break-all">
+            NOTION_CHECKLIST_DB = {dbId}
+          </div>
+          <div>再設 <span className="font-mono">CHECKLIST_PINS</span>（各人 PIN），重新部署後即可使用。</div>
+        </div>
+      )}
     </div>
   )
 }
