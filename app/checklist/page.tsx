@@ -141,7 +141,14 @@ export default function ChecklistPage() {
     setDeepShip(null)
   }, [deepShip, items])
 
-  async function refreshOne(id: string) {
+  // 更新單張卡片。勾選/退回/修改的 API 回應本身就帶著更新後的整張單（updated），
+  // 直接套用就好，省掉再打一次 API 重新抓的整趟來回（這曾是點擊變慢的主因之一）。
+  // 沒帶 updated 時才回頭向伺服器抓。
+  async function refreshOne(id: string, updated?: Checklist) {
+    if (updated) {
+      setItems(prev => prev.map(it => (it.id === id ? updated : it)))
+      return
+    }
     const res = await fetch(`/api/checklist/${id}`, { cache: 'no-store' })
     if (res.ok) {
       const d = await res.json()
@@ -431,7 +438,7 @@ function ChecklistList({ items, who, expandedId, setExpandedId, onChanged, onDel
   who: PersonId
   expandedId: string | null
   setExpandedId: (id: string | null) => void
-  onChanged: (id: string) => void
+  onChanged: (id: string, updated?: Checklist) => void
   onDeleted: (id: string) => void
   flash: (t: 'err' | 'ok', m: string) => void
 }) {
@@ -461,7 +468,7 @@ function ChecklistCard({ item, who, expanded, onToggle, onChanged, onDeleted, fl
   who: PersonId
   expanded: boolean
   onToggle: () => void
-  onChanged: (id: string) => void
+  onChanged: (id: string, updated?: Checklist) => void
   onDeleted: (id: string) => void
   flash: (t: 'err' | 'ok', m: string) => void
 }) {
@@ -535,7 +542,7 @@ function ChecklistCard({ item, who, expanded, onToggle, onChanged, onDeleted, fl
       {editing && (
         <EditInfoForm
           item={item}
-          onSaved={() => { setEditing(false); onChanged(item.id) }}
+          onSaved={updated => { setEditing(false); onChanged(item.id, updated) }}
           onCancel={() => setEditing(false)}
           flash={flash}
         />
@@ -621,7 +628,7 @@ function ChecklistCard({ item, who, expanded, onToggle, onChanged, onDeleted, fl
 // 編輯一張檢查單的基本資料（單號／配送日／內容）。只改「這張單是什麼」，不動任何勾選。
 function EditInfoForm({ item, onSaved, onCancel, flash }: {
   item: Checklist
-  onSaved: () => void
+  onSaved: (updated?: Checklist) => void
   onCancel: () => void
   flash: (t: 'err' | 'ok', m: string) => void
 }) {
@@ -646,9 +653,9 @@ function EditInfoForm({ item, onSaved, onCancel, flash }: {
         }),
       })
       const d = await res.json()
-      if (res.status === 409) { flash('err', d.error ?? '已被更新，請重試'); onSaved() }
+      if (res.status === 409) { flash('err', d.error ?? '已被更新，請重試'); onSaved(d.item) }
       else if (!res.ok) flash('err', d.error ?? '更新失敗')
-      else { flash('ok', '已更新'); onSaved() }
+      else { flash('ok', '已更新'); onSaved(d.item) }
     } catch {
       flash('err', '更新失敗')
     } finally {
@@ -696,7 +703,7 @@ function Layer1Section({ item, state, who, active, unlocked, complete, marker, o
   unlocked: boolean
   complete: boolean
   marker: string
-  onChanged: (id: string) => void
+  onChanged: (id: string, updated?: Checklist) => void
   flash: (t: 'err' | 'ok', m: string) => void
 }) {
   const layer = LAYERS[0]
@@ -777,29 +784,37 @@ function ItemCheckbox({ checklistId, baseLastEdited, itemKey, label, mark, allow
   mark?: { checked: boolean; by?: string; proxyFor?: string }
   allowed: { ok: boolean; proxy: boolean; reason?: string }
   locked: boolean
-  onChanged: (id: string) => void
+  onChanged: (id: string, updated?: Checklist) => void
   flash: (t: 'err' | 'ok', m: string) => void
 }) {
   const [busy, setBusy] = useState(false)
-  const checked = mark?.checked === true
+  // 樂觀更新：點下去「先讓勾勾立刻變」，API 在背景送。
+  // pending＝送出期間畫面上先顯示的狀態；null＝沒有進行中的送出，照伺服器資料顯示。
+  // 送出失敗時把 pending 清掉，勾勾就自動彈回原樣。
+  const [pending, setPending] = useState<boolean | null>(null)
+  const serverChecked = mark?.checked === true
+  const checked = pending ?? serverChecked
 
   async function toggle() {
     if (busy) return
-    if (!checked && !allowed.ok) { flash('err', allowed.reason ?? '無法勾選'); return }
+    if (!serverChecked && !allowed.ok) { flash('err', allowed.reason ?? '無法勾選'); return }
+    setPending(!serverChecked)   // 畫面立刻反應，不等伺服器
     setBusy(true)
     try {
       const res = await fetch(`/api/checklist/${checklistId}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ action: 'check', itemKey, checked: !checked, baseLastEdited }),
+        body: JSON.stringify({ action: 'check', itemKey, checked: !serverChecked, baseLastEdited }),
       })
       const d = await res.json()
-      if (res.status === 409) { flash('err', d.error ?? '已被更新，請再點一次'); onChanged(checklistId) }
+      // 409（被別人搶先改）跟成功的回應都帶著最新整張單，直接交給上層套用，不再重新抓
+      if (res.status === 409) { flash('err', d.error ?? '已被更新，請再點一次'); onChanged(checklistId, d.item) }
       else if (!res.ok) flash('err', d.error ?? '操作失敗')
-      else onChanged(checklistId)
+      else onChanged(checklistId, d.item)
     } catch {
       flash('err', '操作失敗')
     } finally {
+      setPending(null)
       setBusy(false)
     }
   }
@@ -833,7 +848,7 @@ function RejectBox({ checklistId, baseLastEdited, maxLayer, onChanged, flash }: 
   checklistId: string
   baseLastEdited: string
   maxLayer: number
-  onChanged: (id: string) => void
+  onChanged: (id: string, updated?: Checklist) => void
   flash: (t: 'err' | 'ok', m: string) => void
 }) {
   const [open, setOpen] = useState(false)
@@ -851,9 +866,9 @@ function RejectBox({ checklistId, baseLastEdited, maxLayer, onChanged, flash }: 
         body: JSON.stringify({ action: 'reject', toLayer, reason: reason.trim(), baseLastEdited }),
       })
       const d = await res.json()
-      if (res.status === 409) { flash('err', d.error ?? '已被更新，請重開此單再退回'); setOpen(false); onChanged(checklistId) }
+      if (res.status === 409) { flash('err', d.error ?? '已被更新，請重開此單再退回'); setOpen(false); onChanged(checklistId, d.item) }
       else if (!res.ok) flash('err', d.error ?? '退回失敗')
-      else { flash('ok', '已退回'); setReason(''); setOpen(false); onChanged(checklistId) }
+      else { flash('ok', '已退回'); setReason(''); setOpen(false); onChanged(checklistId, d.item) }
     } catch {
       flash('err', '退回失敗')
     } finally {
