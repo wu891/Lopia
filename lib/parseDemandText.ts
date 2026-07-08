@@ -28,6 +28,7 @@ const STORES: { name: string; aliases: string[] }[] = [
   { name: '台南小北門', aliases: ['台南小北門', '小北門'] },
   { name: '台南三井Outlet', aliases: ['台南三井Outlet', '三井Outlet', 'MOP', '三井'] },
   { name: '台中漢神中港', aliases: ['台中漢神中港', '漢神中港', '台中漢神'] },
+  { name: '台北美麗華', aliases: ['台北美麗華', '美麗華', '大直'] },
   { name: '台北大巨蛋', aliases: ['台北大巨蛋', '大巨蛋'] },
   { name: '台南SOGO新天', aliases: ['台南SOGO新天', 'SOGO新天'] },
   { name: '高雄漢神百貨', aliases: ['高雄漢神百貨', '漢神百貨'] },

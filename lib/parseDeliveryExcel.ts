@@ -27,6 +27,8 @@ export const EXCEL_STORE_MAP: Record<string, string> = {
   '大巨蛋':     '台北大巨蛋店',
   '夢時代':     '高雄夢時代店',
   '小北門':     '台南小北門店',
+  '美麗華':     '台北美麗華店',
+  '大直':       '台北美麗華店',
   'らら台中':   'LaLaport 台中店',
   // ── 一般縮寫 ──
   '台中':   'LaLaport 台中店',
@@ -42,6 +44,7 @@ export const EXCEL_STORE_MAP: Record<string, string> = {
   'イケア': 'IKEA 台中南屯店',
   '夢時':   '高雄夢時代店',
   '北門':   '台南小北門店',
+  '美麗':   '台北美麗華店',
   '台南':   '台南小北門店',         // S1101 全店貨單的「台南」= 小北門（確認）
   'MOP':    '台南三井 Outlet 店',
   'mop':    '台南三井 Outlet 店',

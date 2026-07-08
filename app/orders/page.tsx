@@ -470,7 +470,7 @@ function BatchCard({
 
 // ── Store codes from skill definition ─────────────────────────────────────────
 
-// 依 LOPIA 出貨單 SKILL 店鋪主檔（13 間）
+// 依 LOPIA 出貨單 SKILL 店鋪主檔（14 間）
 const SKILL_STORES: { code: string; label: string }[] = [
   { code: '台中',     label: '台中' },
   { code: '桃園',     label: '桃園' },
@@ -483,6 +483,7 @@ const SKILL_STORES: { code: string; label: string }[] = [
   { code: '台南',     label: '台南' },
   { code: 'MOP',     label: 'MOP' },
   { code: '漢神',     label: '台中漢神' },
+  { code: '美麗',     label: '美麗華' },
   { code: '北門',     label: '北門' },
   { code: 'らら台中', label: 'らら台中' },
 ]

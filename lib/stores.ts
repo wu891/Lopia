@@ -34,7 +34,7 @@ export const STORES: Store[] = [
   { id: 'tainan-xiaobei', name_zh: '台南小北門店', name_ja: '台南小北門店', address_zh: '台南市北區西門路四段135號', city_zh: '台南', opened: '2025-08-29', status: 'open', excelSheetName: '北門' },
   { id: 'tainan-mitsui', name_zh: '台南三井 Outlet 店', name_ja: '台南三井アウトレット店', address_zh: '台南市歸仁區歸仁大道101號 1F', city_zh: '台南', opened: '2026-03-17', status: 'open', excelSheetName: 'MOP' },
   { id: 'taichung-hanshin', name_zh: '台中漢神中港店', name_ja: '台中漢神中港店', address_zh: '台中市北屯區崇德路三段865號 B1', city_zh: '台中', opened: '2026-04-10', status: 'open', excelSheetName: '中漢' },
-  { id: 'taipei-miramar', name_zh: '台北美麗華店', name_ja: '台北美麗華店', address_zh: '台北市中山區敬業三路20號 4F', city_zh: '台北', opened: '2026-07-01', status: 'coming_soon', excelSheetName: '美麗' },
+  { id: 'taipei-miramar', name_zh: '台北美麗華店', name_ja: '台北美麗華店', address_zh: '台北市中山區敬業三路20號 4F', city_zh: '台北', opened: '2026-07-06', status: 'open', excelSheetName: '美麗' },
   { id: 'taipei-dajuyuan', name_zh: '台北大巨蛋店', name_ja: '台北ドーム店', address_zh: '台北市信義區忠孝東路四段505號 B2', city_zh: '台北', opened: '2026-05-01', status: 'coming_soon', excelSheetName: '北蛋' },
   { id: 'tainan-sogo-xintian', name_zh: '台南 SOGO 新天店', name_ja: '台南SOGO新天店', address_zh: '台南市中西區西門路一段658號 B2', city_zh: '台南', opened: '2026-06-01', status: 'coming_soon' },
   { id: 'kaohsiung-hanshin-dept', name_zh: '高雄漢神百貨店', name_ja: '高雄漢神百貨店', address_zh: '高雄市前金區成功一路266-1號 B3', city_zh: '高雄', opened: '2026-09-01', status: 'coming_soon' },
