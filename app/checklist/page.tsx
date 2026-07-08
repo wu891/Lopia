@@ -471,6 +471,7 @@ function ChecklistCard({ item, who, expanded, onToggle, onChanged, onDeleted, fl
   const myTurn = isMyTurn(state, who)
   const doneLayers = LAYERS.filter(l => isLayerComplete(state, l.id)).length
   const [deleting, setDeleting] = useState(false)
+  const [editing, setEditing] = useState(false)
 
   // 刪除這張檢查單：先跳確認框，確定才呼叫 API；成功後直接從畫面上移除這張卡
   async function remove() {
@@ -515,7 +516,12 @@ function ChecklistCard({ item, who, expanded, onToggle, onChanged, onDeleted, fl
             ))}
           </div>
         </div>
-        {/* 刪除鈕：stopPropagation 是為了「按刪除時不要順便觸發展開/收合」 */}
+        {/* 修改鈕／刪除鈕：stopPropagation 是為了「按按鈕時不要順便觸發展開/收合」 */}
+        <button
+          onClick={e => { e.stopPropagation(); setEditing(v => !v) }}
+          title="修改單號／配送日／內容"
+          className="p-1.5 rounded-lg text-slate-300 hover:text-[#36454f] hover:bg-slate-100"
+        >✏️</button>
         <button
           onClick={e => { e.stopPropagation(); remove() }}
           disabled={deleting}
@@ -524,6 +530,16 @@ function ChecklistCard({ item, who, expanded, onToggle, onChanged, onDeleted, fl
         >🗑</button>
         <span className="text-slate-300 text-sm">{expanded ? '▲' : '▼'}</span>
       </div>
+
+      {/* 編輯基本資料表單：只改單號／配送日／內容，勾選紀錄不會動 */}
+      {editing && (
+        <EditInfoForm
+          item={item}
+          onSaved={() => { setEditing(false); onChanged(item.id) }}
+          onCancel={() => setEditing(false)}
+          flash={flash}
+        />
+      )}
 
       {expanded && (
         <div className="border-t border-slate-100 px-3 sm:px-4 py-3 bg-slate-50/50">
@@ -598,6 +614,75 @@ function ChecklistCard({ item, who, expanded, onToggle, onChanged, onDeleted, fl
           )}
         </div>
       )}
+    </div>
+  )
+}
+
+// 編輯一張檢查單的基本資料（單號／配送日／內容）。只改「這張單是什麼」，不動任何勾選。
+function EditInfoForm({ item, onSaved, onCancel, flash }: {
+  item: Checklist
+  onSaved: () => void
+  onCancel: () => void
+  flash: (t: 'err' | 'ok', m: string) => void
+}) {
+  const [shipmentNo, setShipmentNo] = useState(item.shipmentNo)
+  const [date, setDate] = useState(item.deliveryDate ?? '')
+  const [content, setContent] = useState(item.content ?? '')
+  const [busy, setBusy] = useState(false)
+
+  async function submit() {
+    if (!shipmentNo.trim()) { flash('err', '出貨單號不能空白'); return }
+    setBusy(true)
+    try {
+      const res = await fetch(`/api/checklist/${item.id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          action: 'edit',
+          shipmentNo: shipmentNo.trim(),
+          deliveryDate: date || null,
+          content: content.trim() || null,
+          baseLastEdited: item.lastEdited,   // 樂觀鎖：中途被別人改過就會擋下
+        }),
+      })
+      const d = await res.json()
+      if (res.status === 409) { flash('err', d.error ?? '已被更新，請重試'); onSaved() }
+      else if (!res.ok) flash('err', d.error ?? '更新失敗')
+      else { flash('ok', '已更新'); onSaved() }
+    } catch {
+      flash('err', '更新失敗')
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  return (
+    <div className="border-t border-slate-100 px-4 py-3 bg-slate-50/70">
+      <div className="text-xs font-bold text-slate-600 mb-2">✏️ 修改基本資料（勾選紀錄不會動）</div>
+      <div className="flex flex-col sm:flex-row gap-2">
+        <input
+          placeholder="出貨單號 例：S2026070801"
+          value={shipmentNo} onChange={e => setShipmentNo(e.target.value)}
+          className="flex-1 border border-slate-300 rounded-lg px-3 py-2 text-sm bg-white font-mono"
+        />
+        <input
+          type="date" value={date} onChange={e => setDate(e.target.value)}
+          className="border border-slate-300 rounded-lg px-3 py-2 text-sm bg-white"
+          title="配送日期"
+        />
+      </div>
+      <input
+        placeholder="這批出什麼（選填，如：蘋果11｜全12店）"
+        value={content} onChange={e => setContent(e.target.value)}
+        className="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm bg-white mt-2"
+      />
+      <div className="flex gap-2 mt-2">
+        <button disabled={busy || !shipmentNo.trim()} onClick={submit}
+          className="flex-1 py-2 rounded-lg bg-[#36454f] text-white text-sm font-bold disabled:opacity-40">
+          {busy ? '儲存中…' : '儲存'}
+        </button>
+        <button onClick={onCancel} className="px-4 py-2 rounded-lg border border-slate-300 text-slate-600 text-sm">取消</button>
+      </div>
     </div>
   )
 }
