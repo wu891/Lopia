@@ -78,6 +78,13 @@ const PERSON_STYLE: Record<PersonId, PersonStyle> = {
 }
 // 第二～四重的負責人（給區塊上色用）；第一重是互查，另外處理
 const LAYER_OWNER: Record<number, PersonId> = { 2: 'hayashi', 3: 'cai', 4: 'kawagoe' }
+// 卡片頭的進度色條：一層一格，完成才上色；顏色＝該層負責人（第1層互查＝藍→橙漸層）
+const LAYER_SEG: Record<number, string> = {
+  1: 'bg-gradient-to-r from-blue-500 to-amber-500',
+  2: 'bg-emerald-500',
+  3: 'bg-violet-500',
+  4: 'bg-slate-500',
+}
 
 type Tab = 'checklist' | 'weekly'
 
@@ -147,9 +154,9 @@ export default function ChecklistPage() {
   }
 
   return (
-    <div className="min-h-screen bg-slate-50">
+    <div className="min-h-screen bg-[#fafafa] font-tc">
       {/* 頂欄 */}
-      <header className="sticky top-0 z-20 bg-[#1a2744] text-white px-4 py-3 flex items-center gap-3 shadow">
+      <header className="sticky top-0 z-20 bg-[#36454f] text-white px-4 py-3 flex items-center gap-3 shadow">
         <div className="flex-1">
           <div className="text-[11px] tracking-widest text-white/50">TMJ × LOPIA</div>
           <div className="font-bold leading-tight">出貨三重檢查</div>
@@ -211,7 +218,7 @@ function TabBtn({ active, onClick, children }: { active: boolean; onClick: () =>
     <button
       onClick={onClick}
       className={`flex-1 py-2 rounded-md text-sm font-semibold transition
-        ${active ? 'bg-white text-[#1a2744] shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}
+        ${active ? 'bg-white text-[#36454f] shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}
     >{children}</button>
   )
 }
@@ -279,7 +286,7 @@ function LoginPanel({ pinsReady, onLogin, flash }: {
       <button
         disabled={!person || !pin || busy}
         onClick={submit}
-        className="w-full py-3 rounded-lg bg-[#1a2744] text-white font-bold disabled:opacity-40"
+        className="w-full py-3 rounded-lg bg-[#36454f] text-white font-bold disabled:opacity-40"
       >{busy ? '登入中…' : '登入'}</button>
     </div>
   )
@@ -332,7 +339,7 @@ function SetupPanel({ flash, onDone }: {
             className="w-full border border-slate-300 rounded-lg px-3 py-3 text-base mb-3"
           />
           <button disabled={!pw || busy} onClick={run}
-            className="w-full py-3 rounded-lg bg-[#1a2744] text-white font-bold disabled:opacity-40">
+            className="w-full py-3 rounded-lg bg-[#36454f] text-white font-bold disabled:opacity-40">
             {busy ? '建立中…' : '建立資料庫'}
           </button>
         </>
@@ -382,7 +389,7 @@ function CreateForm({ onCreated, flash }: {
   if (!open) {
     return (
       <button onClick={() => setOpen(true)}
-        className="w-full mb-4 py-2.5 rounded-lg border-2 border-dashed border-slate-300 text-slate-500 text-sm hover:border-[#2563a8] hover:text-[#2563a8]">
+        className="w-full mb-4 py-2.5 rounded-lg border-2 border-dashed border-slate-300 text-slate-500 text-sm hover:border-[#36454f] hover:text-[#36454f]">
         ＋ 新增一張檢查清單（輸入 S 單號）
       </button>
     )
@@ -408,7 +415,7 @@ function CreateForm({ onCreated, flash }: {
       />
       <div className="flex gap-2 mt-2">
         <button disabled={busy || !shipmentNo.trim()} onClick={submit}
-          className="flex-1 py-2.5 rounded-lg bg-[#1a2744] text-white font-bold disabled:opacity-40">
+          className="flex-1 py-2.5 rounded-lg bg-[#36454f] text-white font-bold disabled:opacity-40">
           {busy ? '建立中…' : '建立'}
         </button>
         <button onClick={() => setOpen(false)} className="px-4 py-2.5 rounded-lg border border-slate-300 text-slate-600">取消</button>
@@ -462,13 +469,13 @@ function ChecklistCard({ item, who, expanded, onToggle, onChanged, flash }: {
 
   return (
     <div className={`rounded-xl bg-white border shadow-sm overflow-hidden
-      ${myTurn ? 'border-[#2563a8] ring-2 ring-[#2563a8]/20' : 'border-slate-200'}`}>
+      ${myTurn ? 'border-[#36454f] ring-2 ring-[#36454f]/20' : 'border-slate-200'}`}>
       {/* 卡片頭 */}
       <button onClick={onToggle} className="w-full text-left px-4 py-3 flex items-center gap-3">
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-2">
             <span className="font-mono font-bold text-slate-800 truncate">{item.shipmentNo}</span>
-            {myTurn && <span className="text-[10px] bg-[#2563a8] text-white px-1.5 py-0.5 rounded-full whitespace-nowrap">輪到你</span>}
+            {myTurn && <span className="text-[10px] bg-[#36454f] text-white px-1.5 py-0.5 rounded-full animate-pulse whitespace-nowrap">輪到你</span>}
           </div>
           <div className="text-xs text-slate-500 mt-0.5">{fmtDate(item.deliveryDate)}</div>
           {item.content && <div className="text-[11px] text-slate-400 mt-0.5 truncate">{item.content}</div>}
@@ -478,7 +485,13 @@ function ChecklistCard({ item, who, expanded, onToggle, onChanged, flash }: {
           <div className={`text-xs font-semibold ${item.completed ? 'text-emerald-600' : 'text-slate-600'}`}>
             {item.completed ? '✅ 已完結' : stageLabel(state)}
           </div>
-          <div className="text-[10px] text-slate-400">{doneLayers}/{LAST_LAYER_ID} 層完成</div>
+          {/* 進度色條：滑鼠停上去仍可看到「n/4 層完成」文字 */}
+          <div className="flex gap-0.5 mt-1 justify-end" title={`${doneLayers}/${LAST_LAYER_ID} 層完成`}>
+            {LAYERS.map(l => (
+              <span key={l.id}
+                className={`w-3.5 h-1.5 rounded-full ${isLayerComplete(state, l.id) ? LAYER_SEG[l.id] : 'bg-slate-200'}`} />
+            ))}
+          </div>
         </div>
         <span className="text-slate-300 text-sm">{expanded ? '▲' : '▼'}</span>
       </button>
@@ -520,7 +533,7 @@ function ChecklistCard({ item, who, expanded, onToggle, onChanged, flash }: {
                     {marker} {layer.title}
                   </span>
                   <span className="text-[11px] text-slate-400">{layer.who}</span>
-                  {mine && active && <span className="ml-auto text-[10px] bg-[#2563a8] text-white px-1.5 py-0.5 rounded-full">輪到你</span>}
+                  {mine && active && <span className="ml-auto text-[10px] bg-[#36454f] text-white px-1.5 py-0.5 rounded-full animate-pulse">輪到你</span>}
                 </div>
                 <div className="space-y-1">
                   {layer.items.map(it => (
@@ -579,7 +592,7 @@ function Layer1Section({ item, state, who, active, unlocked, complete, marker, o
   return (
     <div className="mb-3">
       <div className="flex items-center gap-1.5 mb-1.5">
-        <span className={`text-xs font-bold ${complete ? 'text-emerald-600' : active ? 'text-[#2563a8]' : unlocked ? 'text-slate-500' : 'text-slate-400'}`}>
+        <span className={`text-xs font-bold ${complete ? 'text-emerald-600' : active ? 'text-[#36454f]' : unlocked ? 'text-slate-500' : 'text-slate-400'}`}>
           {marker} {layer.title}
         </span>
         <span className="text-[11px] text-slate-400">KIDO ＆ COLIN 互相檢查對方做的文件</span>
@@ -600,7 +613,7 @@ function Layer1Section({ item, state, who, active, unlocked, complete, marker, o
                 <span>{personName(ck)} 檢查 {personName(target)} 的文件</span>
                 {blockDone
                   ? <span className="ml-auto text-[10px] text-emerald-600">✓ 完成</span>
-                  : mine && active && <span className="ml-auto text-[10px] bg-[#2563a8] text-white px-1.5 py-0.5 rounded-full">輪到你</span>}
+                  : mine && active && <span className="ml-auto text-[10px] bg-[#36454f] text-white px-1.5 py-0.5 rounded-full animate-pulse">輪到你</span>}
               </div>
               <div className="space-y-1">
                 {its.map(it => (
@@ -684,7 +697,7 @@ function ItemCheckbox({ checklistId, baseLastEdited, itemKey, label, mark, allow
       disabled={disabled}
       className={`w-full flex items-start gap-2 text-left px-2.5 py-2 rounded-lg border text-sm transition
         ${checked ? 'bg-emerald-50 border-emerald-300' : locked ? 'bg-slate-100 border-slate-200 opacity-60' : 'bg-white border-slate-200'}
-        ${disabled && !checked ? 'cursor-not-allowed' : 'hover:border-[#2563a8]'}`}
+        ${disabled && !checked ? 'cursor-not-allowed' : 'hover:border-[#36454f]'}`}
     >
       <span className={`mt-0.5 w-4 h-4 rounded flex items-center justify-center text-[10px] flex-shrink-0
         ${checked ? 'bg-emerald-500 text-white' : 'border-2 border-slate-300'}`}>
@@ -843,7 +856,7 @@ function WeeklyPanel({ who, flash, onChecklistCreated }: {
           />
         ) : (
           <button onClick={() => setAdding(true)}
-            className="w-full mb-4 py-2.5 rounded-lg border-2 border-dashed border-slate-300 text-slate-500 text-sm hover:border-[#2563a8] hover:text-[#2563a8]">
+            className="w-full mb-4 py-2.5 rounded-lg border-2 border-dashed border-slate-300 text-slate-500 text-sm hover:border-[#36454f] hover:text-[#36454f]">
             ＋ 新增一批出貨（品項／配送日／店鋪）
           </button>
         )
@@ -912,7 +925,7 @@ function WeeklyForm({ onSubmit, onCancel, initial, defaultDate }: {
         className="w-full border border-slate-300 rounded-lg px-3 py-2.5 text-base" />
       <div className="flex gap-2">
         <button disabled={busy || !product.trim()} onClick={submit}
-          className="flex-1 py-2.5 rounded-lg bg-[#1a2744] text-white font-bold disabled:opacity-40">
+          className="flex-1 py-2.5 rounded-lg bg-[#36454f] text-white font-bold disabled:opacity-40">
           {busy ? '儲存中…' : '儲存'}
         </button>
         <button onClick={onCancel} className="px-4 py-2.5 rounded-lg border border-slate-300 text-slate-600">取消</button>
@@ -1004,13 +1017,13 @@ function WeeklyRowCard({ row, canEdit, onChanged, onChecklistCreated, flash }: {
               className="flex-1 border border-slate-300 rounded-lg px-3 py-2 text-sm"
             />
             <button disabled={busy || !shipmentNo.trim()} onClick={build}
-              className="px-3 py-2 rounded-lg bg-[#1a2744] text-white text-sm font-bold disabled:opacity-40">建立</button>
+              className="px-3 py-2 rounded-lg bg-[#36454f] text-white text-sm font-bold disabled:opacity-40">建立</button>
             <button onClick={() => { setMode('view'); setShipmentNo('') }}
               className="px-3 py-2 rounded-lg border border-slate-300 text-slate-600 text-sm">取消</button>
           </div>
         ) : (
           <button onClick={() => setMode('build')}
-            className="text-xs bg-[#2563a8] text-white rounded-lg px-3 py-1.5 hover:bg-[#1e4f86]">
+            className="text-xs bg-[#36454f] text-white rounded-lg px-3 py-1.5 hover:bg-[#26333c]">
             ＋ 建立檢查單
           </button>
         )}

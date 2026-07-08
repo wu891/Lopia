@@ -22,6 +22,11 @@ body {
   font-family: 'Poppins', 'Noto Sans JP', sans-serif;
 }
 
+/* 繁中優先字體（檢查清單頁用）：TC 排在 JP 前面，中文字才會用台灣字形 */
+.font-tc {
+  font-family: 'Noto Sans TC', 'Noto Sans JP', 'Inter', sans-serif;
+}
+
 /* Tabular figures for numeric tables (毛利系統等) */
 .num {
   font-variant-numeric: tabular-nums;
