@@ -37,6 +37,8 @@ function EditableStatusBadge({
   const [errMsg, setErrMsg] = useState('')
   const [dropdownPos, setDropdownPos] = useState({ top: 0, right: 0 })
   const ref = useRef<HTMLDivElement>(null)
+  // 選單浮層自己的 ref：判斷「點外面才關閉」時，選單本身要算「裡面」
+  const dropRef = useRef<HTMLDivElement>(null)
 
   // prop 更新時同步 local state
   useEffect(() => { setCurrent(value) }, [value])
@@ -57,7 +59,11 @@ function EditableStatusBadge({
     window.addEventListener('scroll', updatePos, true)
     window.addEventListener('resize', updatePos)
     function handler(e: MouseEvent) {
-      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false)
+      const t = e.target as Node
+      // 按到標籤按鈕或選單本身都不關閉；只有點真正的「外面」才關
+      // （修正：以前選單沒算進「裡面」，滑鼠一按到選項選單就先關掉，導致選不到）
+      if (ref.current?.contains(t) || dropRef.current?.contains(t)) return
+      setOpen(false)
     }
     document.addEventListener('mousedown', handler)
     return () => {
@@ -132,6 +138,7 @@ function EditableStatusBadge({
       {/* 用 portal 概念：fixed 定位，位置動態計算 */}
       {open && (
         <div
+          ref={dropRef}
           className="fixed z-[9999] bg-white border border-gray-200 rounded-lg shadow-lg overflow-hidden min-w-[120px]"
           style={{ top: dropdownPos.top, right: dropdownPos.right }}
         >
