@@ -6,8 +6,7 @@ import TimelineProgress from './TimelineProgress'
 import DocumentStatus from './DocumentStatus'
 import InventoryBar from './InventoryBar'
 import DeliveryPlan from './DeliveryPlan'
-import PasswordModal, { isAuthed, logChange } from './PasswordModal'
-import BatchItemList from './BatchItemList'
+import PasswordModal, { isAuthed, logChange, AUTH_KEY } from './PasswordModal'
 
 const STATUS_OPTIONS = ['待出貨', '部分出貨', '全數出貨', '退回/銷毀'] as const
 
@@ -33,6 +32,9 @@ function EditableStatusBadge({
   const [open, setOpen] = useState(false)
   const [showAuth, setShowAuth] = useState(false)
   const [saving, setSaving] = useState(false)
+  // 通行證過期時，先記住剛剛選的狀態，重新輸入密碼後自動補送
+  const [pendingStatus, setPendingStatus] = useState<string | null>(null)
+  const [errMsg, setErrMsg] = useState('')
   const [dropdownPos, setDropdownPos] = useState({ top: 0, right: 0 })
   const ref = useRef<HTMLDivElement>(null)
 
@@ -76,15 +78,29 @@ function EditableStatusBadge({
     if (status === current) { setOpen(false); return }
     setOpen(false)
     setSaving(true)
+    setErrMsg('')
     try {
-      await fetch(`/api/shipments/${shipmentId}`, {
+      const res = await fetch(`/api/shipments/${shipmentId}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ deliveryStatus: status }),
       })
+      if (res.status === 401) {
+        // 伺服器的通行證（cookie，8小時）過期了：清掉分頁記號、重新跳密碼框，輸入後自動補送
+        sessionStorage.removeItem(AUTH_KEY)
+        setPendingStatus(status)
+        setShowAuth(true)
+        return
+      }
+      if (!res.ok) {
+        setErrMsg(lang === 'ja' ? '保存に失敗しました。もう一度お試しください' : '儲存失敗，請再點一次')
+        return
+      }
       await logChange('更新配送狀態', shipmentId, `${current ?? '—'} → ${status}`)
       setCurrent(status)
       onUpdated()
+    } catch {
+      setErrMsg(lang === 'ja' ? 'ネットワークエラー' : '網路錯誤，請再點一次')
     } finally {
       setSaving(false)
     }
@@ -106,6 +122,11 @@ function EditableStatusBadge({
             <path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" />
           </svg>
         </button>
+        {errMsg && (
+          <span className="absolute right-0 top-full mt-0.5 text-[10px] text-red-500 whitespace-nowrap bg-white px-1 rounded shadow-sm z-10">
+            ⚠ {errMsg}
+          </span>
+        )}
       </div>
 
       {/* 用 portal 概念：fixed 定位，位置動態計算 */}
@@ -135,8 +156,18 @@ function EditableStatusBadge({
       {showAuth && (
         <PasswordModal
           lang={lang}
-          onSuccess={() => { setShowAuth(false); setOpen(true) }}
-          onCancel={() => setShowAuth(false)}
+          onSuccess={() => {
+            setShowAuth(false)
+            // 剛剛有選但沒送成功的狀態，驗證通過後自動補送
+            if (pendingStatus) {
+              const s = pendingStatus
+              setPendingStatus(null)
+              handleSelect(s)
+            } else {
+              setOpen(true)
+            }
+          }}
+          onCancel={() => { setShowAuth(false); setPendingStatus(null) }}
         />
       )}
     </>
@@ -159,6 +190,9 @@ function EditableRemarks({
   const [value, setValue] = useState(initialValue ?? '')
   const [saving, setSaving] = useState(false)
   const [showAuth, setShowAuth] = useState(false)
+  const [errMsg, setErrMsg] = useState('')
+  // 通行證過期時記住「還沒存成功」，重新驗證後自動再存一次
+  const [pendingSave, setPendingSave] = useState(false)
   const inputRef = useRef<HTMLTextAreaElement>(null)
 
   // prop 更新時同步（不覆蓋編輯中的內容）
@@ -176,15 +210,29 @@ function EditableRemarks({
 
   async function handleSave() {
     setSaving(true)
+    setErrMsg('')
     try {
-      await fetch(`/api/shipments/${shipmentId}`, {
+      const res = await fetch(`/api/shipments/${shipmentId}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ remarks: value }),
       })
+      if (res.status === 401) {
+        // 伺服器的通行證（cookie，8小時）過期了：重新跳密碼框，輸入後自動再存（輸入的內容不會不見）
+        sessionStorage.removeItem(AUTH_KEY)
+        setPendingSave(true)
+        setShowAuth(true)
+        return
+      }
+      if (!res.ok) {
+        setErrMsg(lang === 'ja' ? '保存に失敗しました' : '儲存失敗，請再按一次儲存')
+        return
+      }
       await logChange('更新備註', shipmentId, value || '(清空)')
       setEditing(false)
       onUpdated()
+    } catch {
+      setErrMsg(lang === 'ja' ? 'ネットワークエラー' : '網路錯誤，請再按一次儲存')
     } finally {
       setSaving(false)
     }
@@ -207,12 +255,23 @@ function EditableRemarks({
           placeholder={lang === 'ja' ? '備考を入力...' : '輸入備註...'}
           className="w-full bg-transparent text-xs text-yellow-800 resize-none focus:outline-none"
         />
+        {errMsg && <p className="text-[10px] text-red-500 mt-0.5">⚠ {errMsg}</p>}
         <div className="flex justify-end gap-2 mt-1">
           <button onClick={() => { setValue(initialValue ?? ''); setEditing(false) }} className="text-xs text-gray-400 hover:text-gray-600">取消</button>
           <button onClick={handleSave} disabled={saving} className="text-xs text-emerald-600 font-semibold hover:text-emerald-700 disabled:opacity-50">
             {saving ? '儲存中...' : '儲存'}
           </button>
         </div>
+        {showAuth && (
+          <PasswordModal
+            lang={lang}
+            onSuccess={() => {
+              setShowAuth(false)
+              if (pendingSave) { setPendingSave(false); handleSave() }
+            }}
+            onCancel={() => { setShowAuth(false); setPendingSave(false) }}
+          />
+        )}
       </div>
     )
   }
@@ -411,7 +470,10 @@ export default function CompactShipmentRow({ shipment, lang, allRecords, onRecor
               {shipment.warehouse && (
                 <div className="flex flex-col">
                   <span className="text-xs text-gray-400">{T.warehouse}</span>
-                  <span className="text-xs font-medium text-gray-700">{shipment.warehouse}</span>
+                  {/* 倉庫要一眼看到：色塊＋粗體大字 */}
+                  <span className="inline-flex items-center gap-1 mt-0.5 px-2.5 py-1 rounded-lg bg-indigo-50 border border-indigo-200 text-sm font-bold text-indigo-700 w-fit">
+                    📦 {shipment.warehouse}
+                  </span>
                 </div>
               )}
             </div>
@@ -423,8 +485,6 @@ export default function CompactShipmentRow({ shipment, lang, allRecords, onRecor
             planned={plannedBoxes}
             lang={lang}
           />
-
-          <BatchItemList batchId={shipment.id} lang={lang} parentTotalBoxes={shipment.totalBoxes} parentShippedBoxes={shippedBoxes} />
 
           <DeliveryPlan
             batchId={shipment.id}
