@@ -107,7 +107,7 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
       const saved = await saveChecklistState(id, next)
       await pushToGroup(
         `↩️【${saved.shipmentNo}】差し戻し\n` +
-        `${personName(who)} が「第${toLayer}重」へ差し戻しました。\n` +
+        `${personName(who)}が「第${toLayer}重」へ差し戻しました。\n` +
         `理由：${reason}\n` +
         `該当の担当者は再確認をお願いします。\n` +
         `▶ チェックリスト：${checklistLink(saved.shipmentNo)}`
