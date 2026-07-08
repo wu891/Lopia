@@ -153,3 +153,41 @@ export async function saveChecklistState(id: string, state: ChecklistState): Pro
   })
   return pageToChecklist(page)
 }
+
+/**
+ * 一次性：用 app 自己的 Notion 整合建立「出貨三重檢查清單」資料庫。
+ * 建在既有進口批次 DB 的同一個父頁面底下 → 保證 app 整合對它有讀寫權限
+ * （不用另外去 Notion 手動分享）。回傳新 DB 的 id，貼進 Vercel env NOTION_CHECKLIST_DB 即可。
+ */
+export async function provisionChecklistDb(): Promise<{ databaseId: string }> {
+  const importDb = process.env.NOTION_IMPORT_STATUS_DB?.trim()
+  if (!importDb) throw new Error('缺 NOTION_IMPORT_STATUS_DB，無法定位父頁面')
+
+  // 讀既有 DB 的父頁面（新 DB 要建在同一個 page 底下，整合才有權限）
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const meta = await notion.databases.retrieve({ database_id: importDb }) as any
+  const parent = meta?.parent
+  if (parent?.type !== 'page_id' || !parent.page_id) {
+    throw new Error('既有資料庫的父層不是頁面，無法自動建立；請改用手動建立方式')
+  }
+
+  const created = await notion.databases.create({
+    parent: { type: 'page_id', page_id: parent.page_id },
+    title: [{ type: 'text', text: { content: '出貨三重檢查清單' } }],
+    properties: {
+      '出貨單號': { title: {} },
+      '配送日期': { date: {} },
+      '狀態': { rich_text: {} },
+      '目前階段': {
+        select: {
+          options: [
+            { name: '待互查' }, { name: '待林さん確認' }, { name: '待蔡さん確認' },
+            { name: '待川越さん共享' }, { name: '已完結' },
+          ],
+        },
+      },
+      '已完結': { checkbox: {} },
+    },
+  })
+  return { databaseId: created.id }
+}
