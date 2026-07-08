@@ -72,8 +72,8 @@ export const LAYERS: Layer[] = [
     title: '第二重：送達確認',
     who: '林さん',
     items: [
-      { key: 'l2_warehouse', label: '出貨指示已確實送達倉庫（三義）', role: 'hayashi' },
-      { key: 'l2_logistics', label: '出貨指示已確實送達物流公司', role: 'hayashi' },
+      { key: 'l2_warehouse', label: '出貨指示已確實送達倉庫（優儲、美福或三義）', role: 'hayashi' },
+      { key: 'l2_logistics', label: '出貨指示已確實送達物流公司（三義）', role: 'hayashi' },
       { key: 'l2_reported',  label: '已報告蔡さん並請他確認', role: 'hayashi' },
     ],
   },
