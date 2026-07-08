@@ -149,6 +149,11 @@ export async function createChecklist(data: {
   return pageToChecklist(page)
 }
 
+// 刪除＝把 Notion 頁面設成 archived（等於丟進 Notion 垃圾桶，30 天內可以救回來）
+export async function deleteChecklist(id: string): Promise<void> {
+  await notion.pages.update({ page_id: id, archived: true })
+}
+
 // 把整份新狀態寫回 Notion
 export async function saveChecklistState(id: string, state: ChecklistState): Promise<Checklist> {
   const page = await notion.pages.update({

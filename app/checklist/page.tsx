@@ -200,6 +200,7 @@ export default function ChecklistPage() {
                   expandedId={expandedId}
                   setExpandedId={setExpandedId}
                   onChanged={refreshOne}
+                  onDeleted={id => setItems(prev => prev.filter(it => it.id !== id))}
                   flash={flash}
                 />
               </>
@@ -425,12 +426,13 @@ function CreateForm({ onCreated, flash }: {
 }
 
 // ── 清單列表 ────────────────────────────────────────────────────────────────
-function ChecklistList({ items, who, expandedId, setExpandedId, onChanged, flash }: {
+function ChecklistList({ items, who, expandedId, setExpandedId, onChanged, onDeleted, flash }: {
   items: Checklist[]
   who: PersonId
   expandedId: string | null
   setExpandedId: (id: string | null) => void
   onChanged: (id: string) => void
+  onDeleted: (id: string) => void
   flash: (t: 'err' | 'ok', m: string) => void
 }) {
   if (items.length === 0) {
@@ -446,6 +448,7 @@ function ChecklistList({ items, who, expandedId, setExpandedId, onChanged, flash
           expanded={expandedId === item.id}
           onToggle={() => setExpandedId(expandedId === item.id ? null : item.id)}
           onChanged={onChanged}
+          onDeleted={onDeleted}
           flash={flash}
         />
       ))}
@@ -453,12 +456,13 @@ function ChecklistList({ items, who, expandedId, setExpandedId, onChanged, flash
   )
 }
 
-function ChecklistCard({ item, who, expanded, onToggle, onChanged, flash }: {
+function ChecklistCard({ item, who, expanded, onToggle, onChanged, onDeleted, flash }: {
   item: Checklist
   who: PersonId
   expanded: boolean
   onToggle: () => void
   onChanged: (id: string) => void
+  onDeleted: (id: string) => void
   flash: (t: 'err' | 'ok', m: string) => void
 }) {
   const state = item.state
@@ -466,12 +470,30 @@ function ChecklistCard({ item, who, expanded, onToggle, onChanged, flash }: {
   const lit = light(item.deliveryDate)
   const myTurn = isMyTurn(state, who)
   const doneLayers = LAYERS.filter(l => isLayerComplete(state, l.id)).length
+  const [deleting, setDeleting] = useState(false)
+
+  // 刪除這張檢查單：先跳確認框，確定才呼叫 API；成功後直接從畫面上移除這張卡
+  async function remove() {
+    if (!window.confirm(`確定刪除「${item.shipmentNo}」這張檢查單？\n勾選與退回紀錄會一起刪除（可從 Notion 垃圾桶救回）`)) return
+    setDeleting(true)
+    try {
+      const res = await fetch(`/api/checklist/${item.id}`, { method: 'DELETE' })
+      const d = await res.json()
+      if (res.ok) { flash('ok', `已刪除 ${item.shipmentNo}`); onDeleted(item.id) }
+      else flash('err', d.error ?? '刪除失敗')
+    } catch {
+      flash('err', '刪除失敗')
+    } finally {
+      setDeleting(false)
+    }
+  }
 
   return (
     <div className={`rounded-xl bg-white border shadow-sm overflow-hidden
       ${myTurn ? 'border-[#36454f] ring-2 ring-[#36454f]/20' : 'border-slate-200'}`}>
-      {/* 卡片頭 */}
-      <button onClick={onToggle} className="w-full text-left px-4 py-3 flex items-center gap-3">
+      {/* 卡片頭（外層原本是 button，但 HTML 規定 button 裡不能再放 button，
+          為了加刪除鈕改成 div＋onClick，點卡片一樣可展開/收合） */}
+      <div onClick={onToggle} className="w-full text-left px-4 py-3 flex items-center gap-3 cursor-pointer">
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-2">
             <span className="font-mono font-bold text-slate-800 truncate">{item.shipmentNo}</span>
@@ -493,8 +515,15 @@ function ChecklistCard({ item, who, expanded, onToggle, onChanged, flash }: {
             ))}
           </div>
         </div>
+        {/* 刪除鈕：stopPropagation 是為了「按刪除時不要順便觸發展開/收合」 */}
+        <button
+          onClick={e => { e.stopPropagation(); remove() }}
+          disabled={deleting}
+          title="刪除這張檢查單"
+          className="p-1.5 rounded-lg text-slate-300 hover:text-red-600 hover:bg-red-50 disabled:opacity-40"
+        >🗑</button>
         <span className="text-slate-300 text-sm">{expanded ? '▲' : '▼'}</span>
-      </button>
+      </div>
 
       {expanded && (
         <div className="border-t border-slate-100 px-3 sm:px-4 py-3 bg-slate-50/50">
