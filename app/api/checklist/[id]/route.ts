@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import {
-  getChecklistById, saveChecklistState,
+  getChecklistById, saveChecklistState, deleteChecklist,
   applyCheck, applyReject, canCheck,
   currentLayerId, personName, LAST_LAYER_ID,
 } from '@/lib/checklist'
@@ -52,6 +52,21 @@ function nextUpMessage(shipmentNo: string, afterLayer: number): string {
     + `✅ 完了：${done[afterLayer - 1] ?? ''}\n\n`
     + `${next[afterLayer] ?? ''}\n\n`
     + `▶ チェックリスト：${link}`
+}
+
+// DELETE：刪除一張檢查清單（要登入才能刪；實際上是把 Notion 頁面丟進垃圾桶，30 天內可救回）
+export async function DELETE(_req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+  const who = await requireWho()
+  if (!who) return NextResponse.json({ error: '請先登入' }, { status: 401 })
+
+  try {
+    const { id } = await params
+    await deleteChecklist(id)
+    return NextResponse.json({ ok: true })
+  } catch (err) {
+    console.error(err)
+    return NextResponse.json({ error: '刪除失敗' }, { status: 500 })
+  }
 }
 
 // PATCH：勾/取消勾（action=check）或 退回（action=reject）
