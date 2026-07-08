@@ -26,10 +26,18 @@ export function personName(id: PersonId | string): string {
 // 蔡さん可代理任何一層（請假／不在時不會卡死）；代理時會記錄「代○○確認」
 export const PROXY_PERSON: PersonId = 'cai'
 
+// 本週出貨計畫：只有川越さん（資料來源本人）與 COLIN（備援）可以新增/編輯/刪除；其他人唯讀
+export const WEEKLY_EDITORS: PersonId[] = ['kawagoe', 'colin']
+export function canEditWeekly(who: PersonId | null | undefined): boolean {
+  return !!who && WEEKLY_EDITORS.includes(who)
+}
+
 export interface SubItem {
   key: string                     // 穩定不變的識別碼（存進 JSON 的 key）
-  label: string                   // 顯示文字
+  label: string                   // 顯示文字（互查項用短標籤，靠區塊標題交代「誰查誰」）
   role: PersonId | PersonId[]     // 誰有權勾這一項（第一重互查要指定不同人；不能勾自己做的）
+  checker?: PersonId              // 互查專用：這一項是「誰」在檢查（給畫面分區塊、上色）
+  target?: PersonId               // 互查專用：檢查的是「誰」做的文件（給區塊標題顯示）
 }
 
 export interface Layer {
@@ -45,14 +53,17 @@ export const LAYERS: Layer[] = [
     title: '第一重：製作・互查',
     who: 'KIDO ＆ COLIN',
     items: [
-      { key: 'kido_colin_store', label: 'KIDO 查 COLIN 做的：店鋪正確', role: 'kido' },
-      { key: 'kido_colin_item',  label: 'KIDO 查 COLIN 做的：品項正確', role: 'kido' },
-      { key: 'kido_colin_qty',   label: 'KIDO 查 COLIN 做的：數量正確', role: 'kido' },
-      { key: 'kido_colin_date',  label: 'KIDO 查 COLIN 做的：配送日正確', role: 'kido' },
-      { key: 'colin_kido_store', label: 'COLIN 查 KIDO 做的：店鋪正確', role: 'colin' },
-      { key: 'colin_kido_item',  label: 'COLIN 查 KIDO 做的：品項正確', role: 'colin' },
-      { key: 'colin_kido_qty',   label: 'COLIN 查 KIDO 做的：數量正確', role: 'colin' },
-      { key: 'colin_kido_date',  label: 'COLIN 查 KIDO 做的：配送日正確', role: 'colin' },
+      // KIDO 檢查 COLIN 做的文件（區塊 A）；短標籤 + checker/target 讓畫面分區塊上色
+      { key: 'kido_colin_store', label: '店鋪正確',   role: 'kido',  checker: 'kido',  target: 'colin' },
+      { key: 'kido_colin_item',  label: '品項正確',   role: 'kido',  checker: 'kido',  target: 'colin' },
+      { key: 'kido_colin_qty',   label: '數量正確',   role: 'kido',  checker: 'kido',  target: 'colin' },
+      { key: 'kido_colin_date',  label: '配送日正確', role: 'kido',  checker: 'kido',  target: 'colin' },
+      // COLIN 檢查 KIDO 做的文件（區塊 B）
+      { key: 'colin_kido_store', label: '店鋪正確',   role: 'colin', checker: 'colin', target: 'kido' },
+      { key: 'colin_kido_item',  label: '品項正確',   role: 'colin', checker: 'colin', target: 'kido' },
+      { key: 'colin_kido_qty',   label: '數量正確',   role: 'colin', checker: 'colin', target: 'kido' },
+      { key: 'colin_kido_date',  label: '配送日正確', role: 'colin', checker: 'colin', target: 'kido' },
+      // 兩人都查完後，共同送出（不屬於任一區塊，整寬顯示）
       { key: 'l1_reported',      label: '已報告林さん並請他確認', role: ['kido', 'colin'] },
     ],
   },
@@ -109,6 +120,7 @@ export interface ChecklistState {
   checks: Record<string, CheckMark>
   rejections: Rejection[]
   completedAt?: string
+  content?: string    // 這批要出什麼（品項／店鋪），建立時帶入，純顯示用，不影響勾選邏輯
 }
 
 export function emptyState(): ChecklistState {
@@ -126,6 +138,7 @@ export function parseState(raw: string | null | undefined): ChecklistState {
       checks: obj.checks && typeof obj.checks === 'object' ? obj.checks : {},
       rejections: Array.isArray(obj.rejections) ? obj.rejections : [],
       completedAt: typeof obj.completedAt === 'string' ? obj.completedAt : undefined,
+      content: typeof obj.content === 'string' ? obj.content : undefined,
     }
   } catch {
     return emptyState()

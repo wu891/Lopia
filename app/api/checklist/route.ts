@@ -31,7 +31,8 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: '請輸入出貨單號（S 單號）' }, { status: 400 })
     }
     const deliveryDate = typeof data.deliveryDate === 'string' && data.deliveryDate ? data.deliveryDate : null
-    const item = await createChecklist({ shipmentNo, deliveryDate })
+    const content = clampLen(data.content ?? '', 500).trim() || null
+    const item = await createChecklist({ shipmentNo, deliveryDate, content })
     return NextResponse.json({ item })
   } catch (err) {
     const msg = err instanceof Error ? err.message : 'Failed to create checklist'
