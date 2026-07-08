@@ -1,4 +1,4 @@
-import { NextRequest, NextResponse } from 'next/server'
+import { NextRequest, NextResponse, after } from 'next/server'
 import {
   getChecklistById, saveChecklistState, deleteChecklist,
   updateChecklistInfo, getChecklistByShipmentNo,
@@ -106,10 +106,12 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
       const next = applyCheck(current.state, itemKey, who, checked, nowIso)
       const saved = await saveChecklistState(id, next)
 
-      // 只有「往上跨過一層」才通知（勾完某層的最後一項）
+      // 只有「往上跨過一層」才通知（勾完某層的最後一項）。
+      // 用 after()：先把回應送給使用者（勾勾馬上有反應），LINE 通知在背景送，
+      // pushToGroup 本身不會丟例外，送失敗只寫 log 不影響勾選。
       const afterLayer = currentLayerId(next)
       if (checked && afterLayer > beforeLayer) {
-        await pushToGroup(nextUpMessage(saved.shipmentNo, afterLayer))
+        after(() => pushToGroup(nextUpMessage(saved.shipmentNo, afterLayer)))
       }
       return NextResponse.json({ item: saved })
     }
@@ -140,13 +142,14 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
 
       const next = applyReject(current.state, toLayer, who, reason, nowIso)
       const saved = await saveChecklistState(id, next)
-      await pushToGroup(
+      // 同樣改成背景送，退回按鈕不用等 LINE
+      after(() => pushToGroup(
         `↩️【${saved.shipmentNo}】差し戻し\n` +
         `${personName(who)}が「第${toLayer}重」へ差し戻しました。\n` +
         `理由：${reason}\n` +
         `該当の担当者は再確認をお願いします。\n` +
         `▶ チェックリスト：${checklistLink(saved.shipmentNo)}`
-      )
+      ))
       return NextResponse.json({ item: saved })
     }
 
