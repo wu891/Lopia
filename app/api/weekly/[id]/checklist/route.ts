@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { getWeeklyRowById, markWeeklyChecklistCreated } from '@/lib/weekly'
+import { getWeeklyRowById, markWeeklyChecklistCreated, composeWeeklyContent } from '@/lib/weekly'
 import { createChecklist } from '@/lib/checklist'
 import { requireWho } from '@/lib/checklistAuth'
 import { clampLen } from '@/lib/auth'
@@ -20,14 +20,15 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
 
     const row = await getWeeklyRowById(id)
     // 把「這批出什麼」組成一段文字帶進檢查清單，讓檢查的人看得到內容而不只是 S 單號
-    const content = [row.product, row.stores, row.note].map(s => (s || '').trim()).filter(Boolean).join('｜')
+    const content = composeWeeklyContent(row.product, row.stores, row.note)
 
     const checklist = await createChecklist({
       shipmentNo,
       deliveryDate: row.deliveryDate,
       content,
     })
-    const weekly = await markWeeklyChecklistCreated(id, checklist.id)
+    // 同時把 content 存成「建單快照」：之後主頁計畫若再變，同步會比對快照標出「⚠️ 計畫已變更」
+    const weekly = await markWeeklyChecklistCreated(id, checklist.id, content)
     return NextResponse.json({ checklist, weekly })
   } catch (err) {
     const msg = err instanceof Error ? err.message : 'Failed to create checklist from weekly row'

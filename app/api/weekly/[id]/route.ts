@@ -1,12 +1,14 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { updateWeeklyRow, deleteWeeklyRow } from '@/lib/weekly'
+import { updateWeeklyRow, deleteWeeklyRow, getWeeklyRowById } from '@/lib/weekly'
 import { canEditWeekly } from '@/lib/checklistModel'
 import { requireWho } from '@/lib/checklistAuth'
 import { clampLen } from '@/lib/auth'
 
 export const dynamic = 'force-dynamic'
 
-// PATCH：修改一列（僅川越／COLIN）
+const AUTO_ROW_LOCKED = '這列是從主頁出貨計畫自動同步來的（唯讀）。要修改請到主頁改該批次的出貨計畫，這裡會自動跟著更新。'
+
+// PATCH：修改一列（僅川越／COLIN；自動同步列唯讀）
 export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const who = await requireWho()
   if (!who) return NextResponse.json({ error: '請先登入' }, { status: 401 })
@@ -15,6 +17,10 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
   }
   try {
     const { id } = await params
+    const existing = await getWeeklyRowById(id)
+    if (existing.sourceKey) {
+      return NextResponse.json({ error: AUTO_ROW_LOCKED }, { status: 403 })
+    }
     const data = await req.json()
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const patch: any = {}
@@ -36,7 +42,7 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
   }
 }
 
-// DELETE：刪除（封存）一列（僅川越／COLIN）
+// DELETE：刪除（封存）一列（僅川越／COLIN；自動同步列唯讀）
 export async function DELETE(_req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const who = await requireWho()
   if (!who) return NextResponse.json({ error: '請先登入' }, { status: 401 })
@@ -45,6 +51,10 @@ export async function DELETE(_req: NextRequest, { params }: { params: Promise<{ 
   }
   try {
     const { id } = await params
+    const existing = await getWeeklyRowById(id)
+    if (existing.sourceKey) {
+      return NextResponse.json({ error: AUTO_ROW_LOCKED }, { status: 403 })
+    }
     await deleteWeeklyRow(id)
     return NextResponse.json({ ok: true })
   } catch (err) {

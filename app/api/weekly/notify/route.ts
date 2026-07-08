@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { getWeeklyRows, weekRange, isWeeklyConfigured } from '@/lib/weekly'
+import { getWeeklyRows, weekRange, isWeeklyConfigured, syncWeeklyFromRecords } from '@/lib/weekly'
 import { pushToGroup, lineNotifyConfigured } from '@/lib/lineNotify'
 import { requireAuth } from '@/lib/auth'
 
@@ -18,7 +18,14 @@ function fmtMD(iso: string | null): string {
 // 組出週一要推播的訊息文字
 async function buildMessage(): Promise<string> {
   const range = weekRange(0)
-  const rows = await getWeeklyRows(range)
+  // 發通知前先跑一次「主頁→週清單」同步：就算週末沒人開過頁面，週一的訊息也是最新計畫
+  let rows
+  try {
+    rows = await syncWeeklyFromRecords(range)
+  } catch (err) {
+    console.error('[weekly notify sync]', err)
+    rows = await getWeeklyRows(range)
+  }
   const head = `【今週の出荷予定】${fmtMD(range.from)}〜${fmtMD(range.to)}`
   if (rows.length === 0) {
     return `${head}\n\n（今週の出荷予定はまだ登録されていません。川越さん、登録をお願いします）\n\n▶ チェックリスト：${WEEKLY_URL}`

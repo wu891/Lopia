@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { getWeeklyRows, createWeeklyRow, isWeeklyConfigured, weekRange } from '@/lib/weekly'
+import { getWeeklyRows, createWeeklyRow, isWeeklyConfigured, weekRange, syncWeeklyFromRecords } from '@/lib/weekly'
 import { canEditWeekly, personName } from '@/lib/checklistModel'
 import { requireWho } from '@/lib/checklistAuth'
 import { clampLen } from '@/lib/auth'
@@ -8,6 +8,8 @@ export const dynamic = 'force-dynamic'
 
 // GET：列出某一週的出貨計畫（唯讀，不需登入）
 //   ?week=0 本週(預設) / -1 上週 / 1 下週；也接受 ?all=1 拿全部
+//   本週與未來的週：先跑「主頁出貨計畫→週清單」自動同步再回傳；
+//   過去的週：不同步（維持當時留下的列，當歷史紀錄）。
 export async function GET(req: NextRequest) {
   try {
     if (!isWeeklyConfigured()) {
@@ -19,8 +21,20 @@ export async function GET(req: NextRequest) {
       return NextResponse.json({ configured: true, rows, range: null })
     }
     const offset = Number(sp.get('week') ?? '0')
-    const range = weekRange(Number.isFinite(offset) ? offset : 0)
-    const rows = await getWeeklyRows(range)
+    const off = Number.isFinite(offset) ? offset : 0
+    const range = weekRange(off)
+    let rows
+    if (off >= 0) {
+      try {
+        rows = await syncWeeklyFromRecords(range)
+      } catch (err) {
+        // 同步失敗（主頁 DB 暫時讀不到等）不擋看清單：退回純讀取
+        console.error('[weekly sync]', err)
+        rows = await getWeeklyRows(range)
+      }
+    } else {
+      rows = await getWeeklyRows(range)
+    }
     return NextResponse.json({ configured: true, rows, range })
   } catch (err) {
     console.error(err)

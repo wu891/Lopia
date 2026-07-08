@@ -1,7 +1,12 @@
 /**
- * 本週出貨計畫 — Notion 讀寫 + 週範圍工具（伺服器端）
+ * 本週出貨計畫 — Notion 讀寫 + 週範圍工具 + 主頁自動同步（伺服器端）
  * ───────────────────────────────────────────────────────────────
- * 川越さん（日本本社）每週把「這週要出什麼」輸入這裡，週一開會用；
+ * 列的來源有兩種：
+ *   ① 自動同步：打開「本週出貨」分頁時，伺服器自動把主頁（出貨紀錄 DB）
+ *      該週的計畫聚合成列補進來（同批次＋同配送日＝一列）。這種列唯讀，
+ *      要改內容請回主頁改，下次載入會自動跟上。
+ *   ② 手動新增：川越さん／COLIN 手動登錄（給不經過主頁批次的臨時出貨），
+ *      不受同步影響。
  * 每一列 = 一批出貨（一個配送日），可一鍵建立對應的三重檢查清單。
  *
  * 需要 Vercel env：NOTION_WEEKLY_DB（本週出貨計畫資料庫 ID）
@@ -9,9 +14,13 @@
  * 一列的欄位（對應 Notion 屬性）：
  *   品項(title) / 配送日(date) / 店鋪(rich_text) / 數量備註(rich_text)
  *   建立者(rich_text) / 已建檢查單(checkbox) / 檢查單頁ID(rich_text)
+ *   來源鍵(rich_text，自動列才有＝「批次ID|配送日」，同步用的身分證)
+ *   建單快照(rich_text，建檢查單當下的內容快照，用來偵測「建單後計畫又變了」)
  */
 
 import { Client } from '@notionhq/client'
+import { getShipmentRecords, getShipments, type ShipmentRecord } from './notion'
+import { STORES } from './stores'
 
 const notion = new Client({ auth: process.env.NOTION_API_KEY })
 
@@ -32,7 +41,18 @@ export interface WeeklyRow {
   createdBy: string           // 建立者顯示名
   checklistCreated: boolean   // 是否已建立對應的檢查清單
   checklistId: string | null  // 已建的檢查清單 Notion page id
+  sourceKey: string | null    // 自動列的身分證「批次ID|配送日」；手動列為 null
+  snapshot: string | null     // 建檢查單當下的內容快照（偵測建單後變更用）
   lastEdited: string
+  // ── 以下三個是同步時算出來的（不存 Notion，只在 API 回應出現）──
+  planStatus?: string | null  // 來源計畫狀態（計畫中／已確認）
+  changed?: boolean           // 已建檢查單後，主頁計畫內容又變了
+  sourceGone?: boolean        // 已建檢查單，但主頁計畫已取消／刪除
+}
+
+/** 跟「一鍵建檢查單」用同一種組法：品項｜店鋪｜數量備註（快照比對要一致才準） */
+export function composeWeeklyContent(product: string, stores: string, note: string): string {
+  return [product, stores, note].map(s => (s || '').trim()).filter(Boolean).join('｜')
 }
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -66,6 +86,8 @@ function pageToRow(page: any): WeeklyRow {
     createdBy: getRich(p['建立者']),
     checklistCreated: getCheckbox(p['已建檢查單']),
     checklistId: getRich(p['檢查單頁ID']) || null,
+    sourceKey: getRich(p['來源鍵']) || null,
+    snapshot: getRich(p['建單快照']) || null,
     lastEdited: page.last_edited_time ?? '',
   }
 }
@@ -138,6 +160,7 @@ export async function createWeeklyRow(data: {
   stores?: string
   note?: string
   createdBy: string
+  sourceKey?: string
 }): Promise<WeeklyRow> {
   const DB = weeklyDb()
   if (!DB) throw new Error('尚未設定 NOTION_WEEKLY_DB')
@@ -150,6 +173,7 @@ export async function createWeeklyRow(data: {
       '數量備註': { rich_text: rt(data.note) },
       '建立者': { rich_text: rt(data.createdBy) },
       '已建檢查單': { checkbox: false },
+      ...(data.sourceKey ? { '來源鍵': { rich_text: rt(data.sourceKey) } } : {}),
     },
   })
   return pageToRow(page)
@@ -174,12 +198,14 @@ export async function deleteWeeklyRow(id: string): Promise<void> {
   await notion.pages.update({ page_id: id, archived: true })
 }
 
-export async function markWeeklyChecklistCreated(id: string, checklistId: string): Promise<WeeklyRow> {
+export async function markWeeklyChecklistCreated(id: string, checklistId: string, snapshot?: string): Promise<WeeklyRow> {
   const page = await notion.pages.update({
     page_id: id,
     properties: {
       '已建檢查單': { checkbox: true },
       '檢查單頁ID': { rich_text: rt(checklistId) },
+      // 記下建單當下的內容；之後同步若發現主頁計畫變了，就靠這個快照比對出「⚠️ 計畫已變更」
+      ...(snapshot !== undefined ? { '建單快照': { rich_text: rt(snapshot) } } : {}),
     },
   })
   return pageToRow(page)
@@ -209,7 +235,188 @@ export async function provisionWeeklyDb(): Promise<{ databaseId: string }> {
       '建立者': { rich_text: {} },
       '已建檢查單': { checkbox: {} },
       '檢查單頁ID': { rich_text: {} },
+      '來源鍵': { rich_text: {} },
+      '建單快照': { rich_text: {} },
     },
   })
   return { databaseId: created.id }
+}
+
+// ══ 主頁出貨計畫 → 本週出貨 自動同步 ═══════════════════════════════════════
+//
+// 打開「本週出貨」分頁（本週或未來的週）時執行：
+//   1. 撈主頁出貨紀錄，把該週、狀態≠已取消的紀錄依「批次＋配送日」聚合
+//   2. 跟週計畫 DB 現有的自動列（有來源鍵的）比對：
+//      缺 → 建（建立者＝自動同步）；內容變了 → 更新（永遠跟著主頁）
+//      來源消失 → 沒建檢查單就封存；建了檢查單就保留並標 sourceGone
+//   3. 已建檢查單的列，若目前內容 ≠ 建單快照 → 標 changed（⚠️ 計畫已變更）
+// 手動列（沒有來源鍵）完全不碰。
+
+export const AUTO_SYNC_CREATOR = '自動同步'
+
+/** 聚合後的一列來源（＝主頁上「某批次、某天」的出貨計畫全貌） */
+interface WeeklySource {
+  sourceKey: string
+  product: string
+  deliveryDate: string
+  stores: string
+  note: string
+  planStatus: string
+}
+
+// 週計畫 DB 可能是舊版建的，缺「來源鍵／建單快照」欄位；第一次同步時自動補上。
+// 補過一次就記在模組變數裡，同一個伺服器實例不再重查。
+let syncSchemaReady = false
+async function ensureSyncSchema(): Promise<void> {
+  if (syncSchemaReady) return
+  const DB = weeklyDb()
+  if (!DB) return
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const meta = (await notion.databases.retrieve({ database_id: DB })) as any
+  const props = meta?.properties ?? {}
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const missing: Record<string, any> = {}
+  if (!props['來源鍵']) missing['來源鍵'] = { rich_text: {} }
+  if (!props['建單快照']) missing['建單快照'] = { rich_text: {} }
+  if (Object.keys(missing).length > 0) {
+    await notion.databases.update({ database_id: DB, properties: missing })
+  }
+  syncSchemaReady = true
+}
+
+/** 把該週的出貨紀錄聚合成「一批次＋一配送日＝一列」的來源清單 */
+async function aggregateWeekSources(range: { from: string; to: string }): Promise<WeeklySource[]> {
+  const [records, shipments] = await Promise.all([getShipmentRecords(), getShipments()])
+  const batchById = new Map(shipments.map(s => [s.id, s]))
+
+  const groups = new Map<string, ShipmentRecord[]>()
+  for (const r of records) {
+    if (!r.batchId || !r.date) continue
+    if (r.date < range.from || r.date > range.to) continue
+    if (r.planStatus === '已取消') continue
+    const key = `${r.batchId}|${r.date}`
+    const list = groups.get(key)
+    if (list) list.push(r)
+    else groups.set(key, [r])
+  }
+
+  const openCount = STORES.filter(s => s.status === 'open').length
+  const out: WeeklySource[] = []
+  for (const [key, recs] of groups) {
+    const batch = batchById.get(recs[0].batchId!)
+    // 品項＝商品摘要（批次名）；批次沒填摘要就只放批次名
+    const product = batch
+      ? (batch.productSummary ? `${batch.productSummary}（${batch.ivName}）` : batch.ivName)
+      : '（未知批次）'
+
+    // 店鋪：去重後列出；家數達到全部營業中門市就簡寫「全N店」
+    const storeNames: string[] = []
+    for (const r of recs) {
+      if (r.store && !storeNames.includes(r.store)) storeNames.push(r.store)
+    }
+    const stores = storeNames.length >= openCount ? `全${openCount}店` : storeNames.join('、')
+
+    // 數量備註：共X箱＋各店明細（沒填箱數的店不列明細但仍算店鋪）
+    let total = 0
+    const parts: string[] = []
+    for (const r of recs) {
+      if (r.boxes != null && r.store) {
+        total += r.boxes
+        parts.push(`${r.store}${r.boxes}`)
+      }
+    }
+    const note = parts.length > 0 ? `共${total}箱：${parts.join('、')}` : ''
+
+    // 狀態：全部一致就用那個值，混雜（或沒填）一律當「計畫中」
+    const statuses = Array.from(new Set(recs.map(r => r.planStatus ?? '計畫中')))
+    const planStatus = statuses.length === 1 ? statuses[0] : '計畫中'
+
+    out.push({ sourceKey: key, product, deliveryDate: recs[0].date!, stores, note, planStatus })
+  }
+  return out
+}
+
+/** 自動列的內容是否需要跟著主頁更新 */
+function needsUpdate(row: WeeklyRow, src: WeeklySource): boolean {
+  return row.product !== src.product
+    || row.deliveryDate !== src.deliveryDate
+    || row.stores !== src.stores
+    || row.note !== src.note
+}
+
+/**
+ * 同步一週：把主頁計畫補進／更新到週計畫 DB，回傳這一週的完整列
+ * （自動列附 planStatus / changed / sourceGone；手動列原樣）。
+ * 給 GET /api/weekly 與週一 LINE 通知共用。
+ */
+export async function syncWeeklyFromRecords(range: { from: string; to: string }): Promise<WeeklyRow[]> {
+  const DB = weeklyDb()
+  if (!DB) return []
+  await ensureSyncSchema()
+
+  const [sources, rows] = await Promise.all([aggregateWeekSources(range), getWeeklyRows(range)])
+
+  // 現有自動列依來源鍵分組（理論上一鍵一列；若歷史上重複建了，多的沒建檢查單就順手封存）
+  const autoByKey = new Map<string, WeeklyRow[]>()
+  const out: WeeklyRow[] = []
+  for (const row of rows) {
+    if (row.sourceKey) {
+      const list = autoByKey.get(row.sourceKey)
+      if (list) list.push(row)
+      else autoByKey.set(row.sourceKey, [row])
+    } else {
+      out.push(row) // 手動列：原樣保留，不受同步影響
+    }
+  }
+
+  const seen = new Set<string>()
+  for (const src of sources) {
+    seen.add(src.sourceKey)
+    const existing = autoByKey.get(src.sourceKey) ?? []
+    let keep = existing.find(r => r.checklistCreated) ?? existing[0] ?? null
+    for (const extra of existing) {
+      if (extra === keep) continue
+      if (!extra.checklistCreated) await deleteWeeklyRow(extra.id)
+      else out.push(extra) // 罕見：同一來源重複建了檢查單——照樣顯示，不能讓它隱形
+    }
+
+    if (!keep) {
+      keep = await createWeeklyRow({
+        product: src.product,
+        deliveryDate: src.deliveryDate,
+        stores: src.stores,
+        note: src.note,
+        createdBy: AUTO_SYNC_CREATOR,
+        sourceKey: src.sourceKey,
+      })
+    } else if (needsUpdate(keep, src)) {
+      keep = await updateWeeklyRow(keep.id, {
+        product: src.product,
+        deliveryDate: src.deliveryDate,
+        stores: src.stores,
+        note: src.note,
+      })
+    }
+
+    keep.planStatus = src.planStatus
+    // 建過檢查單、而且目前內容跟建單當下的快照不一樣 → 提醒「計畫已變更」
+    keep.changed = keep.checklistCreated && !!keep.snapshot
+      && keep.snapshot !== composeWeeklyContent(src.product, src.stores, src.note)
+    out.push(keep)
+  }
+
+  // 來源消失的自動列：沒建檢查單→封存；建了→保留並標「計畫已取消」
+  for (const [key, list] of autoByKey) {
+    if (seen.has(key)) continue
+    for (const row of list) {
+      if (row.checklistCreated) {
+        row.sourceGone = true
+        out.push(row)
+      } else {
+        await deleteWeeklyRow(row.id)
+      }
+    }
+  }
+
+  return out.sort((a, b) => (a.deliveryDate ?? '9999').localeCompare(b.deliveryDate ?? '9999'))
 }

@@ -34,7 +34,12 @@ interface WeeklyRow {
   createdBy: string
   checklistCreated: boolean
   checklistId: string | null
+  sourceKey: string | null    // 有值＝主頁自動同步來的（唯讀）；null＝手動列
+  snapshot: string | null
   lastEdited: string
+  planStatus?: string | null  // 來源計畫狀態（計畫中／已確認），同步時算出
+  changed?: boolean           // 建檢查單後主頁計畫又改了
+  sourceGone?: boolean        // 建了檢查單但主頁計畫已取消／刪除
 }
 
 interface WeekMeta { from: string; to: string; label: string }
@@ -976,6 +981,10 @@ function WeeklyPanel({ who, flash, onChecklistCreated }: {
         )}
       </div>
 
+      <div className="text-[11px] text-slate-400 mb-3">
+        🔄 主頁的出貨計畫會自動同步進來（唯讀，要改請到主頁改）；不經過主頁批次的臨時出貨才需要手動新增。
+      </div>
+
       {canEdit ? (
         adding ? (
           <WeeklyForm
@@ -986,17 +995,15 @@ function WeeklyPanel({ who, flash, onChecklistCreated }: {
         ) : (
           <button onClick={() => setAdding(true)}
             className="w-full mb-4 py-2.5 rounded-lg border-2 border-dashed border-slate-300 text-slate-500 text-sm hover:border-[#36454f] hover:text-[#36454f]">
-            ＋ 新增一批出貨（品項／配送日／店鋪）
+            ＋ 手動新增一批出貨（主頁沒有的臨時出貨用）
           </button>
         )
-      ) : (
-        <div className="text-[11px] text-slate-400 mb-3">本週清單由川越さん與 COLIN 維護，你可以檢視與一鍵建立檢查單。</div>
-      )}
+      ) : null}
 
       {loading ? (
         <div className="text-center text-slate-400 py-8 text-sm">載入中…</div>
       ) : rows.length === 0 ? (
-        <div className="text-center text-slate-400 py-10 text-sm">這週還沒有登錄出貨計畫。</div>
+        <div className="text-center text-slate-400 py-10 text-sm">這週還沒有出貨計畫（在主頁批次登錄出貨計畫後，這裡會自動出現）。</div>
       ) : (
         <div className="space-y-2">
           {rows.map(row => (
@@ -1116,6 +1123,8 @@ function WeeklyRowCard({ row, canEdit, onChanged, onChecklistCreated, flash }: {
     }
   }
 
+  const isAuto = !!row.sourceKey
+
   if (mode === 'edit') {
     return (
       <WeeklyForm initial={row} onSubmit={saveEdit} onCancel={() => setMode('view')} />
@@ -1127,12 +1136,35 @@ function WeeklyRowCard({ row, canEdit, onChanged, onChecklistCreated, flash }: {
       <div className="flex items-start gap-2">
         <span className={`text-[11px] px-2 py-1 rounded-full whitespace-nowrap ${lit.color}`}>{fmtDate(row.deliveryDate)}</span>
         <div className="flex-1 min-w-0">
-          <div className="font-bold text-slate-800">{row.product}</div>
+          <div className="font-bold text-slate-800 flex flex-wrap items-center gap-1.5">
+            <span>{row.product}</span>
+            {isAuto && (
+              <span className="text-[10px] font-normal px-1.5 py-0.5 rounded-full bg-slate-100 text-slate-500 border border-slate-200 whitespace-nowrap">🔄 自動同步</span>
+            )}
+            {isAuto && row.planStatus && (
+              <span className={`text-[10px] font-normal px-1.5 py-0.5 rounded-full border whitespace-nowrap ${
+                row.planStatus === '已確認'
+                  ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
+                  : 'bg-amber-50 text-amber-700 border-amber-200'
+              }`}>{row.planStatus}</span>
+            )}
+          </div>
           {row.stores && <div className="text-xs text-slate-500 mt-0.5">店鋪：{row.stores}</div>}
           {row.note && <div className="text-xs text-slate-500">數量：{row.note}</div>}
           {row.createdBy && <div className="text-[10px] text-slate-400 mt-0.5">by {row.createdBy}</div>}
         </div>
       </div>
+
+      {row.sourceGone && (
+        <div className="mt-2 rounded-lg border border-red-300 bg-red-50 px-2.5 py-2 text-xs text-red-700">
+          ⚠️ <b>計畫已取消</b>：主頁對應的出貨計畫已被取消或刪除，這批可能不用出了。請確認後把檢查單收尾（退回並註明取消）。
+        </div>
+      )}
+      {row.changed && !row.sourceGone && (
+        <div className="mt-2 rounded-lg border border-amber-300 bg-amber-50 px-2.5 py-2 text-xs text-amber-800">
+          ⚠️ <b>計畫已變更</b>：建立檢查單之後，主頁的出貨計畫改過了（上面顯示的是最新內容）。請確認檢查單要不要退回重查。
+        </div>
+      )}
 
       <div className="flex flex-wrap items-center gap-2 mt-2.5">
         {row.checklistCreated ? (
@@ -1157,7 +1189,12 @@ function WeeklyRowCard({ row, canEdit, onChanged, onChecklistCreated, flash }: {
           </button>
         )}
 
-        {canEdit && mode !== 'build' && !row.checklistCreated && (
+        {isAuto ? (
+          <a href="/" target="_blank" rel="noopener noreferrer"
+            className="text-xs text-slate-500 border border-slate-300 rounded-lg px-2.5 py-1.5 hover:bg-slate-100">
+            到主頁修改 ↗
+          </a>
+        ) : canEdit && mode !== 'build' && !row.checklistCreated && (
           <>
             <button onClick={() => setMode('edit')}
               className="text-xs text-slate-600 border border-slate-300 rounded-lg px-2.5 py-1.5 hover:bg-slate-100">編輯</button>
