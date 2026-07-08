@@ -22,17 +22,36 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ id:
   }
 }
 
-// 一層完成後，下一位是誰（給 LINE 通知用）
+// TMJ AI 發到 LINE 群組的訊息一律用日文（給日本本社/供應商看）；帶連結可直接點開該張單
+const CHECKLIST_URL = 'https://lopia-status.vercel.app/checklist'
+function checklistLink(shipmentNo: string): string {
+  return `${CHECKLIST_URL}?s=${encodeURIComponent(shipmentNo)}`
+}
+
+// 一層完成後的 LINE 通知（日文）。afterLayer＝現在輪到的層；剛完成的是 afterLayer-1。
 function nextUpMessage(shipmentNo: string, afterLayer: number): string {
+  const link = checklistLink(shipmentNo)
   if (afterLayer > LAST_LAYER_ID) {
-    return `✅【${shipmentNo}】三重檢查全部完成，川越さん已共享給平山さん。`
+    return `🎉【${shipmentNo}】三重チェック 全工程完了\n`
+      + `第4重「社外共有」まで完了しました。川越さんが平山さんへ情報共有済みです。\n`
+      + `▶ 詳細：${link}`
   }
-  const nextWho: Record<number, string> = {
-    2: '林さん（確認指示已送達倉庫與物流）',
-    3: '蔡さん（總合確認）',
-    4: '川越さん（共享給平山さん）',
+  // 直前に完了した重（afterLayer-1）の名称と内容
+  const done: Record<number, string> = {
+    1: '第1重「作成・相互チェック」\n（KIDO・COLINが納品書を相互確認し、林さんへ報告済み）',
+    2: '第2重「到着確認」\n（林さんが倉庫（三義）・物流会社への到着を確認し、蔡さんへ報告済み）',
+    3: '第3重「総合確認」\n（蔡さんがステップ1・2を総合確認し、川越さんへ報告済み）',
   }
-  return `🔔【${shipmentNo}】上一層已完成，輪到 ${nextWho[afterLayer] ?? ''} 確認。`
+  // 次の担当者（afterLayer）と、その人がやること
+  const next: Record<number, string> = {
+    2: '👉 次は林さんの番です\n出荷指示が倉庫（三義）・物流会社へ届いているかご確認ください。',
+    3: '👉 次は蔡さんの番です\nステップ1・2の内容を総合確認してください。',
+    4: '👉 次は川越さんの番です\n平山さんへ情報共有をお願いします（共有で完了です）。',
+  }
+  return `🔔【${shipmentNo}】\n`
+    + `✅ 完了：${done[afterLayer - 1] ?? ''}\n\n`
+    + `${next[afterLayer] ?? ''}\n\n`
+    + `▶ チェックリスト：${link}`
 }
 
 // PATCH：勾/取消勾（action=check）或 退回（action=reject）
@@ -87,8 +106,11 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
       const next = applyReject(current.state, toLayer, who, reason, nowIso)
       const saved = await saveChecklistState(id, next)
       await pushToGroup(
-        `↩️【${saved.shipmentNo}】被 ${personName(who)} 退回到第 ${toLayer} 層，` +
-        `原因：${reason}。請該層重新確認。`
+        `↩️【${saved.shipmentNo}】差し戻し\n` +
+        `${personName(who)} が「第${toLayer}重」へ差し戻しました。\n` +
+        `理由：${reason}\n` +
+        `該当の担当者は再確認をお願いします。\n` +
+        `▶ チェックリスト：${checklistLink(saved.shipmentNo)}`
       )
       return NextResponse.json({ item: saved })
     }

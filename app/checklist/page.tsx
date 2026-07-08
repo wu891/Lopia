@@ -88,6 +88,7 @@ export default function ChecklistPage() {
   const [items, setItems] = useState<Checklist[]>([])
   const [loading, setLoading] = useState(true)
   const [expandedId, setExpandedId] = useState<string | null>(null)
+  const [deepShip, setDeepShip] = useState<string | null>(null)
   const [banner, setBanner] = useState<{ type: 'err' | 'ok'; msg: string } | null>(null)
   const [tab, setTab] = useState<Tab>('checklist')
 
@@ -117,6 +118,21 @@ export default function ChecklistPage() {
       .catch(() => {})
     loadChecklists()
   }, [loadChecklists])
+
+  // 深連結：LINE 通知的網址帶 ?s=單號（自動展開該張單）或 ?tab=weekly（切到本週出貨分頁）
+  useEffect(() => {
+    const sp = new URLSearchParams(window.location.search)
+    if (sp.get('tab') === 'weekly') setTab('weekly')
+    const s = sp.get('s')
+    if (s) { setTab('checklist'); setDeepShip(s) }
+  }, [])
+  // 單子載入後，把 ?s= 指定的單號對到卡片並自動展開
+  useEffect(() => {
+    if (!deepShip || items.length === 0) return
+    const hit = items.find(it => it.shipmentNo === deepShip)
+    if (hit) setExpandedId(hit.id)
+    setDeepShip(null)
+  }, [deepShip, items])
 
   async function refreshOne(id: string) {
     const res = await fetch(`/api/checklist/${id}`, { cache: 'no-store' })

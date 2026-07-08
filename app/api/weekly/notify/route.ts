@@ -6,7 +6,8 @@ import { requireAuth } from '@/lib/auth'
 export const dynamic = 'force-dynamic'
 
 const CHECKLIST_URL = 'https://lopia-status.vercel.app/checklist'
-const WEEKDAY = ['日', '一', '二', '三', '四', '五', '六']
+const WEEKLY_URL = `${CHECKLIST_URL}?tab=weekly`
+const WEEKDAY = ['日', '月', '火', '水', '木', '金', '土'] // 日文星期（TMJ AI 群組訊息一律日文）
 
 function fmtMD(iso: string | null): string {
   if (!iso) return '未定日'
@@ -18,18 +19,18 @@ function fmtMD(iso: string | null): string {
 async function buildMessage(): Promise<string> {
   const range = weekRange(0)
   const rows = await getWeeklyRows(range)
-  const head = `【本週出貨預定】${fmtMD(range.from)}〜${fmtMD(range.to)}`
+  const head = `【今週の出荷予定】${fmtMD(range.from)}〜${fmtMD(range.to)}`
   if (rows.length === 0) {
-    return `${head}\n\n（本週尚未登錄出貨計畫，請川越さん補上）\n\n▶ 檢查清單：${CHECKLIST_URL}`
+    return `${head}\n\n（今週の出荷予定はまだ登録されていません。川越さん、登録をお願いします）\n\n▶ チェックリスト：${WEEKLY_URL}`
   }
   const lines = rows.map(r => {
     let s = `■ ${fmtMD(r.deliveryDate)} ${r.product}`
-    if (r.stores) s += `\n　店鋪：${r.stores}`
-    if (r.note) s += `\n　數量：${r.note}`
-    if (r.checklistCreated) s += `\n　✅ 已建檢查單`
+    if (r.stores) s += `\n　店舗：${r.stores}`
+    if (r.note) s += `\n　数量：${r.note}`
+    if (r.checklistCreated) s += `\n　✅ チェックリスト作成済み`
     return s
   })
-  return `${head}\n\n${lines.join('\n\n')}\n\n▶ 檢查清單：${CHECKLIST_URL}`
+  return `${head}\n\n${lines.join('\n\n')}\n\n▶ チェックリスト：${WEEKLY_URL}`
 }
 
 // 共用：組訊息 → 推播；回傳結果（含訊息文字，方便測試時檢視）
