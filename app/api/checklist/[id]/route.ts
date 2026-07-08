@@ -47,6 +47,18 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
     const nowIso = new Date().toISOString()
 
     const current = await getChecklistById(id)
+
+    // 樂觀鎖：前端帶著它載入時看到的版本(lastEdited)，若這張單在期間被別人改過就擋下，
+    // 避免「兩人幾乎同時各自勾一項 → 後寫入者整份覆蓋掉先寫入者的勾」的靜默資料遺失。
+    // 第一重 KIDO＆COLIN 是設計上就會同時在同一張單上互查，這種情況最常發生。
+    const baseLastEdited = typeof body.baseLastEdited === 'string' ? body.baseLastEdited : null
+    if (baseLastEdited && current.lastEdited && baseLastEdited !== current.lastEdited) {
+      return NextResponse.json(
+        { error: '這張單剛剛被其他人更新了，已幫你重新整理，請再操作一次', conflict: true, item: current },
+        { status: 409 },
+      )
+    }
+
     const beforeLayer = currentLayerId(current.state)
 
     if (action === 'check') {

@@ -426,6 +426,7 @@ function ChecklistCard({ item, who, expanded, onToggle, onChanged, flash }: {
                     <ItemCheckbox
                       key={it.key}
                       checklistId={item.id}
+                      baseLastEdited={item.lastEdited}
                       itemKey={it.key}
                       label={it.label}
                       mark={state.checks[it.key]}
@@ -441,7 +442,7 @@ function ChecklistCard({ item, who, expanded, onToggle, onChanged, flash }: {
           })}
 
           {/* 退回 + 退回紀錄 */}
-          <RejectBox checklistId={item.id} maxLayer={Math.min(cur, LAST_LAYER_ID)} onChanged={onChanged} flash={flash} />
+          <RejectBox checklistId={item.id} baseLastEdited={item.lastEdited} maxLayer={Math.min(cur, LAST_LAYER_ID)} onChanged={onChanged} flash={flash} />
           {state.rejections.length > 0 && (
             <div className="mt-3 border-t border-slate-200 pt-2">
               <div className="text-[11px] font-bold text-slate-500 mb-1">退回紀錄</div>
@@ -458,8 +459,9 @@ function ChecklistCard({ item, who, expanded, onToggle, onChanged, flash }: {
   )
 }
 
-function ItemCheckbox({ checklistId, itemKey, label, mark, allowed, locked, onChanged, flash }: {
+function ItemCheckbox({ checklistId, baseLastEdited, itemKey, label, mark, allowed, locked, onChanged, flash }: {
   checklistId: string
+  baseLastEdited: string
   itemKey: string
   label: string
   mark?: { checked: boolean; by?: string; proxyFor?: string }
@@ -479,10 +481,11 @@ function ItemCheckbox({ checklistId, itemKey, label, mark, allowed, locked, onCh
       const res = await fetch(`/api/checklist/${checklistId}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ action: 'check', itemKey, checked: !checked }),
+        body: JSON.stringify({ action: 'check', itemKey, checked: !checked, baseLastEdited }),
       })
       const d = await res.json()
-      if (!res.ok) flash('err', d.error ?? '操作失敗')
+      if (res.status === 409) { flash('err', d.error ?? '已被更新，請再點一次'); onChanged(checklistId) }
+      else if (!res.ok) flash('err', d.error ?? '操作失敗')
       else onChanged(checklistId)
     } catch {
       flash('err', '操作失敗')
@@ -516,8 +519,9 @@ function ItemCheckbox({ checklistId, itemKey, label, mark, allowed, locked, onCh
   )
 }
 
-function RejectBox({ checklistId, maxLayer, onChanged, flash }: {
+function RejectBox({ checklistId, baseLastEdited, maxLayer, onChanged, flash }: {
   checklistId: string
+  baseLastEdited: string
   maxLayer: number
   onChanged: (id: string) => void
   flash: (t: 'err' | 'ok', m: string) => void
@@ -534,10 +538,11 @@ function RejectBox({ checklistId, maxLayer, onChanged, flash }: {
       const res = await fetch(`/api/checklist/${checklistId}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ action: 'reject', toLayer, reason: reason.trim() }),
+        body: JSON.stringify({ action: 'reject', toLayer, reason: reason.trim(), baseLastEdited }),
       })
       const d = await res.json()
-      if (!res.ok) flash('err', d.error ?? '退回失敗')
+      if (res.status === 409) { flash('err', d.error ?? '已被更新，請重開此單再退回'); setOpen(false); onChanged(checklistId) }
+      else if (!res.ok) flash('err', d.error ?? '退回失敗')
       else { flash('ok', '已退回'); setReason(''); setOpen(false); onChanged(checklistId) }
     } catch {
       flash('err', '退回失敗')
