@@ -1,27 +1,30 @@
 'use client'
-import { useEffect, useState, useCallback } from 'react'
+// ── 主畫面（2026-07 看板改版，設計 #2a）──────────────────────
+// 版型由上到下：頂部列 → KPI 指標列 → 工具列 → 內容（看板/卡片/月曆/門市/預告）
+// 視覺規格照 design_handoff_kanban_dashboard/README.md
+import { useEffect, useState, useCallback, useRef } from 'react'
 import { Shipment, ShipmentRecord, LogisticsEvent } from '@/lib/notion'
 import { Lang, t } from '@/lib/i18n'
-import Header from '@/components/Header'
+import { deriveKanban, isUrgent, daysUntil, computeKpis, todayTaipei } from '@/lib/kanban'
+import { TOOLS } from '@/components/Header'
 import ShipmentCard from '@/components/ShipmentCard'
-import CompactShipmentRow from '@/components/CompactShipmentRow'
+import KanbanBoard from '@/components/KanbanBoard'
 import StoreList from '@/components/StoreList'
 import AddBatchForm from '@/components/AddBatchForm'
 import CalendarView from '@/components/CalendarView'
 import ArrivalPreview from '@/components/ArrivalPreview'
-import TodaySummary from '@/components/TodaySummary'
 
-type Tab = 'shipments' | 'stores' | 'preview'
+// 檢視模式：看板（預設）/ 卡片 / 月曆；門市與進貨預告也併進同一組切換
+type View = 'kanban' | 'card' | 'calendar' | 'stores' | 'preview'
 
-// ── Month-grouped list ──────────────────────────────────────
+// ── 月份分組卡片列表（卡片檢視用）────────────────────────────
 function MonthGroupedList({
-  shipments, lang, allRecords, onRecordChange, compact = false,
+  shipments, lang, allRecords, onRecordChange,
 }: {
   shipments: Shipment[]
   lang: Lang
   allRecords: ShipmentRecord[]
   onRecordChange: () => void
-  compact?: boolean
 }) {
   const groups: { monthKey: string; label: string; items: Shipment[] }[] = []
   for (const s of shipments) {
@@ -41,39 +44,104 @@ function MonthGroupedList({
     <div>
       {groups.map(group => (
         <div key={group.monthKey} className="mb-6">
-          <div className={`sticky top-14 z-20 -mx-4 px-4 py-2 mb-3
-            bg-gray-50 border-b border-gray-200 flex items-center gap-2`}>
-            <span className="text-sm font-bold text-gray-700">{group.label}</span>
-            <span className="text-xs text-gray-400 font-normal">{group.items.length}</span>
+          <div className="sticky top-0 z-20 -mx-4 mb-3 flex items-center gap-2 border-b border-[#e6e4de] bg-[#f4f3ef] px-4 py-2">
+            <span className="text-sm font-bold text-[#3a3a38]">{group.label}</span>
+            <span className="font-mono text-xs font-normal text-[#a8a69d]">{group.items.length}</span>
           </div>
-
-          {compact ? (
-            <div className="bg-white border border-gray-200 rounded-xl shadow-sm overflow-hidden divide-y divide-gray-100">
-              {group.items.map(s => (
-                <CompactShipmentRow
-                  key={s.id}
-                  shipment={s}
-                  lang={lang}
-                  allRecords={allRecords}
-                  onRecordChange={onRecordChange}
-                />
-              ))}
-            </div>
-          ) : (
-            <div className="space-y-4">
-              {group.items.map(s => (
-                <ShipmentCard
-                  key={s.id}
-                  shipment={s}
-                  lang={lang}
-                  allRecords={allRecords}
-                  onRecordChange={onRecordChange}
-                />
-              ))}
-            </div>
-          )}
+          <div className="space-y-4">
+            {group.items.map(s => (
+              <ShipmentCard
+                key={s.id}
+                shipment={s}
+                lang={lang}
+                allRecords={allRecords}
+                onRecordChange={onRecordChange}
+              />
+            ))}
+          </div>
         </div>
       ))}
+    </div>
+  )
+}
+
+// ── 業務工具下拉選單（沿用 Header 的工具清單，換成看板配色）──
+function ToolsMenu() {
+  const [open, setOpen] = useState(false)
+  const ref = useRef<HTMLDivElement>(null)
+
+  useEffect(() => {
+    function handleClick(e: MouseEvent) {
+      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false)
+    }
+    document.addEventListener('mousedown', handleClick)
+    return () => document.removeEventListener('mousedown', handleClick)
+  }, [])
+
+  return (
+    <div className="relative" ref={ref}>
+      <button
+        onClick={() => setOpen(v => !v)}
+        className="flex items-center gap-1.5 rounded-lg border border-[#eae8e2] bg-white px-3 py-[9px] text-xs font-medium text-[#7d7b73] transition-colors hover:text-[#26251f] cursor-pointer"
+      >
+        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+          <rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/>
+          <rect x="3" y="14" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/>
+        </svg>
+        業務工具
+        <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"
+          strokeLinecap="round" strokeLinejoin="round"
+          style={{ transition: 'transform .2s', transform: open ? 'rotate(180deg)' : 'rotate(0deg)' }}>
+          <polyline points="6 9 12 15 18 9"/>
+        </svg>
+      </button>
+      {open && (
+        <div className="absolute right-0 top-full z-50 mt-1.5 w-40 overflow-hidden rounded-lg border border-[#eae8e2] bg-white shadow-lg">
+          {TOOLS.map(tool => (
+            <a
+              key={tool.href}
+              href={tool.href}
+              target="_blank"
+              rel="noopener noreferrer"
+              onClick={() => setOpen(false)}
+              className="flex items-center gap-2.5 px-3.5 py-2.5 text-xs font-medium text-[#7d7b73] transition-colors hover:bg-[#fdecef] hover:text-[#e4002b]"
+            >
+              <span className="text-[#a8a69d]">{tool.icon}</span>
+              {tool.label}
+            </a>
+          ))}
+        </div>
+      )}
+    </div>
+  )
+}
+
+// ── KPI 指標卡 ───────────────────────────────────────────────
+function KpiCard({
+  labelZh, labelJa, value, badge, warn,
+}: {
+  labelZh: string
+  labelJa: string
+  value: number
+  badge?: { text: string; tone: 'green' | 'amber' | 'gray' } | null
+  warn?: boolean
+}) {
+  const badgeCls =
+    badge?.tone === 'green' ? 'rounded-md bg-[#e7f6ec] px-2 py-1 text-[11px] font-bold text-[#1a7f3c]' :
+    badge?.tone === 'amber' ? 'rounded-md bg-[#fef1e0] px-2 py-1 text-[11px] font-bold text-[#b45309]' :
+    'text-[11px] font-semibold text-[#8f8d84]'
+  return (
+    <div
+      className="flex items-center justify-between rounded-[14px] border bg-white px-[18px] py-4"
+      style={{ borderColor: warn ? '#f2e2cd' : '#eae8e2' }}
+    >
+      <div className="flex flex-col gap-1.5">
+        <span className="text-xs font-medium text-[#8f8d84]">
+          {labelZh} <span className="text-[#bcbab2]">{labelJa}</span>
+        </span>
+        <span className="font-mono text-[30px] font-bold leading-none text-[#26251f]">{value}</span>
+      </div>
+      {badge && <span className={badgeCls}>{badge.text}</span>}
     </div>
   )
 }
@@ -98,13 +166,12 @@ export default function Home() {
   const [logisticsData, setLogisticsData] = useState<LogisticsData | null>(null)
   const [loading, setLoading] = useState(true)
   const [fetchError, setFetchError] = useState<string | null>(null)
-  const [tab, setTab] = useState<Tab>('shipments')
-  const [viewMode, setViewMode] = useState<'card' | 'compact' | 'calendar'>('compact')
+  const [view, setView] = useState<View>('kanban')
   const [search, setSearch] = useState('')
-  // 預設只看進行中——已完成的批次不需要每天看
-  const [filter, setFilter] = useState<'all' | 'active' | 'done'>('active')
+  const [filter, setFilter] = useState<'all' | 'urgent'>('all')
 
   const T = t[lang]
+  const today = todayTaipei()
 
   const fetchData = useCallback(async () => {
     setLoading(true)
@@ -134,16 +201,6 @@ export default function Home() {
     }
   }, [])
 
-  const refreshRecords = useCallback(async () => {
-    try {
-      const res = await fetch('/api/records', { cache: 'no-store' })
-      const json = await res.json()
-      setRecordsData(json)
-    } catch (e) {
-      console.error(e)
-    }
-  }, [])
-
   useEffect(() => {
     fetchData()
     const interval = setInterval(fetchData, 10 * 60 * 1000)
@@ -151,231 +208,206 @@ export default function Home() {
   }, [fetchData])
 
   const allRecords = recordsData?.records ?? []
+  const shipments = data?.shipments ?? []
+  const kpis = computeKpis(shipments, today)
 
-  const filtered = (data?.shipments ?? [])
+  // 搜尋（批次/商品/供應商/班機/AWB）＋ 急件篩選
+  const filtered = shipments
     .filter(s => {
       const q = search.toLowerCase()
       const matchSearch = !search ||
         s.ivName.toLowerCase().includes(q) ||
         (s.productSummary ?? '').toLowerCase().includes(q) ||
+        (s.supplier ?? '').toLowerCase().includes(q) ||
         (s.flightNo ?? '').toLowerCase().includes(q) ||
         (s.awbNo ?? '').toLowerCase().includes(q)
-      const matchFilter =
-        filter === 'all'    ? true :
-        filter === 'active' ? s.deliveryStatus !== '全數出貨' :
-        s.deliveryStatus === '全數出貨'
-      return matchSearch && matchFilter
+      if (!matchSearch) return false
+      if (filter === 'urgent') {
+        const { status } = deriveKanban(s, today)
+        return isUrgent(status, daysUntil(s.arrivalTW, today))
+      }
+      return true
     })
     .sort((a, b) => {
-      // 新到舊：最近抵台的批次排最上面，未定日期沉底
+      // 新到舊：最近抵台的批次排最上面，未定日期沉底（卡片檢視用；看板欄內另有排序）
       if (!a.arrivalTW && !b.arrivalTW) return 0
       if (!a.arrivalTW) return 1
       if (!b.arrivalTW) return -1
       return new Date(b.arrivalTW).getTime() - new Date(a.arrivalTW).getTime()
     })
 
+  // 更新時間膠囊文字（HH:MM 更新）
+  const updatedText = data?.lastUpdated
+    ? `${new Date(data.lastUpdated).toLocaleTimeString('zh-TW', { hour: '2-digit', minute: '2-digit', hour12: false, timeZone: 'Asia/Taipei' })} ${T.updatedSuffix}`
+    : null
+
+  const viewBtn = (active: boolean) =>
+    active
+      ? 'rounded-lg bg-[#26251f] px-4 py-2 text-[13px] font-bold text-white cursor-pointer'
+      : 'rounded-lg border border-[#eae8e2] bg-white px-4 py-2 text-[13px] font-medium text-[#7d7b73] hover:text-[#26251f] transition-colors cursor-pointer'
+
+  const filterBtn = (active: boolean) =>
+    active
+      ? 'rounded-md bg-[#fdecef] px-3.5 py-1.5 text-xs font-bold text-[#e4002b] cursor-pointer'
+      : 'rounded-md px-3.5 py-1.5 text-xs font-medium text-[#7d7b73] hover:text-[#26251f] transition-colors cursor-pointer'
+
   return (
-    <div className="min-h-screen bg-gray-50">
-      <Header
-        lang={lang}
-        setLang={setLang}
-        lastUpdated={data?.lastUpdated ?? null}
-        onRefresh={fetchData}
-      />
+    <div className="min-h-screen bg-[#e9e8e4] px-3 py-4 sm:px-6 sm:py-8">
+      <div
+        className="mx-auto max-w-[1420px] overflow-hidden rounded-[20px] border border-[#dedcd6] bg-[#f4f3ef]"
+        style={{ boxShadow: '0 24px 60px -30px rgba(0,0,0,.4)' }}
+      >
+        {/* ── 頂部列 ── */}
+        <div className="flex flex-wrap items-center justify-between gap-3 border-b border-[#edece8] bg-white px-4 py-[18px] sm:px-[30px]">
+          <div className="flex items-center gap-4">
+            <div className="font-tc text-[23px] font-black tracking-[-0.02em] text-[#e4002b]">LOPIA</div>
+            <div className="h-7 w-px bg-[#e6e4de]" />
+            <div className="flex flex-col">
+              <span className="text-base font-bold text-[#26251f]">商品動態 · 進口貨況追蹤</span>
+              <span className="text-[11px] text-[#9a988f]">Import Tracker · 商品入荷トラッキング</span>
+            </div>
+          </div>
+          <div className="flex flex-wrap items-center gap-2.5">
+            {/* 語言切換膠囊 */}
+            <div className="flex rounded-lg bg-[#f1f0ec] p-[3px]">
+              <button
+                onClick={() => setLang('zh')}
+                className={lang === 'zh'
+                  ? 'rounded-md bg-white px-[13px] py-1.5 text-xs font-bold text-[#26251f] shadow-[0_1px_2px_rgba(0,0,0,.06)] cursor-pointer'
+                  : 'px-[13px] py-1.5 text-xs font-medium text-[#9a988f] cursor-pointer'}
+              >
+                中文
+              </button>
+              <button
+                onClick={() => setLang('ja')}
+                className={lang === 'ja'
+                  ? 'rounded-md bg-white px-[13px] py-1.5 text-xs font-bold text-[#26251f] shadow-[0_1px_2px_rgba(0,0,0,.06)] cursor-pointer'
+                  : 'px-[13px] py-1.5 text-xs font-medium text-[#9a988f] cursor-pointer'}
+              >
+                日本語
+              </button>
+            </div>
 
-      <div className="max-w-5xl mx-auto px-4 py-4">
-        {/* Underline Tab navigation */}
-        <nav className="flex border-b border-gray-200 mb-4">
-          <button
-            onClick={() => setTab('shipments')}
-            className={`flex items-center gap-2 px-4 py-2.5 text-sm font-medium border-b-2 -mb-px transition-colors cursor-pointer ${
-              tab === 'shipments'
-                ? 'border-lopia-red text-lopia-red'
-                : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
-            }`}
-          >
-            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-              <path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/>
-            </svg>
-            {T.shipments}
-          </button>
-          <button
-            onClick={() => setTab('stores')}
-            className={`flex items-center gap-2 px-4 py-2.5 text-sm font-medium border-b-2 -mb-px transition-colors cursor-pointer ${
-              tab === 'stores'
-                ? 'border-lopia-red text-lopia-red'
-                : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
-            }`}
-          >
-            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-              <path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/>
-            </svg>
-            {T.stores}
-          </button>
-          <button
-            onClick={() => setTab('preview')}
-            className={`flex items-center gap-2 px-4 py-2.5 text-sm font-medium border-b-2 -mb-px transition-colors cursor-pointer ${
-              tab === 'preview'
-                ? 'border-lopia-red text-lopia-red'
-                : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
-            }`}
-          >
-            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-              <rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/>
-              <line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/>
-            </svg>
-            {T.previewTab}
-          </button>
-        </nav>
-
-        {/* Shipments tab */}
-        {tab === 'shipments' && (
-          <div className="space-y-4">
-            {/* 今日概況 */}
-            {data && (
-              <TodaySummary
-                shipments={data.shipments}
-                allRecords={allRecords}
-                lang={lang}
-                onGoPreview={() => setTab('preview')}
-              />
+            {/* 更新狀態膠囊（綠點脈動） */}
+            {updatedText && (
+              <div className="flex items-center gap-[7px] rounded-lg bg-[#e7f6ec] px-3 py-[7px]">
+                <span className="h-[7px] w-[7px] rounded-full bg-[#1a7f3c] animate-lp-pulse" />
+                <span className="font-mono text-[11px] font-semibold text-[#1a7f3c]">{updatedText}</span>
+              </div>
             )}
 
-            {/* Toolbar */}
-            <div className="flex flex-col sm:flex-row gap-2 items-start sm:items-center">
-              <AddBatchForm lang={lang} onBatchAdded={fetchData} />
+            <ToolsMenu />
+            <AddBatchForm lang={lang} onBatchAdded={fetchData} variant="solid" />
+          </div>
+        </div>
 
-              {/* Card / Compact / Calendar toggle */}
-              <div className="flex border border-gray-200 rounded-lg overflow-hidden">
-                <button
-                  onClick={() => setViewMode('card')}
-                  className={`flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium transition-colors cursor-pointer ${
-                    viewMode === 'card'
-                      ? 'bg-lopia-red-light text-lopia-red'
-                      : 'bg-white text-gray-500 hover:bg-gray-50'
-                  }`}
-                >
-                  <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                    <rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/>
-                    <rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/>
-                  </svg>
-                  {T.cardView}
-                </button>
-                <button
-                  onClick={() => setViewMode('compact')}
-                  className={`flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium transition-colors cursor-pointer border-l border-gray-200 ${
-                    viewMode === 'compact'
-                      ? 'bg-lopia-red-light text-lopia-red'
-                      : 'bg-white text-gray-500 hover:bg-gray-50'
-                  }`}
-                >
-                  <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                    <line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/>
-                    <line x1="3" y1="6" x2="3.01" y2="6"/><line x1="3" y1="12" x2="3.01" y2="12"/><line x1="3" y1="18" x2="3.01" y2="18"/>
-                  </svg>
-                  {T.compactView}
-                </button>
-                <button
-                  onClick={() => setViewMode('calendar')}
-                  className={`flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium transition-colors cursor-pointer border-l border-gray-200 ${
-                    viewMode === 'calendar'
-                      ? 'bg-lopia-red-light text-lopia-red'
-                      : 'bg-white text-gray-500 hover:bg-gray-50'
-                  }`}
-                >
-                  <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                    <rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/>
-                    <line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/>
-                  </svg>
-                  {T.calendarView}
-                </button>
-              </div>
+        {/* ── 內容區 ── */}
+        <div className="flex flex-col gap-5 px-4 pb-[30px] pt-[22px] sm:px-[30px]">
+          {/* KPI 指標列 */}
+          <div className="grid grid-cols-2 gap-3.5 xl:grid-cols-4">
+            <KpiCard
+              labelZh="進行中批次" labelJa="進行中"
+              value={kpis.ongoing}
+              badge={kpis.newThisWeek > 0 ? { text: `+${kpis.newThisWeek}`, tone: 'green' } : null}
+            />
+            <KpiCard
+              labelZh="本週到港" labelJa="今週入港"
+              value={kpis.arrivalsThisWeek}
+              badge={kpis.nearestArrival ? { text: kpis.nearestArrival, tone: 'gray' } : null}
+            />
+            <KpiCard
+              labelZh="通關中" labelJa="通関中"
+              value={kpis.customsCount}
+              badge={kpis.customsAttention > 0 ? { text: `留意 ${kpis.customsAttention}`, tone: 'amber' } : null}
+              warn={kpis.customsAttention > 0}
+            />
+            <KpiCard
+              labelZh="本月完成" labelJa="今月完了"
+              value={kpis.doneThisMonth}
+              badge={kpis.monthDonePct !== null ? { text: `${kpis.monthDonePct}%`, tone: 'gray' } : null}
+            />
+          </div>
 
-              {/* Search + filter (list/compact mode only) */}
-              {viewMode !== 'calendar' && (<>
-                <div className="flex-1 relative min-w-0">
-                  <svg className="absolute left-2.5 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+          {/* 工具列：檢視切換／搜尋＋急件篩選 */}
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <div className="flex flex-wrap items-center gap-1.5">
+              <button onClick={() => setView('card')} className={viewBtn(view === 'card')}>{T.cardView}</button>
+              <button onClick={() => setView('kanban')} className={viewBtn(view === 'kanban')}>{T.kanbanView}</button>
+              <button onClick={() => setView('calendar')} className={viewBtn(view === 'calendar')}>{T.calendarView}</button>
+              <div className="mx-1.5 h-6 w-px bg-[#dedcd6]" />
+              <button onClick={() => setView('stores')} className={viewBtn(view === 'stores')}>{T.stores}</button>
+              <button onClick={() => setView('preview')} className={viewBtn(view === 'preview')}>{T.previewTab}</button>
+            </div>
+
+            {(view === 'kanban' || view === 'card') && (
+              <div className="flex flex-wrap items-center gap-2.5">
+                <div className="relative w-[230px]">
+                  <svg className="pointer-events-none absolute left-3.5 top-1/2 -translate-y-1/2 text-[#c8c6be]" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                     <circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/>
                   </svg>
                   <input
                     type="text"
                     value={search}
                     onChange={e => setSearch(e.target.value)}
-                    placeholder={T.search}
-                    className="w-full border border-gray-200 rounded-lg pl-8 pr-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-lopia-red bg-white"
+                    placeholder={T.searchKanban}
+                    className="w-full rounded-[9px] border border-[#eae8e2] bg-white py-2 pl-8 pr-3 text-xs text-[#26251f] placeholder-[#bcbab2] focus:outline-none focus:ring-2 focus:ring-[#e4002b]"
                   />
                 </div>
-                <div className="flex gap-1">
-                  {(['all', 'active', 'done'] as const).map(f => (
-                    <button key={f} onClick={() => setFilter(f)}
-                      className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-all border cursor-pointer ${
-                        filter === f
-                          ? 'bg-lopia-red text-white border-lopia-red'
-                          : 'bg-white text-gray-500 border-gray-200 hover:bg-gray-50'
-                      }`}>
-                      {f === 'all' ? T.filterAll : f === 'active' ? T.filterActive : T.filterDone}
-                    </button>
-                  ))}
+                <div className="flex gap-1.5 rounded-[9px] border border-[#eae8e2] bg-white p-[3px]">
+                  <button onClick={() => setFilter('all')} className={filterBtn(filter === 'all')}>{T.filterAll}</button>
+                  <button onClick={() => setFilter('urgent')} className={filterBtn(filter === 'urgent')}>{T.filterUrgent}</button>
                 </div>
-              </>)}
-            </div>
-
-            {/* 背景更新失敗：保留舊資料，只顯示提示橫幅 */}
-            {fetchError && data && (
-              <div className="flex items-center justify-between gap-2 px-3 py-2 bg-amber-50 border border-amber-200 rounded-lg">
-                <p className="text-xs text-amber-700">更新失敗，目前顯示的是稍早的資料</p>
-                <button onClick={() => fetchData()} className="text-xs text-amber-700 font-medium underline hover:text-amber-900 shrink-0">
-                  重試
-                </button>
               </div>
             )}
+          </div>
 
-            {fetchError && !data ? (
-              <div className="flex items-center justify-center h-48">
-                <div className="flex flex-col items-center gap-3 text-center">
-                  <p className="text-sm text-red-500 font-medium">{fetchError}</p>
-                  <button onClick={() => fetchData()} className="px-4 py-1.5 bg-lopia-red text-white text-sm rounded-lg hover:bg-lopia-red-dark transition-colors">
-                    重新載入
-                  </button>
-                </div>
+          {/* 背景更新失敗：保留舊資料，只顯示提示橫幅 */}
+          {fetchError && data && (
+            <div className="flex items-center justify-between gap-2 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2">
+              <p className="text-xs text-amber-700">更新失敗，目前顯示的是稍早的資料</p>
+              <button onClick={() => fetchData()} className="shrink-0 text-xs font-medium text-amber-700 underline hover:text-amber-900">
+                重試
+              </button>
+            </div>
+          )}
+
+          {/* 內容：載入 → 錯誤 → 各檢視 */}
+          {fetchError && !data ? (
+            <div className="flex h-48 items-center justify-center">
+              <div className="flex flex-col items-center gap-3 text-center">
+                <p className="text-sm font-medium text-red-500">{fetchError}</p>
+                <button onClick={() => fetchData()} className="rounded-lg bg-[#e4002b] px-4 py-1.5 text-sm text-white transition-colors hover:bg-[#b8001f]">
+                  重新載入
+                </button>
               </div>
-            ) : loading && !data ? (
-              <div className="flex items-center justify-center h-48">
-                <div className="flex flex-col items-center gap-3">
-                  {/* Skeleton cards */}
-                  <div className="w-full max-w-2xl space-y-3">
-                    {[1, 2].map(i => (
-                      <div key={i} className="bg-white border border-gray-200 rounded-xl p-4 animate-pulse">
-                        <div className="flex justify-between mb-3">
-                          <div className="h-4 bg-gray-200 rounded w-32" />
-                          <div className="h-4 bg-gray-200 rounded w-16" />
-                        </div>
-                        <div className="flex gap-4 mb-3">
-                          {[1,2,3,4].map(j => (
-                            <div key={j} className="flex-1 flex flex-col items-center gap-1">
-                              <div className="w-7 h-7 bg-gray-200 rounded-full" />
-                              <div className="h-3 bg-gray-200 rounded w-10" />
-                            </div>
-                          ))}
-                        </div>
-                        <div className="h-2 bg-gray-200 rounded-full" />
-                      </div>
-                    ))}
-                  </div>
-                  <span className="text-sm text-gray-400">{T.loading}</span>
+            </div>
+          ) : loading && !data ? (
+            <div className="grid grid-cols-1 items-start gap-4 md:grid-cols-2 xl:grid-cols-4">
+              {[1, 2, 3, 4].map(i => (
+                <div key={i} className="flex flex-col gap-3 rounded-2xl bg-[#efeee9] px-3 py-3.5">
+                  <div className="h-4 w-24 animate-pulse rounded bg-[#e2e0da]" />
+                  {[1, 2].map(j => (
+                    <div key={j} className="animate-pulse rounded-[14px] border border-[#eae8e2] bg-white p-4">
+                      <div className="mb-3 h-3 w-20 rounded bg-gray-200" />
+                      <div className="mb-3 h-4 w-32 rounded bg-gray-200" />
+                      <div className="h-[5px] rounded-full bg-gray-200" />
+                    </div>
+                  ))}
                 </div>
+              ))}
+            </div>
+          ) : view === 'kanban' ? (
+            filtered.length === 0 ? (
+              <div className="flex h-48 items-center justify-center">
+                <p className="text-sm text-[#a8a69d]">{T.noData}</p>
               </div>
-            ) : viewMode === 'calendar' ? (
-              <CalendarView
-                shipments={data?.shipments ?? []}
-                lang={lang}
-                logisticsEvents={logisticsData?.events ?? []}
-                records={allRecords}
-                onRefresh={fetchData}
-              />
-            ) : filtered.length === 0 ? (
-              <div className="flex items-center justify-center h-48">
-                <p className="text-gray-400 text-sm">{T.noData}</p>
+            ) : (
+              <KanbanBoard shipments={filtered} lang={lang} today={today} />
+            )
+          ) : view === 'card' ? (
+            filtered.length === 0 ? (
+              <div className="flex h-48 items-center justify-center">
+                <p className="text-sm text-[#a8a69d]">{T.noData}</p>
               </div>
             ) : (
               <MonthGroupedList
@@ -383,51 +415,52 @@ export default function Home() {
                 lang={lang}
                 allRecords={allRecords}
                 onRecordChange={fetchData}
-                compact={viewMode === 'compact'}
               />
-            )}
-          </div>
-        )}
-
-        {/* Stores tab */}
-        {tab === 'stores' && (
-          <StoreList
-            lang={lang}
-            allRecords={allRecords}
-            shipments={data?.shipments ?? []}
-          />
-        )}
-
-        {/* Preview tab */}
-        {tab === 'preview' && (() => {
-          const today = new Date().toISOString().slice(0, 10)
-          const in14Days = new Date(Date.now() + 14 * 86400000).toISOString().slice(0, 10)
-          const batchIdsWithUpcoming = new Set(
-            allRecords
-              .filter(r => r.batchId && r.date && r.date >= today && r.date <= in14Days && r.planStatus !== '已取消')
-              .map(r => r.batchId as string)
-          )
-          const upcoming = (data?.shipments ?? [])
-            .filter(s => batchIdsWithUpcoming.has(s.id))
-            .sort((a, b) => {
-              const aMin = allRecords.filter(r => r.batchId === a.id && r.date && r.date >= today && r.planStatus !== '已取消').map(r => r.date as string).sort()[0] ?? ''
-              const bMin = allRecords.filter(r => r.batchId === b.id && r.date && r.date >= today && r.planStatus !== '已取消').map(r => r.date as string).sort()[0] ?? ''
-              return aMin.localeCompare(bMin)
-            })
-          return (
-            <ArrivalPreview
-              shipments={upcoming}
-              allRecords={allRecords}
+            )
+          ) : view === 'calendar' ? (
+            <CalendarView
+              shipments={shipments}
               lang={lang}
-              dateFrom={today}
-              dateTo={in14Days}
+              logisticsEvents={logisticsData?.events ?? []}
+              records={allRecords}
+              onRefresh={fetchData}
             />
-          )
-        })()}
+          ) : view === 'stores' ? (
+            <StoreList
+              lang={lang}
+              allRecords={allRecords}
+              shipments={shipments}
+            />
+          ) : (() => {
+            // 進貨預告：未來 14 天有出貨計畫的批次
+            const in14Days = new Date(Date.now() + 14 * 86400000).toISOString().slice(0, 10)
+            const batchIdsWithUpcoming = new Set(
+              allRecords
+                .filter(r => r.batchId && r.date && r.date >= today && r.date <= in14Days && r.planStatus !== '已取消')
+                .map(r => r.batchId as string)
+            )
+            const upcoming = shipments
+              .filter(s => batchIdsWithUpcoming.has(s.id))
+              .sort((a, b) => {
+                const aMin = allRecords.filter(r => r.batchId === a.id && r.date && r.date >= today && r.planStatus !== '已取消').map(r => r.date as string).sort()[0] ?? ''
+                const bMin = allRecords.filter(r => r.batchId === b.id && r.date && r.date >= today && r.planStatus !== '已取消').map(r => r.date as string).sort()[0] ?? ''
+                return aMin.localeCompare(bMin)
+              })
+            return (
+              <ArrivalPreview
+                shipments={upcoming}
+                allRecords={allRecords}
+                lang={lang}
+                dateFrom={today}
+                dateTo={in14Days}
+              />
+            )
+          })()}
+        </div>
       </div>
 
-      <footer className="mt-8 py-4 border-t border-gray-200 text-center">
-        <p className="text-xs text-gray-500">
+      <footer className="py-5 text-center">
+        <p className="text-xs text-[#9a988f]">
           LOPIA Taiwan Import Tracker · {T.autoRefresh}
         </p>
       </footer>
