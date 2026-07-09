@@ -1093,7 +1093,11 @@ function WeeklyRowCard({ row, canEdit, onChanged, onChecklistCreated, flash }: {
   }
 
   async function remove() {
-    if (!window.confirm(`確定刪除「${row.product}」這批？`)) return
+    // 已建過檢查單的列也允許刪（例如被自動同步取代的舊手動列）；刪列不會刪檢查單
+    const msg = row.checklistCreated
+      ? `「${row.product}」這列已建過檢查單。\n刪除只會拿掉這一列，檢查單本身不會被刪（仍在「檢查單」分頁）。\n確定刪除？`
+      : `確定刪除「${row.product}」這批？`
+    if (!window.confirm(msg)) return
     setBusy(true)
     try {
       const res = await fetch(`/api/weekly/${row.id}`, { method: 'DELETE' })
@@ -1194,10 +1198,13 @@ function WeeklyRowCard({ row, canEdit, onChanged, onChecklistCreated, flash }: {
             className="text-xs text-slate-500 border border-slate-300 rounded-lg px-2.5 py-1.5 hover:bg-slate-100">
             到主頁修改 ↗
           </a>
-        ) : canEdit && mode !== 'build' && !row.checklistCreated && (
+        ) : canEdit && mode !== 'build' && (
           <>
-            <button onClick={() => setMode('edit')}
-              className="text-xs text-slate-600 border border-slate-300 rounded-lg px-2.5 py-1.5 hover:bg-slate-100">編輯</button>
+            {/* 編輯限「還沒建檢查單」（改了會跟檢查單內容對不上）；刪除隨時可以（刪列不刪檢查單） */}
+            {!row.checklistCreated && (
+              <button onClick={() => setMode('edit')}
+                className="text-xs text-slate-600 border border-slate-300 rounded-lg px-2.5 py-1.5 hover:bg-slate-100">編輯</button>
+            )}
             <button disabled={busy} onClick={remove}
               className="text-xs text-red-600 border border-red-200 rounded-lg px-2.5 py-1.5 hover:bg-red-50 disabled:opacity-40">刪除</button>
           </>
