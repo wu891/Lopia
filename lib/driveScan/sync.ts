@@ -305,50 +305,43 @@ async function processOneFile(
   const date = wb.dominantDate
   const conflicts: string[] = []
 
-  // ── 撞手動紀錄：同店+同日已有「沒印章」的紀錄 → 該店整個不自動寫（分配前先剔除，
-  //    否則 FIFO 會把該店的量溢到別的批次，變成幽靈紀錄）──
-  const manualStores = new Set(
-    records.filter(r => !r.sourceFileId && r.planStatus !== '已取消' && r.date === date && r.store)
-      .map(r => r.store as string))
-  const tabsToBook = wb.activeTabs.filter(t => {
-    if (t.store && manualStores.has(t.store)) {
-      conflicts.push(`「${t.store}」${date} 已有手動紀錄 → 這店未自動寫入，請人工擇一`)
-      return false
-    }
-    return true
-  })
-
-  // 這次要記帳的店（給下面判斷「會被本檔取代的舊檔紀錄」用）
-  const bookStores = new Set(tabsToBook.map(t => t.store).filter(Boolean) as string[])
-  // 別的檔案、同單號、同店，且對方檔比本檔舊或已消失 → 待會跨檔撞單會封存它，
-  // 算剩餘時要先當它不存在，否則批次滿載時新的(1)(2)複本會被誤判「不夠扣」。
+  // 出貨單為準：本檔覆蓋的店（用來判斷哪些手動/舊檔紀錄會被本檔取代）
+  const fileStores = new Set(wb.activeTabs.map(t => t.store).filter(Boolean) as string[])
+  // 別的檔案、同單號、同店、對方檔較舊或已消失 → 待會跨檔撞單會封存它，算剩餘先當不存在
   const willSupersede = (r: RecordLite): boolean =>
     !!r.sourceFileId && r.sourceFileId !== f.id && r.shipmentNo === sNo &&
-    !!r.store && bookStores.has(r.store) &&
+    !!r.store && fileStores.has(r.store) &&
     (() => { const m = ledger.get(r.sourceFileId)?.fileModifiedTime; return !m || m < f.modifiedTime })()
+  // 手動紀錄（沒印章）同店同日 → 出貨單為準會覆蓋它，算剩餘先當不存在（避免把要被蓋掉的重複計入）。
+  // 註：這裡用 店+日 判斷（分配前還不知道批次），實際封存是在分配後用 批次+店+日 精準比對；
+  //    若手動紀錄其實是別批商品（不會被封存），會小幅高估該批剩餘 → 但超領旗標用「最終真實帳」算，
+  //    仍會如實跳出提醒，不影響安全。
+  const willOverwriteManual = (r: RecordLite): boolean =>
+    !r.sourceFileId && r.planStatus !== '已取消' && r.date === date && !!r.store && fileStores.has(r.store)
 
-  // 可分配剩餘 = 入倉箱數 − 未取消紀錄合計（排除本檔本單號舊帳＋會被本檔取代的舊檔帳）
+  // 可分配剩餘 = 入倉箱數 − 未取消紀錄（排除：本檔本單號舊帳、會被取代的舊檔帳、會被覆蓋的手動帳）
   const remainingByBatch = new Map<string, number>()
   for (const b of batches) {
     let used = 0
     for (const r of records) {
       if (r.batchId !== b.id) continue
       if (r.planStatus === '已取消') continue
-      if (r.sourceFileId === f.id && r.shipmentNo === sNo) continue  // 本檔本單號舊帳排除
-      if (willSupersede(r)) continue                                 // 待會會封存的舊檔帳排除
+      if (r.sourceFileId === f.id && r.shipmentNo === sNo) continue
+      if (willSupersede(r)) continue
+      if (willOverwriteManual(r)) continue
       used += r.boxes
     }
     remainingByBatch.set(b.id, Math.max(0, b.totalBoxes - used))
   }
 
-  // FIFO 分配
-  const alloc = allocateFifo(tabsToBook, f.name, batches, remainingByBatch)
+  // FIFO 分配（出貨單為準：剩餘不夠不擋，硬記到最符合批次；只有商品對不到關鍵字才 ok=false）
+  const alloc = allocateFifo(wb.activeTabs, f.name, batches, remainingByBatch)
   for (const n of alloc.notes) notes.push(n)
   if (!alloc.ok) {
-    const detailLines = tabsToBook.filter(t => t.rows.length > 0).map(t => `・${t.store ?? t.sheetName} ${t.totalBoxes}箱`)
+    const detailLines = wb.activeTabs.filter(t => t.rows.length > 0).map(t => `・${t.store ?? t.sheetName} ${t.totalBoxes}箱`)
     const msg = [`⚠️ 無法自動扣帳｜${sNo}（${date}）`, `檔案：${f.name}`, `原因：`,
       ...alloc.errors.map(e => `・${e}`), `已解析明細（供人工參考）：`, ...detailLines,
-      `處理：到主頁批次卡補「商品關鍵字」，10 分鐘內自動重試；或手動加出貨計畫`].join('\n')
+      `處理：到主頁批次卡補「商品關鍵字」，10 分鐘內自動重試`].join('\n')
     if (!dry) await notifyOnce(entry, f, msg, '異常', `alloc:${sha1(alloc.errors.join('|'))}`)
     return { fileId: f.id, fileName: f.name, action: 'anomaly', sNo, date, errors: alloc.errors, conflicts, notes }
   }
@@ -376,6 +369,20 @@ async function processOneFile(
       conflicts.push(`「${line.store}」單號 ${sNo}：以本檔（較新）為準，已封存舊檔紀錄`)
     }
     lines.push(line)
+  }
+
+  // ── 出貨單為準：覆蓋撞到的手動紀錄（同批次+同店+同日的手動帳，封存掉換成出貨單的）──
+  let manualOverwritten = 0
+  for (const line of lines) {
+    const manualHits = records.filter(r =>
+      !r.sourceFileId && r.planStatus !== '已取消' &&
+      r.batchId === line.batchId && r.store === line.store && r.date === date)
+    for (const m of manualHits) {
+      if (!dry) await archiveRecord(m.id)
+      const idx = records.indexOf(m); if (idx >= 0) records.splice(idx, 1)
+      manualOverwritten++
+      conflicts.push(`「${line.store}」以出貨單為準，覆蓋手動紀錄（原 ${m.boxes} 箱${m.shipmentNo ? '，' + m.shipmentNo : ''}）`)
+    }
   }
 
   // ── 本檔自己的既有紀錄：只認「同一個 S 單號」的當本檔資產（換單號＝改用途，舊的不動）──
@@ -476,16 +483,26 @@ async function processOneFile(
   }
 
   // ── 組 LINE 訊息 ─────────────────────────────────────────────────────────────
-  const changed = creates.length + updates.length + archives.length > 0
+  const changed = creates.length + updates.length + archives.length + manualOverwritten > 0
+  // 本檔動到的每個批次，用「所有動作做完後的記憶體帳」算真實剩餘（含超領＝負數）
+  const touchedBatches = new Set(lines.map(l => l.batchId))
+  const finalRemaining = new Map<string, number>()
+  for (const bId of touchedBatches) {
+    const b = batches.find(x => x.id === bId)
+    const used = records.filter(r => r.batchId === bId && r.planStatus !== '已取消').reduce((s, r) => s + r.boxes, 0)
+    finalRemaining.set(bId, (b?.totalBoxes ?? 0) - used)
+  }
   const batchLines: string[] = []
-  for (const bId of new Set(lines.map(l => l.batchId))) {
+  for (const bId of touchedBatches) {
     const b = batches.find(x => x.id === bId)
     const mine = lines.filter(x => x.batchId === bId)
-    // 用實際寫入的 lines 加總，而非 alloc.perBatchTotal（跨檔撞單剔除後才會一致）
     const total = mine.reduce((s, l) => s + l.boxes, 0)
-    const remain = remainingByBatch.get(bId) ?? 0
-    batchLines.push(`▸ ${b?.ivName ?? bId}：本單 ${total} 箱（剩餘可排 ${remain}／入倉 ${b?.totalBoxes ?? '?'}）`)
+    const remain = finalRemaining.get(bId) ?? 0
+    batchLines.push(`▸ ${b?.ivName ?? bId}：本單 ${total} 箱（剩餘 ${remain}／入倉 ${b?.totalBoxes ?? '?'}）`)
     for (const l of mine) batchLines.push(`　・${l.store} ${l.boxes}`)
+    // 出貨單為準的兩個「Notion 資料要修」提醒
+    if (remain < 0) notes.push(`⚠️「${b?.ivName ?? bId}」出貨量已超過入倉 ${-remain} 箱 → 請確認入倉數，或是否漏建了新批次`)
+    if (b?.deliveryStatus === '全數出貨') notes.push(`⚠️「${b.ivName}」批次標「全數出貨」卻仍有出貨單 → 配送狀態可能要更新`)
   }
   const message = [
     `✅ 自動扣帳｜${sNo}（配送 ${date}）`, `檔案：${f.name}`, ...batchLines,
@@ -505,7 +522,7 @@ async function processOneFile(
     await upsertLedgerEntry(entry, {
       fileId: f.id, fileName: f.name, fingerprint: fingerprintOf(f),
       fileModifiedTime: f.modifiedTime, status, notifiedHash: notifyHash,
-      summary: `${sNo} ${date}｜建${creates.length} 改${updates.length} 移${archives.length}｜${verify.detail}`,
+      summary: `${sNo} ${date}｜建${creates.length} 改${updates.length} 移${archives.length} 覆${manualOverwritten}｜${verify.detail}`,
     })
   }
 

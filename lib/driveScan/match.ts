@@ -75,13 +75,12 @@ function hitKeyword(text: string, b: BatchLite): boolean {
 /**
  * 找出一列商品的候選批次（已照 FIFO 排序）。
  * 先用商品名比、比不到再用檔名比。
- * eligible = 可分配的候選；excludedShipped = 有對到關鍵字但已「全數出貨」被排除的
- * （後者只拿來讓錯誤訊息講清楚，不參與分配）。
+ * 原則：出貨單為準，Notion 有誤差。所以「全數出貨」的批次也當候選（不排除）——
+ *   Notion 的配送狀態可能還沒更新，出貨單說有出就是有出。
  * usedFilenameFallback = 這列是靠「檔名」而非「商品名」對到的（可能對錯批，要提醒）。
  */
 export function candidateBatches(rowName: string, fileName: string, batches: BatchLite[]): {
   eligible: BatchLite[]
-  excludedShipped: BatchLite[]
   usedFilenameFallback: boolean
 } {
   const withKw = batches.filter(b => b.keywords.length > 0)
@@ -91,10 +90,8 @@ export function candidateBatches(rowName: string, fileName: string, batches: Bat
     hits = withKw.filter(b => hitKeyword(fileName, b))
     usedFilenameFallback = hits.length > 0
   }
-  const eligible = hits.filter(b => b.deliveryStatus !== '全數出貨')
-    .sort((a, b) => a.fifoDate.localeCompare(b.fifoDate))
-  const excludedShipped = hits.filter(b => b.deliveryStatus === '全數出貨')
-  return { eligible, excludedShipped, usedFilenameFallback }
+  const eligible = hits.slice().sort((a, b) => a.fifoDate.localeCompare(b.fifoDate))
+  return { eligible, usedFilenameFallback }
 }
 
 // ── FIFO 分配 ─────────────────────────────────────────────────────────────────
@@ -110,14 +107,16 @@ export interface AllocationResult {
   ok: boolean
   lines: AllocationLine[]              // (批次×門市) 加總後的扣帳明細
   perBatchTotal: Map<string, number>   // batchId → 本單合計箱數（訊息用）
-  errors: string[]                     // 對不上 / 不夠扣 的原因（ok=false 時看這裡）
-  notes: string[]                      // 軟提醒（如：某列是靠檔名對到批次的）
+  errors: string[]                     // 只有「對不到任何批次關鍵字」才會有（ok=false 時看這裡）
+  notes: string[]                      // 軟提醒（如：某列靠檔名對到批次、某批超領）
 }
 
 /**
  * 把解析好的分頁（多店）分配到批次。
- * @param remainingByBatch 各批次目前「可分配剩餘」（呼叫端算好傳入，已排除本檔舊紀錄）
- *                         這個 Map 會被就地扣減（同一次掃描處理多檔時共用）
+ * 原則：出貨單為準。所以「剩餘不夠扣」不再擋——照出貨單記到最符合的批次，
+ *   容許批次「超領」（剩餘變負），只在 notes 裡標記請人工確認入倉數/漏建批次。
+ *   唯一會 ok=false 的情況＝某商品對不到任何批次關鍵字（系統無從得知該記哪批）。
+ * @param remainingByBatch 各批次目前「可分配剩餘」（呼叫端算好傳入）。就地扣減，可為負。
  */
 export function allocateFifo(
   tabs: ParsedStoreTab[],
@@ -126,59 +125,59 @@ export function allocateFifo(
   remainingByBatch: Map<string, number>,
 ): AllocationResult {
   const errors: string[] = []
-  // 累積 (batchId|store) → boxes
   const acc = new Map<string, AllocationLine>()
   const perBatchTotal = new Map<string, number>()
   const notes: string[] = []
-  // 本函式內先用暫存剩餘，全部成功才真正扣到共用 Map（失敗 = 完全不動）
   const tempRemaining = new Map(remainingByBatch)
   const batchById = new Map(batches.map(b => [b.id, b]))
+
+  const book = (b: BatchLite, store: string, boxes: number) => {
+    const key = `${b.id}|${store}`
+    const line = acc.get(key) ?? { batchId: b.id, batchName: b.ivName, store, boxes: 0 }
+    line.boxes += boxes
+    acc.set(key, line)
+    perBatchTotal.set(b.id, (perBatchTotal.get(b.id) ?? 0) + boxes)
+    tempRemaining.set(b.id, (tempRemaining.get(b.id) ?? 0) - boxes)
+  }
 
   for (const tab of tabs) {
     if (!tab.store || tab.rows.length === 0) continue
     for (const row of tab.rows) {
-      const { eligible: candidates, excludedShipped, usedFilenameFallback } = candidateBatches(row.name, fileName, batches)
+      const { eligible: candidates, usedFilenameFallback } = candidateBatches(row.name, fileName, batches)
       if (candidates.length === 0) {
-        if (excludedShipped.length > 0) {
-          errors.push(`商品「${row.name}」（${tab.store} ${row.boxes}箱）對到的批次都已標「全數出貨」：${excludedShipped.map(b => b.ivName).join('、')}（若確實要從這批出，請先把批次配送狀態改掉）`)
-        } else {
-          errors.push(`商品「${row.name}」（${tab.store} ${row.boxes}箱）對不到任何批次的商品關鍵字`)
-        }
+        errors.push(`商品「${row.name}」（${tab.store} ${row.boxes}箱）對不到任何批次的商品關鍵字`)
         continue
       }
       if (usedFilenameFallback) {
         notes.push(`商品「${row.name}」（${tab.store}）商品名對不到關鍵字，改用檔名判定為「${candidates[0].ivName}」，請確認批次正確`)
       }
-      // FIFO：從最舊批次開始扣，不夠就往下一批
+      // FIFO：從最舊批次開始扣（有剩的先扣），扣完就往下一批
       let need = row.boxes
       for (const b of candidates) {
         if (need <= 0) break
         const remain = tempRemaining.get(b.id) ?? 0
         if (remain <= 0) continue
         const take = Math.min(remain, need)
-        tempRemaining.set(b.id, remain - take)
+        book(b, tab.store, take)
         need -= take
-        const key = `${b.id}|${tab.store}`
-        const line = acc.get(key) ?? { batchId: b.id, batchName: b.ivName, store: tab.store, boxes: 0 }
-        line.boxes += take
-        acc.set(key, line)
-        perBatchTotal.set(b.id, (perBatchTotal.get(b.id) ?? 0) + take)
       }
+      // 還沒扣完（所有候選都沒剩）→ 出貨單為準，硬記到「有日期的最新候選批次」，容許超領
+      // （避開沒填日期的批次＝fifoDate 兜底 9999，會被排到最後但其實不是真的最新）
       if (need > 0) {
-        const names = candidates.map(c => `${c.ivName}(剩${remainingByBatch.get(c.id) ?? 0})`).join('、')
-        errors.push(`商品「${row.name}」（${tab.store}）需 ${row.boxes} 箱，候選批次不夠扣：${names}`)
+        const dated = candidates.filter(c => c.fifoDate < '9999')
+        const target = (dated.length > 0 ? dated : candidates)[
+          (dated.length > 0 ? dated : candidates).length - 1]
+        book(target, tab.store, need)
+        need = 0
       }
     }
   }
 
   if (errors.length > 0) {
-    // 有任何一列出錯 → 整張單不寫（訪談決策：不硬扣、通知人工處理）
     return { ok: false, lines: [], perBatchTotal: new Map(), errors, notes }
   }
 
-  // 全部成功 → 把暫存剩餘寫回共用 Map
   for (const [id, v] of tempRemaining) remainingByBatch.set(id, v)
-  // 保持穩定順序：批次 FIFO 日期 → 門市名
   const lines = Array.from(acc.values()).sort((a, b) => {
     const fa = batchById.get(a.batchId)?.fifoDate ?? ''
     const fb = batchById.get(b.batchId)?.fifoDate ?? ''
