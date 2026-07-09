@@ -10,7 +10,7 @@ interface HeaderProps {
   onRefresh: () => void
 }
 
-const TOOLS = [
+export const TOOLS = [
   {
     label: '出貨單產生',
     href: '/shipment-generator',

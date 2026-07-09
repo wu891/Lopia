@@ -1,4 +1,4 @@
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Poppins:wght@600;700&family=Noto+Sans+JP:wght@400;500;700&family=Noto+Sans+TC:wght@400;500;700&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Poppins:wght@600;700&family=Noto+Sans+JP:wght@400;500;700&family=Noto+Sans+TC:wght@400;500;700;900&family=JetBrains+Mono:wght@500;600;700&display=swap');
 
 @tailwind base;
 @tailwind components;
@@ -42,6 +42,14 @@ body {
   background-size: 600px 100%;
   animation: shimmer 1.4s infinite ease-in-out;
 }
+
+/* 看板改版脈動動畫：綠色更新點（2s）、進度條「目前這一段」（1.8s），透明度 1 → .35 → 1 循環 */
+@keyframes lpPulse {
+  0%, 100% { opacity: 1; }
+  50%      { opacity: .35; }
+}
+.animate-lp-pulse      { animation: lpPulse 2s infinite; }
+.animate-lp-pulse-fast { animation: lpPulse 1.8s infinite; }
 
 /* Timeline pulse animation（藍＝進行中） */
 @keyframes pulse-ring {

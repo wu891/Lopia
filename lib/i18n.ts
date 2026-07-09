@@ -170,6 +170,12 @@ export const t = {
     cardView: '卡片',
     compactView: '精簡',
     calendarView: '月曆',
+    // Kanban redesign（看板改版）
+    kanbanView: '看板',
+    filterUrgent: '急件',
+    searchKanban: '搜尋批次 / 供應商…',
+    addBatchShort: '新增批次',
+    updatedSuffix: '更新',
     // Today summary strip
     todayShip: '今日出貨',
     todayNoShip: '今日無出貨',
@@ -370,6 +376,12 @@ export const t = {
     cardView: 'カード',
     compactView: 'シンプル',
     calendarView: 'カレンダー',
+    // Kanban redesign（看板改版）
+    kanbanView: '看板',
+    filterUrgent: '至急',
+    searchKanban: 'ロット／サプライヤーを検索…',
+    addBatchShort: 'ロット追加',
+    updatedSuffix: '更新',
     // Today summary strip
     todayShip: '本日出荷',
     todayNoShip: '本日出荷なし',

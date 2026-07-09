@@ -6,6 +6,8 @@ import PasswordModal, { isAuthed, logChange } from './PasswordModal'
 interface Props {
   lang: Lang
   onBatchAdded: () => void
+  /** 按鈕外觀：outline=白底紅框（預設）、solid=實心紅（看板改版頂部列用） */
+  variant?: 'outline' | 'solid'
 }
 
 const DOC_TYPES = ['IV (Invoice)', 'PL (Packing List)', 'AWB', '檢疫證明', '其他']
@@ -15,7 +17,7 @@ interface AttachedFile {
   docType: string
 }
 
-export default function AddBatchForm({ lang, onBatchAdded }: Props) {
+export default function AddBatchForm({ lang, onBatchAdded, variant = 'outline' }: Props) {
   const [open, setOpen]             = useState(false)
   const [saving, setSaving]         = useState(false)
   const [saveError, setSaveError]   = useState('')
@@ -156,10 +158,12 @@ export default function AddBatchForm({ lang, onBatchAdded }: Props) {
 
   return (
     <>
-      {/* Trigger button — outlined style to reduce red density */}
+      {/* Trigger button — outline=白底紅框、solid=實心紅（設計 #2a 主按鈕） */}
       <button
         onClick={() => setOpen(true)}
-        className="flex items-center gap-1.5 px-3 py-2 min-h-[36px] bg-white text-lopia-red text-sm font-semibold rounded-lg border-[1.5px] border-lopia-red hover:bg-lopia-red-light transition-colors cursor-pointer"
+        className={variant === 'solid'
+          ? 'flex items-center gap-1.5 rounded-[9px] bg-[#e4002b] px-[18px] py-[9px] text-[13px] font-bold text-white hover:bg-[#b8001f] transition-colors cursor-pointer'
+          : 'flex items-center gap-1.5 px-3 py-2 min-h-[36px] bg-white text-lopia-red text-sm font-semibold rounded-lg border-[1.5px] border-lopia-red hover:bg-lopia-red-light transition-colors cursor-pointer'}
       >
         <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
           <line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/>

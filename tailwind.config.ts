@@ -17,6 +17,8 @@ const config: Config = {
       },
       fontFamily: {
         sans: ['Noto Sans JP', 'Noto Sans TC', 'sans-serif'],
+        // 看板改版用：批次號、KPI 數字、日期、箱數都用等寬字（數字才會對齊好讀）
+        mono: ['JetBrains Mono', 'ui-monospace', 'monospace'],
       },
     },
   },
