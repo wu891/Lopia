@@ -7,9 +7,11 @@
  *   1. 列出 Drive 檔案 → 跟帳本比指紋，沒變的直接跳過（異常檔例外：每輪重試）
  *   2. 檔案剛改過（10 分鐘內）先不碰 → 等 Colin 編輯完稿；過大的檔跳過
  *   3. 解析 → 硬警告（讀不準）就整張單當異常，不寫
- *   4. 商品對批次 → FIFO 分配（出貨單為準：剩餘不夠不擋，硬記到最符合批次、容許超領並標記）
+ *   4. 商品對批次 → FIFO 分配。規則①：只扣「部分出貨(出貨中)」的批次；命中未到/待出貨/全數出貨的
+ *      批次一律略過(不報錯)。出貨中批次剩餘不夠也不擋(容許超領並標記)。
  *   5. 防撞規則（出貨單為準）：
- *      - 撞手動紀錄（沒印章，同批次+同店+同日）→ 出貨單覆蓋它：封存手動帳、換成出貨單版本、通知
+ *      - 規則②：本檔要扣的批次，過去(≤今天)的手排計畫紀錄整批封存，剩餘由出貨單重算(不逐筆對日期，
+ *        因蘋果計畫寫6/26、實際6/27出、美麗華臨時補單，逐筆對不齊)；未來(>今天)計畫留著當預告
  *      - 別的檔案已寫過 同單號+同批次+同店 → 比修改時間，較新的檔贏
  *      - 同檔若換了 S 單號（改用途）→ 舊單號紀錄保留不動，只通知，避免砍掉歷史
  *   6. 鏡像：自動紀錄永遠跟「本檔＋本單號」最新內容（多退少補）
@@ -311,6 +313,7 @@ async function processOneFile(
 
   const sNo = wb.dominantSno
   const date = wb.dominantDate
+  const today = new Date().toISOString().slice(0, 10)   // 跟網站算剩餘同一套（UTC 日期）
   const conflicts: string[] = []
 
   // 出貨單為準：本檔覆蓋的店（用來判斷哪些舊檔紀錄會被本檔取代）
@@ -351,11 +354,14 @@ async function processOneFile(
     if (!dry) await notifyOnce(entry, f, msg, '異常', `alloc:${sha1(alloc1.errors.join('|'))}`)
     return { fileId: f.id, fileName: f.name, action: 'anomaly', sNo, date, errors: alloc1.errors, conflicts, notes }
   }
-  const tentativeKeys = new Set(alloc1.lines.map(l => `${l.batchId}|${l.store}`))
+  // 規則②（出貨單為準）：本檔要扣的每個批次，把它「過去(≤今天)的手排計畫紀錄」全部封存，剩餘改由出貨單重算。
+  //   不逐筆對日期/店——蘋果計畫寫6/26、實際6/27出、美麗華臨時補單，逐筆一定對不齊，直接讓出貨單當家。
+  //   未來(>今天)還沒出的計畫留著當預告（網站算剩餘只看 ≤今天，不受影響）。
+  const bookedBatchIds = new Set(alloc1.lines.map(l => l.batchId))
   const manualArchiveIds = new Set(
     records.filter(r =>
-      !r.sourceFileId && r.planStatus !== '已取消' && r.date === date && r.store &&
-      tentativeKeys.has(`${r.batchId}|${r.store}`)).map(r => r.id))
+      !r.sourceFileId && r.planStatus !== '已取消' && !!r.batchId && bookedBatchIds.has(r.batchId) &&
+      !!r.date && r.date <= today).map(r => r.id))
 
   const remainingByBatch = computeRemaining(manualArchiveIds)
   const alloc = allocateFifo(wb.activeTabs, f.name, batches, remainingByBatch)
@@ -386,14 +392,19 @@ async function processOneFile(
     lines.push(line)
   }
 
-  // ── 出貨單為準：覆蓋撞到的手動紀錄。封存的集合＝第一趟算出的 manualArchiveIds，
-  //    跟「算剩餘時排除的手動帳」完全同一批，確保不會排除了卻沒封存（幽靈重複）。──
+  // ── 出貨單為準（規則②）：封存本檔各批次「過去的手排計畫」。封存集合＝manualArchiveIds，
+  //    跟「算剩餘時排除的手動帳」完全同一批，確保不會排除了卻沒封存（幽靈重複）。訊息按批次彙總避免洗版。──
   let manualOverwritten = 0
+  const overwrittenByBatch = new Map<string, number>()
   for (const m of records.filter(r => manualArchiveIds.has(r.id))) {
     if (!dry) await archiveRecord(m.id)
     const idx = records.indexOf(m); if (idx >= 0) records.splice(idx, 1)
     manualOverwritten++
-    conflicts.push(`「${m.store}」以出貨單為準，覆蓋手動紀錄（原 ${m.boxes} 箱${m.shipmentNo ? '，' + m.shipmentNo : ''}）`)
+    if (m.batchId) overwrittenByBatch.set(m.batchId, (overwrittenByBatch.get(m.batchId) ?? 0) + 1)
+  }
+  for (const [bId, n] of overwrittenByBatch) {
+    const bn = batches.find(x => x.id === bId)?.ivName ?? bId
+    conflicts.push(`「${bn}」以出貨單為準，封存 ${n} 筆過去的手動計畫紀錄`)
   }
 
   // ── 本檔自己的既有紀錄：只認「同一個 S 單號」的當本檔資產（換單號＝改用途，舊的不動）──
@@ -500,7 +511,8 @@ async function processOneFile(
   const finalRemaining = new Map<string, number>()
   for (const bId of touchedBatches) {
     const b = batches.find(x => x.id === bId)
-    const used = records.filter(r => r.batchId === bId && r.planStatus !== '已取消').reduce((s, r) => s + r.boxes, 0)
+    // 跟網站算剩餘一致：只算「出貨日 ≤ 今天」的紀錄（未來的手排計畫不算，才不會誤報超領）
+    const used = records.filter(r => r.batchId === bId && r.planStatus !== '已取消' && r.date && r.date <= today).reduce((s, r) => s + r.boxes, 0)
     finalRemaining.set(bId, (b?.totalBoxes ?? 0) - used)
   }
   const batchLines: string[] = []

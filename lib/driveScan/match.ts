@@ -73,14 +73,17 @@ function hitKeyword(text: string, b: BatchLite): boolean {
 }
 
 /**
- * 找出一列商品的候選批次（已照 FIFO 排序）。
- * 先用商品名比、比不到再用檔名比。
- * 原則：出貨單為準，Notion 有誤差。所以「全數出貨」的批次也當候選（不排除）——
- *   Notion 的配送狀態可能還沒更新，出貨單說有出就是有出。
+ * 找出一列商品的候選批次。
+ * 先用商品名比、比不到再用檔名比（蘋果單商品列只有品種名，批號在檔名「蘋果11.3」裡）。
+ * 規則①（訪談定案）：機器人只碰「部分出貨（正在出貨中）」的批次。
+ *   命中關鍵字但批次是 未到／待出貨／全數出貨／空白 → 不扣（放進 inactiveMatches，呼叫端略過、不報錯）。
+ *   這樣「貨還沒到的批次」不會被誤扣、「已收完(全數出貨)的批次」不會被重複扣。
  * usedFilenameFallback = 這列是靠「檔名」而非「商品名」對到的（可能對錯批，要提醒）。
  */
+const ACTIVE_STATUS = '部分出貨'
 export function candidateBatches(rowName: string, fileName: string, batches: BatchLite[]): {
-  eligible: BatchLite[]
+  eligible: BatchLite[]          // 出貨中＋命中關鍵字，FIFO 排序 → 可扣
+  inactiveMatches: BatchLite[]   // 命中關鍵字但非出貨中 → 略過（不是錯誤）
   usedFilenameFallback: boolean
 } {
   const withKw = batches.filter(b => b.keywords.length > 0)
@@ -90,8 +93,10 @@ export function candidateBatches(rowName: string, fileName: string, batches: Bat
     hits = withKw.filter(b => hitKeyword(fileName, b))
     usedFilenameFallback = hits.length > 0
   }
-  const eligible = hits.slice().sort((a, b) => a.fifoDate.localeCompare(b.fifoDate))
-  return { eligible, usedFilenameFallback }
+  const eligible = hits.filter(b => b.deliveryStatus === ACTIVE_STATUS)
+    .sort((a, b) => a.fifoDate.localeCompare(b.fifoDate))
+  const inactiveMatches = hits.filter(b => b.deliveryStatus !== ACTIVE_STATUS)
+  return { eligible, inactiveMatches, usedFilenameFallback }
 }
 
 // ── FIFO 分配 ─────────────────────────────────────────────────────────────────
@@ -143,8 +148,14 @@ export function allocateFifo(
   for (const tab of tabs) {
     if (!tab.store || tab.rows.length === 0) continue
     for (const row of tab.rows) {
-      const { eligible: candidates, usedFilenameFallback } = candidateBatches(row.name, fileName, batches)
+      const { eligible: candidates, inactiveMatches, usedFilenameFallback } = candidateBatches(row.name, fileName, batches)
       if (candidates.length === 0) {
+        if (inactiveMatches.length > 0) {
+          // 命中批次但非「部分出貨」→ 規則①：只碰出貨中的批次，這列暫不扣（不是錯誤，不擋整張單）
+          const b = inactiveMatches[0]
+          notes.push(`商品「${row.name}」（${tab.store} ${row.boxes}箱）屬批次「${b.ivName}」（${b.deliveryStatus || '狀態空白'}，非出貨中）→ 暫不扣帳`)
+          continue
+        }
         errors.push(`商品「${row.name}」（${tab.store} ${row.boxes}箱）對不到任何批次的商品關鍵字`)
         continue
       }
