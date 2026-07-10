@@ -4,9 +4,9 @@
 
 import type { Shipment } from './notion'
 
-// 看板 5 種狀態（README 色票表）：
-// prep=出貨準備、active=運送中、arrived=已到港、customs=通關中、done=已完成
-export type KanbanStatus = 'prep' | 'active' | 'arrived' | 'customs' | 'done'
+// 看板 6 種狀態：
+// prep=出貨準備、active=運送中、arrived=已到港、customs=通關中、shipping=配送中、done=已完成
+export type KanbanStatus = 'prep' | 'active' | 'arrived' | 'customs' | 'shipping' | 'done'
 
 // 6 個進度階段（中/日），順序固定：0出貨 →1海運 →2到港 →3通關 →4入倉 →5門市
 export const KANBAN_STEPS: { zh: string; ja: string }[] = [
@@ -20,11 +20,12 @@ export const KANBAN_STEPS: { zh: string; ja: string }[] = [
 
 // 狀態的顯示文字（中/日）
 export const STATUS_LABEL: Record<KanbanStatus, { zh: string; ja: string }> = {
-  prep:    { zh: '出貨準備', ja: '出荷準備' },
-  active:  { zh: '運送中',   ja: '輸送中' },
-  arrived: { zh: '已到港',   ja: '入港済' },
-  customs: { zh: '通關中',   ja: '通関中' },
-  done:    { zh: '已完成',   ja: '完了' },
+  prep:     { zh: '出貨準備', ja: '出荷準備' },
+  active:   { zh: '運送中',   ja: '輸送中' },
+  arrived:  { zh: '已到港',   ja: '入港済' },
+  customs:  { zh: '通關中',   ja: '通関中' },
+  shipping: { zh: '配送中',   ja: '配送中' },
+  done:     { zh: '已完成',   ja: '完了' },
 }
 
 /** 今天的日期字串（台灣時區，YYYY-MM-DD）——整個看板都用這個當「今天」 */
@@ -43,17 +44,18 @@ export function daysUntil(dateStr: string | null, today: string): number | null 
 /**
  * 從批次資料推導看板狀態與進度階段。
  * 判斷順序（由後往前）：
- *   全數出貨 → done(5)；部分出貨 → active(5)（正在送門市）
- *   已入倉  → active(4)；已出關 → active(4)（正要入倉）
+ *   全數出貨 → done(5)；部分出貨 → shipping(5)（正在送門市）
+ *   已入倉  → shipping(4)；已出關 → shipping(4)（貨已在台灣，陸續配送中）
  *   已抵台  → 當天算 arrived(2)，隔天起算 customs(3)（通關中）
  *   已出發  → active(1)；其他 → prep(0)
- * 註：原型範例把「入倉後配送中」也歸在運送中欄（status=active, step=4），這裡照做。
+ * 註：已入倉/已出關/部分出貨都算「配送中」，跟還在海上的 active 分開，
+ *     不然地瓜、蘋果這類已到貨陸續出貨的批次會被誤標成跟海運中一樣。
  */
 export function deriveKanban(s: Shipment, today: string): { status: KanbanStatus; step: number } {
   if (s.deliveryStatus === '全數出貨') return { status: 'done', step: 5 }
-  if (s.deliveryStatus === '部分出貨') return { status: 'active', step: 5 }
-  if (s.warehouseIn && s.warehouseIn.slice(0, 10) <= today) return { status: 'active', step: 4 }
-  if (s.actualClearance) return { status: 'active', step: 4 }
+  if (s.deliveryStatus === '部分出貨') return { status: 'shipping', step: 5 }
+  if (s.warehouseIn && s.warehouseIn.slice(0, 10) <= today) return { status: 'shipping', step: 4 }
+  if (s.actualClearance) return { status: 'shipping', step: 4 }
 
   const arrived = !!s.arrivalTW && s.arrivalTW.slice(0, 10) <= today
   const departed = !!s.departJP && s.departJP.slice(0, 10) <= today
