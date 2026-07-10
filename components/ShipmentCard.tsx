@@ -286,14 +286,19 @@ function EditableRemarks({
 
 export default function ShipmentCard({ shipment, lang, allRecords, onRecordChange }: ShipmentCardProps) {
   const T = t[lang]
+  // 卡片預設收合，只留標頭摘要；點標頭才展開看時間軸/明細等內容
+  const [expanded, setExpanded] = useState(false)
 
   const plannedBoxes = shipment.plannedBoxes ?? 0
   const shippedBoxes = shipment.shippedBoxes ?? 0
 
   return (
     <div className="bg-white border border-gray-200 rounded-xl shadow-sm hover:shadow-md transition-shadow overflow-hidden">
-      {/* Card header */}
-      <div className="flex items-start justify-between px-5 pt-4 pb-3">
+      {/* Card header（收合摘要列，點擊展開/收合；EditableStatusBadge 內部有 stopPropagation，不會誤觸展開） */}
+      <div
+        onClick={() => setExpanded(v => !v)}
+        className="flex items-start justify-between px-5 pt-4 pb-3 cursor-pointer hover:bg-gray-50 transition-colors"
+      >
         <div className="flex-1 min-w-0">
           <h3 className="font-bold text-gray-900 text-base truncate leading-tight">{shipment.ivName}</h3>
           {shipment.productSummary && (
@@ -312,96 +317,106 @@ export default function ShipmentCard({ shipment, lang, allRecords, onRecordChang
             lang={lang}
             onUpdated={onRecordChange}
           />
+          <svg
+            className={`w-3.5 h-3.5 shrink-0 text-gray-400 transition-transform ${expanded ? 'rotate-180' : ''}`}
+            fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}
+          >
+            <path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" />
+          </svg>
         </div>
       </div>
 
-      {/* Timeline */}
-      <div className="px-5 pb-3">
-        <TimelineProgress shipment={shipment} lang={lang} />
-      </div>
+      {expanded && (
+        <>
+          {/* Timeline */}
+          <div className="px-5 pb-3">
+            <TimelineProgress shipment={shipment} lang={lang} />
+          </div>
 
-      {/* Meta section */}
-      <div className="px-5 py-2.5 bg-gray-50 border-t border-gray-100 grid grid-cols-2 sm:grid-cols-3 gap-x-6 gap-y-1.5">
-        {shipment.flightNo && (
-          <div className="flex flex-col">
-            <span className="text-xs text-gray-500">{T.flightNo}</span>
-            <span className="text-xs font-medium text-gray-700">{shipment.flightNo}</span>
+          {/* Meta section */}
+          <div className="px-5 py-2.5 bg-gray-50 border-t border-gray-100 grid grid-cols-2 sm:grid-cols-3 gap-x-6 gap-y-1.5">
+            {shipment.flightNo && (
+              <div className="flex flex-col">
+                <span className="text-xs text-gray-500">{T.flightNo}</span>
+                <span className="text-xs font-medium text-gray-700">{shipment.flightNo}</span>
+              </div>
+            )}
+            {shipment.awbNo && (
+              <div className="flex flex-col">
+                <span className="text-xs text-gray-500">{T.awbNo}</span>
+                <span className="text-xs font-medium text-gray-700">{shipment.awbNo}</span>
+              </div>
+            )}
+            {shipment.warehouse && (
+              <div className="flex flex-col">
+                <span className="text-xs text-gray-500">{T.warehouse}</span>
+                {/* 倉庫要一眼看到：色塊＋粗體大字 */}
+                <span className="inline-flex items-center gap-1 mt-0.5 px-2.5 py-1 rounded-lg bg-indigo-50 border border-indigo-200 text-sm font-bold text-indigo-700 w-fit">
+                  📦 {shipment.warehouse}
+                </span>
+              </div>
+            )}
+            {shipment.transportMode && (
+              <div className="flex flex-col">
+                <span className="text-xs text-gray-500">{T.transportMode}</span>
+                <span className="text-xs font-medium text-gray-700">
+                  {shipment.transportMode}{shipment.fclLcl ? ` · ${shipment.fclLcl}` : ''}
+                </span>
+              </div>
+            )}
+            {shipment.transportMode && (
+              <div className="flex flex-col">
+                <span className="text-xs text-gray-500">{T.customsBroker}</span>
+                <span className="text-xs font-medium text-gray-700">
+                  {shipment.transportMode === '空運' ? '日通' : '台灣航空'}
+                </span>
+              </div>
+            )}
           </div>
-        )}
-        {shipment.awbNo && (
-          <div className="flex flex-col">
-            <span className="text-xs text-gray-500">{T.awbNo}</span>
-            <span className="text-xs font-medium text-gray-700">{shipment.awbNo}</span>
+
+          <div className="px-5 py-3 space-y-3">
+            <InventoryBar
+              total={shipment.totalBoxes}
+              shipped={shippedBoxes}
+              planned={plannedBoxes}
+              lang={lang}
+            />
+
+            <DeliveryPlan
+              batchId={shipment.id}
+              batchName={shipment.ivName}
+              totalBoxes={shipment.totalBoxes}
+              records={allRecords}
+              lang={lang}
+              supplierExcelId={shipment.supplierExcelId}
+              onRecordChange={onRecordChange}
+            />
+
+            <div>
+              <p className="text-xs text-gray-500 mb-1.5">{T.documents}</p>
+              <DocumentStatus shipment={shipment} lang={lang} />
+            </div>
+
+            {/* 備註 - 可編輯 */}
+            <div>
+              <p className="text-xs text-gray-500 mb-1">{lang === 'ja' ? '備考' : '備註'}</p>
+              <EditableRemarks
+                shipmentId={shipment.id}
+                initialValue={shipment.remarks}
+                lang={lang}
+                onUpdated={onRecordChange}
+              />
+            </div>
           </div>
-        )}
-        {shipment.warehouse && (
-          <div className="flex flex-col">
-            <span className="text-xs text-gray-500">{T.warehouse}</span>
-            {/* 倉庫要一眼看到：色塊＋粗體大字 */}
-            <span className="inline-flex items-center gap-1 mt-0.5 px-2.5 py-1 rounded-lg bg-indigo-50 border border-indigo-200 text-sm font-bold text-indigo-700 w-fit">
-              📦 {shipment.warehouse}
+
+          {/* Footer */}
+          <div className="px-5 py-2 bg-gray-50 border-t border-gray-100 text-right">
+            <span className="text-xs text-gray-500">
+              {T.lastUpdated}: {new Date(shipment.lastEdited).toLocaleString(lang === 'ja' ? 'ja-JP' : 'zh-TW')}
             </span>
           </div>
-        )}
-        {shipment.transportMode && (
-          <div className="flex flex-col">
-            <span className="text-xs text-gray-500">{T.transportMode}</span>
-            <span className="text-xs font-medium text-gray-700">
-              {shipment.transportMode}{shipment.fclLcl ? ` · ${shipment.fclLcl}` : ''}
-            </span>
-          </div>
-        )}
-        {shipment.transportMode && (
-          <div className="flex flex-col">
-            <span className="text-xs text-gray-500">{T.customsBroker}</span>
-            <span className="text-xs font-medium text-gray-700">
-              {shipment.transportMode === '空運' ? '日通' : '台灣航空'}
-            </span>
-          </div>
-        )}
-      </div>
-
-      <div className="px-5 py-3 space-y-3">
-        <InventoryBar
-          total={shipment.totalBoxes}
-          shipped={shippedBoxes}
-          planned={plannedBoxes}
-          lang={lang}
-        />
-
-        <DeliveryPlan
-          batchId={shipment.id}
-          batchName={shipment.ivName}
-          totalBoxes={shipment.totalBoxes}
-          records={allRecords}
-          lang={lang}
-          supplierExcelId={shipment.supplierExcelId}
-          onRecordChange={onRecordChange}
-        />
-
-        <div>
-          <p className="text-xs text-gray-500 mb-1.5">{T.documents}</p>
-          <DocumentStatus shipment={shipment} lang={lang} />
-        </div>
-
-        {/* 備註 - 可編輯 */}
-        <div>
-          <p className="text-xs text-gray-500 mb-1">{lang === 'ja' ? '備考' : '備註'}</p>
-          <EditableRemarks
-            shipmentId={shipment.id}
-            initialValue={shipment.remarks}
-            lang={lang}
-            onUpdated={onRecordChange}
-          />
-        </div>
-      </div>
-
-      {/* Footer */}
-      <div className="px-5 py-2 bg-gray-50 border-t border-gray-100 text-right">
-        <span className="text-xs text-gray-500">
-          {T.lastUpdated}: {new Date(shipment.lastEdited).toLocaleString(lang === 'ja' ? 'ja-JP' : 'zh-TW')}
-        </span>
-      </div>
+        </>
+      )}
     </div>
   )
 }
