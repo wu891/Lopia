@@ -36,6 +36,7 @@ async function handle(req: NextRequest, forceDry: boolean) {
       dry: forceDry || sp.get('dry') === '1',
       force: sp.get('force') === '1',
       onlyFileId: sp.get('fileId') ?? undefined,
+      silent: sp.get('silent') === '1',   // 安靜模式：照寫 Notion 但不發 LINE（第一次大回補用）
     })
     return NextResponse.json(result)
   } catch (err) {

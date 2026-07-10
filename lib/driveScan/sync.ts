@@ -37,6 +37,12 @@ const MAX_FILE_BYTES = 20 * 1024 * 1024  // 超過 20MB 的檔不處理（防超
 // 同一個暖實例內，避免 cron 與手動 force 重疊跑（跨實例擋不到，但常見情況夠用）
 let scanRunning = false
 
+// 安靜模式：照樣寫 Notion，但不發任何 LINE（給第一次大回補用，避免洗版群組）
+let silentMode = false
+async function maybePush(text: string): Promise<void> {
+  if (!silentMode) await pushToGroup(text)
+}
+
 // ── 出貨紀錄自有讀寫（多讀「來源檔案」印章欄）──────────────────────────────────
 
 interface RecordLite {
@@ -168,16 +174,18 @@ export interface ScanResult {
 
 // ── 主流程 ────────────────────────────────────────────────────────────────────
 
-export async function runScan(opts: { dry?: boolean; force?: boolean; onlyFileId?: string } = {}): Promise<ScanResult> {
+export async function runScan(opts: { dry?: boolean; force?: boolean; onlyFileId?: string; silent?: boolean } = {}): Promise<ScanResult> {
   const dry = !!opts.dry
   if (!dry) {
     if (scanRunning) return { scannedFiles: 0, outcomes: [{ fileId: '', fileName: '', action: 'error', errors: ['另一個掃描正在進行，這次略過'] }], dry }
     scanRunning = true
   }
+  silentMode = !!opts.silent
   try {
     return await doScan(opts, dry)
   } finally {
     if (!dry) scanRunning = false
+    silentMode = false
   }
 }
 
@@ -221,7 +229,7 @@ async function doScan(opts: { dry?: boolean; force?: boolean; onlyFileId?: strin
       if (modMs < cutoff) continue
       const notifyHash = `gone:${fileId}`
       if (entry.notifiedHash !== notifyHash) {
-        await pushToGroup(`⚠️ 檔案已從 Drive 消失，出貨紀錄仍保留（不自動刪）\n檔案：${entry.fileName}\n如要作廢請到主頁手動處理`)
+        await maybePush(`⚠️ 檔案已從 Drive 消失，出貨紀錄仍保留（不自動刪）\n檔案：${entry.fileName}\n如要作廢請到主頁手動處理`)
         await upsertLedgerEntry(entry, {
           fileId, fileName: entry.fileName, fingerprint: entry.fingerprint,
           fileModifiedTime: entry.fileModifiedTime, status: '略過',
@@ -259,7 +267,7 @@ async function notifyOnce(
   entry: LedgerEntry | undefined, f: DriveFileInfo,
   message: string, status: '異常' | '略過', notifyHash: string,
 ): Promise<void> {
-  if (entry?.notifiedHash !== notifyHash) await pushToGroup(message)
+  if (entry?.notifiedHash !== notifyHash) await maybePush(message)
   await upsertLedgerEntry(entry, {
     fileId: f.id, fileName: f.name, fingerprint: fingerprintOf(f),
     fileModifiedTime: f.modifiedTime, status, notifiedHash: notifyHash,
@@ -520,7 +528,7 @@ async function processOneFile(
     const status = verify.ok ? '已處理' : '異常'
     const notifyHash = `ok:${sha1(message)}`
     if (changed || !verify.ok || conflicts.length > 0) {
-      if (entry?.notifiedHash !== notifyHash) await pushToGroup(message)
+      if (entry?.notifiedHash !== notifyHash) await maybePush(message)
     }
     await upsertLedgerEntry(entry, {
       fileId: f.id, fileName: f.name, fingerprint: fingerprintOf(f),
