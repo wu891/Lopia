@@ -169,6 +169,7 @@ export default function Home() {
   const [view, setView] = useState<View>('kanban')
   const [search, setSearch] = useState('')
   const [filter, setFilter] = useState<'all' | 'urgent'>('all')
+  const [cardSub, setCardSub] = useState<'active' | 'done'>('active')
 
   const T = t[lang]
   const today = todayTaipei()
@@ -409,14 +410,36 @@ export default function Home() {
               <div className="flex h-48 items-center justify-center">
                 <p className="text-sm text-[#a8a69d]">{T.noData}</p>
               </div>
-            ) : (
-              <MonthGroupedList
-                shipments={filtered}
-                lang={lang}
-                allRecords={allRecords}
-                onRecordChange={fetchData}
-              />
-            )
+            ) : (() => {
+              // 卡片檢視子分頁：進行中／已完成（判斷標準沿用看板的 deriveKanban）
+              const cardOngoing = filtered.filter(s => deriveKanban(s, today).status !== 'done')
+              const cardDone = filtered.filter(s => deriveKanban(s, today).status === 'done')
+              const cardList = cardSub === 'done' ? cardDone : cardOngoing
+              return (
+                <div className="flex flex-col gap-4">
+                  <div className="flex w-fit gap-1.5 rounded-[9px] border border-[#eae8e2] bg-white p-[3px]">
+                    <button onClick={() => setCardSub('active')} className={filterBtn(cardSub === 'active')}>
+                      {T.filterActive} <span className="font-mono">{cardOngoing.length}</span>
+                    </button>
+                    <button onClick={() => setCardSub('done')} className={filterBtn(cardSub === 'done')}>
+                      {T.filterDone} <span className="font-mono">{cardDone.length}</span>
+                    </button>
+                  </div>
+                  {cardList.length === 0 ? (
+                    <div className="flex h-48 items-center justify-center">
+                      <p className="text-sm text-[#a8a69d]">{T.noData}</p>
+                    </div>
+                  ) : (
+                    <MonthGroupedList
+                      shipments={cardList}
+                      lang={lang}
+                      allRecords={allRecords}
+                      onRecordChange={fetchData}
+                    />
+                  )}
+                </div>
+              )
+            })()
           ) : view === 'calendar' ? (
             <CalendarView
               shipments={shipments}
