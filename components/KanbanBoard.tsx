@@ -1,6 +1,6 @@
 'use client'
-// ── 四欄看板（設計 #2a）────────────────────────────────────────
-// 欄位分組：出貨準備=prep／運送中=active+arrived／通關中=customs／已完成=done
+// ── 五欄看板（設計 #2a + 配送中欄）───────────────────────────────
+// 欄位分組：出貨準備=prep／運送中=active+arrived／通關中=customs／配送中=shipping／已完成=done
 // 視覺規格全部照 design_handoff_kanban_dashboard/README.md 的數值
 import type { Shipment } from '@/lib/notion'
 import { Lang } from '@/lib/i18n'
@@ -11,24 +11,26 @@ import {
 
 // 狀態徽章色票（文字色/底色）
 const BADGE: Record<KanbanStatus, { fg: string; bg: string }> = {
-  prep:    { fg: '#6b6b6b', bg: '#f0efec' },
-  active:  { fg: '#1a56c4', bg: '#e8f0fe' },
-  arrived: { fg: '#0d7a63', bg: '#e2f5f1' },
-  customs: { fg: '#b45309', bg: '#fef1e0' },
-  done:    { fg: '#1a7f3c', bg: '#e7f6ec' },
+  prep:     { fg: '#6b6b6b', bg: '#f0efec' },
+  active:   { fg: '#1a56c4', bg: '#e8f0fe' },
+  arrived:  { fg: '#0d7a63', bg: '#e2f5f1' },
+  customs:  { fg: '#b45309', bg: '#fef1e0' },
+  shipping: { fg: '#9333ea', bg: '#f3e8fd' },
+  done:     { fg: '#1a7f3c', bg: '#e7f6ec' },
 }
 
-// 四欄的底色、圓點色、計數徽章色、日文欄名色
+// 五欄的底色、圓點色、計數徽章色、日文欄名色
 const COLUMNS: {
   key: string
   statuses: KanbanStatus[]
   zh: string; ja: string
   bg: string; dot: string; countBg: string; countFg: string; jaColor: string
 }[] = [
-  { key: 'prep',    statuses: ['prep'],              zh: '出貨準備', ja: '出荷準備', bg: '#efeee9', dot: '#9a988f', countBg: '#e2e0da', countFg: '#8f8d84', jaColor: '#a8a69d' },
-  { key: 'transit', statuses: ['active', 'arrived'], zh: '運送中',   ja: '輸送中',   bg: '#eaeff7', dot: '#1a56c4', countBg: '#dbe4f4', countFg: '#5f7099', jaColor: '#9aa7bd' },
-  { key: 'customs', statuses: ['customs'],           zh: '通關中',   ja: '通関中',   bg: '#f6eee1', dot: '#b45309', countBg: '#f0e0c8', countFg: '#a2712e', jaColor: '#c19a68' },
-  { key: 'done',    statuses: ['done'],              zh: '已完成',   ja: '完了',     bg: '#e8f2ec', dot: '#1a7f3c', countBg: '#d6ecdd', countFg: '#40865b', jaColor: '#8fb79f' },
+  { key: 'prep',     statuses: ['prep'],              zh: '出貨準備', ja: '出荷準備', bg: '#efeee9', dot: '#9a988f', countBg: '#e2e0da', countFg: '#8f8d84', jaColor: '#a8a69d' },
+  { key: 'transit',  statuses: ['active', 'arrived'], zh: '運送中',   ja: '輸送中',   bg: '#eaeff7', dot: '#1a56c4', countBg: '#dbe4f4', countFg: '#5f7099', jaColor: '#9aa7bd' },
+  { key: 'customs',  statuses: ['customs'],           zh: '通關中',   ja: '通関中',   bg: '#f6eee1', dot: '#b45309', countBg: '#f0e0c8', countFg: '#a2712e', jaColor: '#c19a68' },
+  { key: 'shipping', statuses: ['shipping'],          zh: '配送中',   ja: '配送中',   bg: '#f3edfa', dot: '#9333ea', countBg: '#e7d9f6', countFg: '#7e3bc4', jaColor: '#b995dd' },
+  { key: 'done',     statuses: ['done'],              zh: '已完成',   ja: '完了',     bg: '#e8f2ec', dot: '#1a7f3c', countBg: '#d6ecdd', countFg: '#40865b', jaColor: '#8fb79f' },
 ]
 
 // 卡片上的小標籤文字（看板本體是中日雙語設計，只有這幾個跟著語言切換）
@@ -185,7 +187,7 @@ export default function KanbanBoard({
   }
 
   return (
-    <div className="grid grid-cols-1 items-start gap-4 md:grid-cols-2 xl:grid-cols-4">
+    <div className="grid grid-cols-1 items-start gap-4 md:grid-cols-2 xl:grid-cols-5">
       {COLUMNS.map(col => {
         const list = columnCards(col.statuses, col.key)
         return (
