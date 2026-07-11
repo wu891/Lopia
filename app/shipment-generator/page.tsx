@@ -1276,11 +1276,186 @@ function Apple11Panel() {
   )
 }
 
+// ── 🍠 地瓜(茨城)＋大學芋 店鋪貨單 Panel（手動輸入版，AI讀圖之前的過渡方案）────────
+
+interface DiguaGradeQty { L: number; M: number; S: number; '2S': number }
+interface DiguaRow { id: string; label: string; grades: DiguaGradeQty; daigakuimo: number }
+
+// 短標籤沿用 Colin 自己截圖裡的縮寫習慣，滑鼠移過去會顯示全名
+const DIGUA_STORE_META: { id: string; short: string; full: string }[] = [
+  { id: 'taichung-lalaport', short: '台', full: 'LaLaport 台中店' },
+  { id: 'taoyuan-chunri', short: '桃', full: '桃園春日店' },
+  { id: 'zhonghe-global', short: '中', full: '新北中和環球店' },
+  { id: 'xinzhuang-honghui', short: '新', full: '新莊宏匯店' },
+  { id: 'kaohsiung-hanshin-dome', short: '巨', full: '高雄漢神巨蛋店' },
+  { id: 'nangang-lalaport', short: '南', full: '南港 LaLaport 店' },
+  { id: 'taichung-ikea', short: 'I', full: 'IKEA 台中南屯店' },
+  { id: 'kaohsiung-dream-times', short: '夢', full: '高雄夢時代店' },
+  { id: 'tainan-xiaobei', short: '北', full: '台南小北門店' },
+  { id: 'tainan-mitsui', short: 'M', full: '台南三井 Outlet 店' },
+  { id: 'taichung-hanshin', short: '漢', full: '台中漢神中港店' },
+]
+
+const GRADE_LABELS: { key: keyof DiguaGradeQty; label: string }[] = [
+  { key: 'L', label: 'L' }, { key: 'M', label: 'M' }, { key: 'S', label: 'S' }, { key: '2S', label: '2S' },
+]
+
+function emptyGrades(): DiguaGradeQty { return { L: 0, M: 0, S: 0, '2S': 0 } }
+
+function DiguaPanel() {
+  const [shipmentNo, setShipmentNo] = useState('')
+  const [date, setDate] = useState('')
+  const [rows, setRows] = useState<Record<string, DiguaRow>>(() =>
+    Object.fromEntries(DIGUA_STORE_META.map(m => [m.id, { id: m.id, label: m.short, grades: emptyGrades(), daigakuimo: 0 }]))
+  )
+  const [generating, setGenerating] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+  const [done, setDone] = useState<string | null>(null)
+
+  function setGrade(storeId: string, grade: keyof DiguaGradeQty, value: string) {
+    const n = value === '' ? 0 : Math.max(0, parseInt(value) || 0)
+    setRows(prev => ({ ...prev, [storeId]: { ...prev[storeId], grades: { ...prev[storeId].grades, [grade]: n } } }))
+    setDone(null)
+  }
+  function setDgi(storeId: string, value: string) {
+    const n = value === '' ? 0 : Math.max(0, parseInt(value) || 0)
+    setRows(prev => ({ ...prev, [storeId]: { ...prev[storeId], daigakuimo: n } }))
+    setDone(null)
+  }
+
+  const totalByCol = (col: keyof DiguaGradeQty | 'dgi') =>
+    DIGUA_STORE_META.reduce((s, m) => s + (col === 'dgi' ? rows[m.id].daigakuimo : rows[m.id].grades[col]), 0)
+
+  const hasAnyQty = DIGUA_STORE_META.some(m => {
+    const r = rows[m.id]
+    return r.grades.L + r.grades.M + r.grades.S + r.grades['2S'] + r.daigakuimo > 0
+  })
+  const canGenerate = !!shipmentNo && !!date && hasAnyQty
+
+  async function handleGenerate() {
+    if (!canGenerate) return
+    setGenerating(true); setError(null); setDone(null)
+    try {
+      const storesPayload = DIGUA_STORE_META
+        .map(m => rows[m.id])
+        .filter(r => r.grades.L + r.grades.M + r.grades.S + r.grades['2S'] + r.daigakuimo > 0)
+        .map(r => ({ storeId: r.id, grades: r.grades, daigakuimo: r.daigakuimo }))
+
+      const res = await fetch('/api/generate-digua-note', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ shipmentNo, deliveryDate: date, stores: storesPayload }),
+      })
+      if (!res.ok) {
+        const d = await res.json().catch(() => ({}))
+        setError(d.error ?? '產生失敗，請確認欄位')
+        return
+      }
+      const blob = await res.blob()
+      const name = `${shipmentNo}_茨城地瓜+大學芋_店鋪貨單.xlsx`
+      const url = URL.createObjectURL(blob)
+      const a = document.createElement('a')
+      a.href = url; a.download = name; a.click(); URL.revokeObjectURL(url)
+      setDone(name)
+    } catch {
+      setError('網路錯誤，請稍後再試')
+    } finally {
+      setGenerating(false)
+    }
+  }
+
+  return (
+    <div className="max-w-4xl mx-auto px-4 py-6 space-y-5">
+      <div className="bg-amber-50 border border-amber-200 rounded-xl px-4 py-3 text-xs text-amber-700">
+        目前是手動輸入版（先把「照文字規則手刻樣式格式跑掉」跟「借用店範本公式沒重算」兩個問題修好，用真實出貨單 S2026061801 逐格核對過）。
+        上傳圖片讓 AI 自動讀數字的版本還沒接上，這裡先讓你手動打數字測試產出格式對不對。
+      </div>
+
+      <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
+        <div className="px-5 py-3.5 border-b border-gray-100">
+          <h2 className="font-semibold text-gray-800 text-sm">🍠 地瓜(茨城)＋大學芋 店鋪貨單</h2>
+          <p className="text-xs text-gray-400 mt-0.5">輸入出貨單號、配送日期，跟各店各規格箱數，產生 11 店分頁＋總表。</p>
+        </div>
+        <div className="px-5 py-4 space-y-4">
+          <div className="flex flex-wrap gap-3">
+            <div className="flex flex-col gap-1">
+              <label className="text-xs text-gray-500 font-medium">出貨單號</label>
+              <input type="text" value={shipmentNo} onChange={e => setShipmentNo(e.target.value)}
+                placeholder="例：S2026071801"
+                className="w-40 border border-gray-200 rounded-lg px-3 py-2 text-sm font-mono focus:outline-none focus:ring-2 focus:ring-lopia-red" />
+            </div>
+            <div className="flex flex-col gap-1">
+              <label className="text-xs text-gray-500 font-medium">配送日期</label>
+              <input type="date" value={date} onChange={e => setDate(e.target.value)}
+                className="border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-lopia-red" />
+            </div>
+          </div>
+
+          <div className="overflow-x-auto">
+            <table className="text-xs border-collapse min-w-[720px]">
+              <thead>
+                <tr>
+                  <th className="text-left px-2 py-1.5 font-semibold text-gray-600 border-b border-gray-200">規格</th>
+                  {DIGUA_STORE_META.map(m => (
+                    <th key={m.id} title={m.full} className="px-1 py-1.5 font-semibold text-gray-600 border-b border-gray-200 text-center w-14">{m.short}</th>
+                  ))}
+                  <th className="px-2 py-1.5 font-semibold text-gray-500 border-b border-gray-200 text-center w-16">合計</th>
+                </tr>
+              </thead>
+              <tbody>
+                {GRADE_LABELS.map(g => (
+                  <tr key={g.key}>
+                    <td className="px-2 py-1 font-medium text-gray-600 border-b border-gray-100">{g.label}</td>
+                    {DIGUA_STORE_META.map(m => (
+                      <td key={m.id} className="px-1 py-1 border-b border-gray-100">
+                        <input type="number" min={0} value={rows[m.id].grades[g.key] || ''} onChange={e => setGrade(m.id, g.key, e.target.value)}
+                          className="w-12 border border-gray-200 rounded px-1 py-1 text-center text-xs focus:outline-none focus:ring-2 focus:ring-lopia-red" />
+                      </td>
+                    ))}
+                    <td className="px-2 py-1 text-center text-gray-400 border-b border-gray-100">{totalByCol(g.key) || ''}</td>
+                  </tr>
+                ))}
+                <tr className="bg-amber-50/60">
+                  <td className="px-2 py-1 font-medium text-amber-700 border-b border-gray-100">大學芋</td>
+                  {DIGUA_STORE_META.map(m => (
+                    <td key={m.id} className="px-1 py-1 border-b border-gray-100">
+                      <input type="number" min={0} value={rows[m.id].daigakuimo || ''} onChange={e => setDgi(m.id, e.target.value)}
+                        className="w-12 border border-amber-200 rounded px-1 py-1 text-center text-xs focus:outline-none focus:ring-2 focus:ring-lopia-red bg-white" />
+                    </td>
+                  ))}
+                  <td className="px-2 py-1 text-center text-amber-600 border-b border-gray-100">{totalByCol('dgi') || ''}</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+
+          {error && <div className="px-4 py-2.5 bg-red-50 border border-red-200 rounded-lg text-xs text-red-600">❌ {error}</div>}
+
+          <button onClick={handleGenerate} disabled={!canGenerate || generating}
+            className="w-full flex items-center justify-center gap-2 py-3.5 bg-lopia-red text-white font-semibold rounded-xl text-base hover:bg-lopia-red-dark transition-colors disabled:opacity-50 shadow-sm">
+            {generating ? <><Spinner size={18} /> 產生中…</> : <>🍠 產生店鋪貨單 Excel</>}
+          </button>
+
+          {done && (
+            <div className="bg-emerald-50 border border-emerald-200 rounded-xl px-5 py-4">
+              <div className="flex items-center gap-2">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#059669" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
+                <span className="text-sm font-bold text-emerald-700">已產生並下載</span>
+              </div>
+              <p className="text-xs text-emerald-600 font-mono ml-6 mt-1">📄 {done}</p>
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
+  )
+}
+
 // ── Page ──────────────────────────────────────────────────────────────────────
 
 export default function ShipmentGeneratorPage() {
   const [authed, setAuthed] = useState(false)
-  const [tab, setTab]       = useState<'lopia' | 'yushu' | 'apple11'>('lopia')
+  const [tab, setTab]       = useState<'lopia' | 'yushu' | 'apple11' | 'digua'>('lopia')
 
   useEffect(() => {
     // 以伺服器 cookie 為準：sessionStorage 可能與 cookie 過期時間不同步
@@ -1322,8 +1497,8 @@ export default function ShipmentGeneratorPage() {
         </div>
 
         {/* Tab bar */}
-        <div className="max-w-2xl mx-auto px-4 flex border-t border-gray-100">
-          {([['lopia', '📦 LOPIA 出貨單'], ['yushu', '🏭 優儲出貨單'], ['apple11', '🍎 蘋果11庫存出貨']] as ['lopia' | 'yushu' | 'apple11', string][]).map(([key, label]) => (
+        <div className="max-w-2xl mx-auto px-4 flex border-t border-gray-100 overflow-x-auto">
+          {([['lopia', '📦 LOPIA 出貨單'], ['yushu', '🏭 優儲出貨單'], ['apple11', '🍎 蘋果11庫存出貨'], ['digua', '🍠 地瓜大學芋']] as ['lopia' | 'yushu' | 'apple11' | 'digua', string][]).map(([key, label]) => (
             <button key={key} onClick={() => setTab(key)}
               className={`px-5 py-2.5 text-sm font-medium border-b-2 transition-colors ${
                 tab === key
@@ -1334,7 +1509,7 @@ export default function ShipmentGeneratorPage() {
         </div>
       </header>
 
-      {tab === 'lopia' ? <GeneratorPanel /> : tab === 'yushu' ? <YushuPanel /> : <Apple11Panel />}
+      {tab === 'lopia' ? <GeneratorPanel /> : tab === 'yushu' ? <YushuPanel /> : tab === 'apple11' ? <Apple11Panel /> : <DiguaPanel />}
     </div>
   )
 }
