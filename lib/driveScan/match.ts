@@ -26,7 +26,8 @@ export interface BatchLite {
   productSummary: string
   keywords: string[]        // 商品關鍵字欄位拆出來的清單
   totalBoxes: number
-  deliveryStatus: string    // 配送狀態（「全數出貨」不參與分配）
+  deliveryStatus: string    // 配送狀態（「全數出貨」＝已收完、不參與分配）
+  intakeDate: string        // 入倉日（原值，空字串＝還沒填）；有值且≤今天＝已到倉＝出貨中
   fifoDate: string          // FIFO 排序用日期
 }
 
@@ -55,6 +56,7 @@ export async function fetchBatchesLite(): Promise<BatchLite[]> {
         keywords: kw.split(/[,，、;；\n]/).map((s: string) => s.trim()).filter(Boolean),
         totalBoxes: p['入倉箱數']?.number ?? 0,
         deliveryStatus: p['配送狀態']?.select?.name ?? '',
+        intakeDate: p['入倉日']?.date?.start ?? '',   // 原值，不做兜底（抵台≠入倉，不能拿抵台日當到貨）
         fifoDate: p['入倉日']?.date?.start
           ?? p['抵台日']?.date?.start
           ?? p['日本出發日']?.date?.start
@@ -75,15 +77,21 @@ function hitKeyword(text: string, b: BatchLite): boolean {
 /**
  * 找出一列商品的候選批次。
  * 先用商品名比、比不到再用檔名比（蘋果單商品列只有品種名，批號在檔名「蘋果11.3」裡）。
- * 規則①（訪談定案）：機器人只碰「部分出貨（正在出貨中）」的批次。
- *   命中關鍵字但批次是 未到／待出貨／全數出貨／空白 → 不扣（放進 inactiveMatches，呼叫端略過、不報錯）。
- *   這樣「貨還沒到的批次」不會被誤扣、「已收完(全數出貨)的批次」不會被重複扣。
+ * 規則①（訪談定案）：機器人只碰「已到倉、正在出貨中」的批次，用「入倉日」自動辨識，不用手動改狀態。
+ *   命中關鍵字但批次「尚未到貨（沒填入倉日／入倉日還沒到）」或「已收完（全數出貨）」→ 不扣
+ *   （放進 inactiveMatches，呼叫端略過、不報錯）。這樣「貨還沒到的批次」不會被誤扣（如未到的大學芋 601FS）。
  * usedFilenameFallback = 這列是靠「檔名」而非「商品名」對到的（可能對錯批，要提醒）。
  */
-const ACTIVE_STATUS = '部分出貨'
+// 判斷一個批次現在「可不可以扣」＝已到倉、還沒收完。用入倉日自動辨識，Colin 登記到貨時本來就會填入倉日。
+export function isActiveBatch(b: BatchLite): boolean {
+  if (b.deliveryStatus === '全數出貨') return false   // 已收完關帳，不再扣
+  if (b.deliveryStatus === '部分出貨') return true     // 明確標記出貨中（相容舊資料）
+  const today = new Date().toISOString().slice(0, 10)
+  return !!b.intakeDate && b.intakeDate <= today       // 有入倉日且已到＝到倉出貨中；空白或未到＝不扣
+}
 export function candidateBatches(rowName: string, fileName: string, batches: BatchLite[]): {
-  eligible: BatchLite[]          // 出貨中＋命中關鍵字，FIFO 排序 → 可扣
-  inactiveMatches: BatchLite[]   // 命中關鍵字但非出貨中 → 略過（不是錯誤）
+  eligible: BatchLite[]          // 到倉出貨中＋命中關鍵字，FIFO 排序 → 可扣
+  inactiveMatches: BatchLite[]   // 命中關鍵字但尚未到貨/已收完 → 略過（不是錯誤）
   usedFilenameFallback: boolean
 } {
   const withKw = batches.filter(b => b.keywords.length > 0)
@@ -93,9 +101,9 @@ export function candidateBatches(rowName: string, fileName: string, batches: Bat
     hits = withKw.filter(b => hitKeyword(fileName, b))
     usedFilenameFallback = hits.length > 0
   }
-  const eligible = hits.filter(b => b.deliveryStatus === ACTIVE_STATUS)
+  const eligible = hits.filter(isActiveBatch)
     .sort((a, b) => a.fifoDate.localeCompare(b.fifoDate))
-  const inactiveMatches = hits.filter(b => b.deliveryStatus !== ACTIVE_STATUS)
+  const inactiveMatches = hits.filter(b => !isActiveBatch(b))
   return { eligible, inactiveMatches, usedFilenameFallback }
 }
 
@@ -151,9 +159,11 @@ export function allocateFifo(
       const { eligible: candidates, inactiveMatches, usedFilenameFallback } = candidateBatches(row.name, fileName, batches)
       if (candidates.length === 0) {
         if (inactiveMatches.length > 0) {
-          // 命中批次但非「部分出貨」→ 規則①：只碰出貨中的批次，這列暫不扣（不是錯誤，不擋整張單）
+          // 命中批次但「尚未到貨/已收完」→ 規則①：只碰到倉出貨中的批次，這列暫不扣（不是錯誤，不擋整張單）
           const b = inactiveMatches[0]
-          notes.push(`商品「${row.name}」（${tab.store} ${row.boxes}箱）屬批次「${b.ivName}」（${b.deliveryStatus || '狀態空白'}，非出貨中）→ 暫不扣帳`)
+          const why = b.deliveryStatus === '全數出貨' ? '已收完(全數出貨)'
+            : (b.intakeDate ? `尚未到貨(入倉日 ${b.intakeDate})` : '尚未到倉(未填入倉日)')
+          notes.push(`商品「${row.name}」（${tab.store} ${row.boxes}箱）屬批次「${b.ivName}」（${why}）→ 暫不扣帳；到貨後填入倉日即自動接手`)
           continue
         }
         errors.push(`商品「${row.name}」（${tab.store} ${row.boxes}箱）對不到任何批次的商品關鍵字`)
