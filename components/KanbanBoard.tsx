@@ -1,150 +1,113 @@
 'use client'
-// ── 五欄看板（設計 #2a + 配送中欄）───────────────────────────────
-// 欄位分組：出貨準備=prep／運送中=active+arrived／通關中=customs／配送中=shipping／已完成=done
-// 視覺規格全部照 design_handoff_kanban_dashboard/README.md 的數值
+// ── 看板檢視（Modernist 改版）────────────────────────────────
+// 5 欄：待出貨 → 運送中 → 通關中 → 配送中 → 已完成
+// 欄頭色點是唯一的多色語意，卡片本體維持黑白紅；可水平捲動
+import { useRouter } from 'next/navigation'
 import type { Shipment } from '@/lib/notion'
-import { Lang } from '@/lib/i18n'
-import {
-  KanbanStatus, KANBAN_STEPS, STATUS_LABEL,
-  deriveKanban, isUrgent, daysUntil, daysText, fmtMMDD,
-} from '@/lib/kanban'
-
-// 狀態徽章色票（文字色/底色）
-const BADGE: Record<KanbanStatus, { fg: string; bg: string }> = {
-  prep:     { fg: '#6b6b6b', bg: '#f0efec' },
-  active:   { fg: '#1a56c4', bg: '#e8f0fe' },
-  arrived:  { fg: '#0d7a63', bg: '#e2f5f1' },
-  customs:  { fg: '#b45309', bg: '#fef1e0' },
-  shipping: { fg: '#9333ea', bg: '#f3e8fd' },
-  done:     { fg: '#1a7f3c', bg: '#e7f6ec' },
-}
-
-// 五欄的底色、圓點色、計數徽章色、日文欄名色
-const COLUMNS: {
-  key: string
-  statuses: KanbanStatus[]
-  zh: string; ja: string
-  bg: string; dot: string; countBg: string; countFg: string; jaColor: string
-}[] = [
-  { key: 'prep',     statuses: ['prep'],              zh: '出貨準備', ja: '出荷準備', bg: '#efeee9', dot: '#9a988f', countBg: '#e2e0da', countFg: '#8f8d84', jaColor: '#a8a69d' },
-  { key: 'transit',  statuses: ['active', 'arrived'], zh: '運送中',   ja: '輸送中',   bg: '#eaeff7', dot: '#1a56c4', countBg: '#dbe4f4', countFg: '#5f7099', jaColor: '#9aa7bd' },
-  { key: 'customs',  statuses: ['customs'],           zh: '通關中',   ja: '通関中',   bg: '#f6eee1', dot: '#b45309', countBg: '#f0e0c8', countFg: '#a2712e', jaColor: '#c19a68' },
-  { key: 'shipping', statuses: ['shipping'],          zh: '配送中',   ja: '配送中',   bg: '#f3edfa', dot: '#9333ea', countBg: '#e7d9f6', countFg: '#7e3bc4', jaColor: '#b995dd' },
-  { key: 'done',     statuses: ['done'],              zh: '已完成',   ja: '完了',     bg: '#e8f2ec', dot: '#1a7f3c', countBg: '#d6ecdd', countFg: '#40865b', jaColor: '#8fb79f' },
-]
-
-// 卡片上的小標籤文字（看板本體是中日雙語設計，只有這幾個跟著語言切換）
-const L = {
-  zh: { supplier: '供應商', cur: '目前', eta: '預計到港', urgent: '急件', boxes: '箱', empty: '目前沒有批次', from: '日本', to: '台灣', air: '空運', sea: '海運' },
-  ja: { supplier: '仕入先', cur: '現在', eta: '入港予定', urgent: '至急', boxes: '箱', empty: '該当なし',     from: '日本', to: '台湾', air: '空輸', sea: '船便' },
-}
+import { Lang, t } from '@/lib/i18n'
+import { deriveKanban, daysUntil, fmtMMDD } from '@/lib/kanban'
+import { STAGES, deriveStage, isUrgentBatch, BOARD_COLS, etaInfo } from '@/lib/batchView'
 
 interface CardData {
   s: Shipment
-  status: KanbanStatus
-  step: number
+  stage: number
+  done: boolean
   daysLeft: number | null
   urgent: boolean
 }
 
-function BatchCard({ c, lang }: { c: CardData; lang: Lang }) {
-  const w = L[lang]
-  const { s, status, step, daysLeft, urgent } = c
-  const badge = BADGE[status]
-  const label = STATUS_LABEL[status][lang]
-  const curStep = KANBAN_STEPS[step]?.[lang] ?? '—'
-  // 運輸方式 + 班機/船次號（有什麼顯示什麼）
-  const transport = [
-    s.transportMode === '空運' ? w.air : s.transportMode === '海運' ? w.sea : s.transportMode,
-    s.flightNo ?? s.awbNo,
-  ].filter(Boolean).join(' ')
-  const dt = daysText(daysLeft, lang)
+function BatchCard({ c, lang, dot, today }: { c: CardData; lang: Lang; dot: string; today: string }) {
+  const router = useRouter()
+  const T = t[lang]
+  const { s, stage, done, urgent } = c
+  const stageName = done ? STAGES[4][lang] : STAGES[stage][lang]
+  const transport = s.transportMode === '空運' ? T.airFreight : s.transportMode === '海運' ? T.seaFreight : s.transportMode
+  const vessel = s.flightNo ?? s.awbNo
+  const info = etaInfo(s, today)
+  // 進度條填到目前階段（done = 全滿）
+  const fillCount = done ? STAGES.length : stage + 1
 
   return (
     <div
-      className="relative flex flex-col gap-3 overflow-hidden rounded-[14px] border border-[#eae8e2] bg-white pt-[15px] pr-4 pb-[15px] pl-[17px]"
-      style={{ boxShadow: '0 1px 3px rgba(0,0,0,.04)' }}
+      onClick={() => router.push(`/batch/${s.id}`)}
+      tabIndex={0}
+      role="button"
+      onKeyDown={e => { if (e.key === 'Enter') router.push(`/batch/${s.id}`) }}
+      className={`relative flex cursor-pointer flex-col gap-2.5 border border-[var(--mod-hair)] bg-white p-3.5 transition-colors hover:bg-[var(--mod-red-bg)] ${
+        urgent ? 'bg-[var(--mod-red-bg2)]' : ''
+      }`}
+      style={urgent ? { boxShadow: 'inset 4px 0 0 var(--mod-red)' } : undefined}
     >
-      {/* 急件：左緣 4px 紅色直條 */}
-      {urgent && <div className="absolute left-0 top-0 bottom-0 w-1 bg-[#e4002b]" />}
-
-      {/* 第一列：批次號（＋急件標籤）／品名／狀態徽章 */}
+      {/* 批號 ＋ 狀態標籤（欄位色 12% 淡底） */}
       <div className="flex items-start justify-between gap-2">
-        <div className="flex flex-col gap-[3px] min-w-0">
-          <div className="flex items-center gap-[7px]">
-            <span className="font-mono text-[11px] font-semibold tracking-[.05em] text-[#a8a69d] break-all">
-              {s.ivName}
-            </span>
-            {urgent && (
-              <span className="shrink-0 rounded-[4px] bg-[#e4002b] px-1.5 py-0.5 text-[9px] font-bold tracking-[.05em] text-white">
-                {w.urgent}
-              </span>
-            )}
-          </div>
-          <div className="flex items-baseline gap-[7px]">
-            <span className="text-[16px] font-bold leading-snug text-[#26251f]">
-              {s.productSummary || s.ivName}
-            </span>
-          </div>
+        <div className="flex items-center gap-1.5 min-w-0">
+          <span className="font-mono text-[10px] font-semibold tracking-[.04em] text-[var(--mod-faint)] break-all">{s.ivName}</span>
+          {urgent && (
+            <span className="shrink-0 bg-[var(--mod-red)] px-1.5 py-0.5 text-[9px] font-bold text-white whitespace-nowrap">{T.urgentTag}</span>
+          )}
         </div>
         <span
-          className="shrink-0 whitespace-nowrap rounded-full px-[9px] py-1 text-[10px] font-bold"
-          style={{ color: badge.fg, background: badge.bg }}
+          className="shrink-0 whitespace-nowrap px-2 py-0.5 text-[10px] font-bold"
+          style={{ color: dot, background: `${dot}1f` }}
         >
-          {label}
+          {stageName}
         </span>
       </div>
 
-      {/* 供應商列 */}
+      {/* 商品名 */}
+      <span className="text-[15px] font-bold leading-snug text-[var(--mod-ink)]">
+        {s.productSummary || s.ivName}
+      </span>
+
+      {/* 供應商標籤 */}
       {s.supplier && (
-        <div className="flex items-center gap-[7px] text-[12px]">
-          <span className="rounded-[5px] bg-[#f4f3ef] px-[7px] py-0.5 text-[10px] font-semibold text-[#a8a69d]">
-            {w.supplier}
-          </span>
-          <span className="font-semibold text-[#3a3a38]">{s.supplier}</span>
+        <div className="flex items-center gap-1.5 text-[11px]">
+          <span className="bg-[var(--mod-page)] px-1.5 py-0.5 text-[10px] font-semibold text-[var(--mod-faint)] whitespace-nowrap">{T.thSupplier}</span>
+          <span className="font-semibold text-[var(--mod-sub)]">{s.supplier}</span>
         </div>
       )}
 
-      {/* 航線列：日本 → 台灣 ＋ 運輸方式/班機號 */}
-      <div className="flex items-center gap-[7px] text-[12px]">
-        <span className="font-bold text-[#26251f]">{w.from}</span>
-        <span className="font-bold text-[#e4002b]">→</span>
-        <span className="font-bold text-[#26251f]">{w.to}</span>
-        {transport && <span className="text-[11px] text-[#bcbab2]">{transport}</span>}
+      {/* 路線 ＋ 運送方式 ＋ 船班 */}
+      <div className="flex flex-wrap items-center gap-1.5 text-[11px]">
+        <span className="font-bold text-[var(--mod-ink)] whitespace-nowrap">{T.routeJP}</span>
+        <span className="font-bold text-[var(--mod-red)]">→</span>
+        <span className="font-bold text-[var(--mod-ink)] whitespace-nowrap">{T.routeTW}</span>
+        {transport && <span className="text-[var(--mod-sub2)] whitespace-nowrap">{transport}</span>}
+        {vessel && <span className="font-mono text-[10px] text-[var(--mod-faint)] break-all">{vessel}</span>}
       </div>
 
-      {/* 進度區：目前階段 ＋ 6 段進度條（已完成=紅、目前=紅脈動、未達=灰） */}
-      <div className="flex flex-col gap-1.5">
-        <span className="text-[10px] font-medium text-[#a8a69d]">
-          {w.cur} {curStep}
+      {/* 目前階段 ＋ 分段進度條（紅填到目前） */}
+      <div className="flex flex-col gap-1">
+        <span className="text-[10px] font-semibold text-[var(--mod-faint)] whitespace-nowrap">
+          {T.curStage} {stageName}
         </span>
         <div className="flex gap-[3px]">
-          {KANBAN_STEPS.map((_, i) => (
-            <div
-              key={i}
-              className={`h-[5px] flex-1 rounded-full ${
-                i < step ? 'bg-[#e4002b]'
-                : i === step ? 'bg-[#e4002b] animate-lp-pulse-fast'
-                : 'bg-[#ecebe6]'
-              }`}
-            />
+          {STAGES.map((_, i) => (
+            <div key={i} className={`h-[5px] flex-1 ${i < fillCount ? 'bg-[var(--mod-red)]' : 'bg-[#e5e3e1]'}`} />
           ))}
         </div>
       </div>
 
-      {/* 底列：預計到港＋剩餘天數／倉庫＋箱數 */}
-      <div className="flex items-end justify-between border-t border-[#f2f1ed] pt-[11px]">
+      {/* 底列：預計到港＋剩 N 天 ／ 倉庫＋數量 */}
+      <div className="flex items-end justify-between border-t border-[var(--mod-hair)] pt-2">
         <div className="flex flex-col gap-0.5">
-          <span className="text-[10px] font-medium text-[#a8a69d]">{w.eta}</span>
-          <div className="flex items-baseline gap-1.5">
-            <span className="font-mono text-[14px] font-bold text-[#26251f]">{fmtMMDD(s.arrivalTW)}</span>
-            {dt && <span className="text-[10px] font-semibold text-[#e4002b]">{dt}</span>}
+          <span className="text-[10px] font-medium text-[var(--mod-faint)] whitespace-nowrap">{T.thEta}</span>
+          <div className="flex items-baseline gap-1.5 whitespace-nowrap">
+            <span className="font-mono text-[13px] font-bold text-[var(--mod-ink)]">{fmtMMDD(s.arrivalTW)}</span>
+            {info.kind === 'countdown' && (
+              <span className={`text-[10px] font-bold ${info.hot ? 'text-[var(--mod-red)]' : 'text-[var(--mod-sub2)]'}`}>
+                {T.remainDays} {info.days} {T.dayUnit}
+              </span>
+            )}
+            {info.kind === 'today' && (
+              <span className="text-[10px] font-bold text-[var(--mod-red)] whitespace-nowrap">{T.etaToday}</span>
+            )}
           </div>
         </div>
         <div className="flex flex-col items-end gap-0.5">
-          <span className="text-[10px] font-medium text-[#a8a69d]">{s.warehouse ?? ' '}</span>
-          <span className="font-mono text-[13px] font-bold text-[#26251f]">
-            {s.totalBoxes != null ? `${s.totalBoxes.toLocaleString()} ${w.boxes}` : '—'}
+          <span className="text-[10px] font-medium text-[var(--mod-faint)] whitespace-nowrap">{s.warehouse ?? ' '}</span>
+          <span className="font-mono text-[12px] font-bold text-[var(--mod-ink)] whitespace-nowrap">
+            {s.totalBoxes != null ? `${s.totalBoxes.toLocaleString()} ${T.boxes}` : '—'}
           </span>
         </div>
       </div>
@@ -159,22 +122,24 @@ export default function KanbanBoard({
   lang: Lang
   today: string
 }) {
-  // 每個批次先算好狀態/進度/急件，再分欄
+  const T = t[lang]
   const cards: CardData[] = shipments.map(s => {
-    const { status, step } = deriveKanban(s, today)
-    const daysLeft = daysUntil(s.arrivalTW, today)
-    return { s, status, step, daysLeft, urgent: isUrgent(status, daysLeft) }
+    const { stage, done } = deriveStage(s, today)
+    return {
+      s, stage, done,
+      daysLeft: daysUntil(s.arrivalTW, today),
+      urgent: isUrgentBatch(s, today),
+    }
   })
 
-  const columnCards = (statuses: KanbanStatus[], key: string): CardData[] => {
-    let list = cards.filter(c => statuses.includes(c.status))
+  const columnCards = (statuses: string[], key: string) => {
+    let list = cards.filter(c => statuses.includes(deriveKanban(c.s, today).status))
     if (key === 'done') {
-      // 已完成欄只留最近 30 天抵台的，太舊的看月曆/卡片檢視就好（不然欄位會無限長）
+      // 已完成欄只留最近 30 天抵台的（不然欄位無限長）
       list = list
         .filter(c => c.daysLeft !== null && c.daysLeft >= -30)
         .sort((a, b) => (b.s.arrivalTW ?? '').localeCompare(a.s.arrivalTW ?? ''))
     } else {
-      // 急件排最前，其餘照到港日由近到遠，沒日期的沉底
       list = list.sort((a, b) => {
         if (a.urgent !== b.urgent) return a.urgent ? -1 : 1
         if (!a.s.arrivalTW && !b.s.arrivalTW) return 0
@@ -187,34 +152,36 @@ export default function KanbanBoard({
   }
 
   return (
-    <div className="grid grid-cols-1 items-start gap-4 md:grid-cols-2 xl:grid-cols-5">
-      {COLUMNS.map(col => {
-        const list = columnCards(col.statuses, col.key)
-        return (
-          <div key={col.key} className="flex flex-col gap-3 rounded-2xl px-3 py-3.5" style={{ background: col.bg }}>
-            {/* 欄首：圓點＋中文欄名＋日文／計數徽章 */}
-            <div className="flex items-center justify-between px-1">
-              <div className="flex items-center gap-2">
-                <span className="h-[9px] w-[9px] rounded-full" style={{ background: col.dot }} />
-                <span className="text-[13px] font-bold text-[#3a3a38]">{col.zh}</span>
-                <span className="text-[11px]" style={{ color: col.jaColor }}>{col.ja}</span>
+    <div className="overflow-x-auto pb-2">
+      <div className="flex min-w-[1100px] items-start gap-0 border-2 border-[var(--mod-line)] bg-white">
+        {BOARD_COLS.map((col, ci) => {
+          const list = columnCards(col.statuses as string[], col.key)
+          const urgentCount = list.filter(c => c.urgent).length
+          return (
+            <div
+              key={col.key}
+              className={`flex min-w-[220px] flex-1 flex-col gap-2.5 p-3 ${ci > 0 ? 'border-l border-[var(--mod-hair)]' : ''}`}
+            >
+              {/* 欄頭：色點＋名稱＋計數（含急件轉紅） */}
+              <div className="flex items-center justify-between border-b-2 border-[var(--mod-line)] pb-2">
+                <div className="flex items-center gap-2 whitespace-nowrap">
+                  <span className="h-[9px] w-[9px] shrink-0" style={{ background: col.dot }} />
+                  <span className="text-[13px] font-extrabold text-[var(--mod-ink)]">{col[lang]}</span>
+                </div>
+                <span className={`font-mono text-[13px] font-bold ${urgentCount > 0 ? 'text-[var(--mod-red)]' : 'text-[var(--mod-faint)]'}`}>
+                  {list.length}
+                </span>
               </div>
-              <span
-                className="rounded-full px-2 py-0.5 font-mono text-[12px] font-bold"
-                style={{ background: col.countBg, color: col.countFg }}
-              >
-                {list.length}
-              </span>
-            </div>
 
-            {list.length === 0 ? (
-              <p className="py-3 text-center text-[11px] text-[#a8a69d]">{L[lang].empty}</p>
-            ) : (
-              list.map(c => <BatchCard key={c.s.id} c={c} lang={lang} />)
-            )}
-          </div>
-        )
-      })}
+              {list.length === 0 ? (
+                <p className="py-3 text-center text-[11px] text-[var(--mod-faint)]">{T.noData}</p>
+              ) : (
+                list.map(c => <BatchCard key={c.s.id} c={c} lang={lang} dot={col.dot} today={today} />)
+              )}
+            </div>
+          )
+        })}
+      </div>
     </div>
   )
 }

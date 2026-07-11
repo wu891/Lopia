@@ -1,4 +1,4 @@
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Poppins:wght@600;700&family=Noto+Sans+JP:wght@400;500;700&family=Noto+Sans+TC:wght@400;500;700;900&family=JetBrains+Mono:wght@500;600;700&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Poppins:wght@600;700&family=Archivo:wght@400;600;700;800&family=Noto+Sans+JP:wght@400;500;700&family=Noto+Sans+TC:wght@400;500;700;900&family=JetBrains+Mono:wght@500;600;700&display=swap');
 
 @tailwind base;
 @tailwind components;
@@ -76,6 +76,44 @@ body {
     border-radius: 4px;
   }
 }
+
+/* ── Modernist 改版（2026-07 ETA-first）─────────────────────────
+   只作用在掛了 .modernist 的頁面（主頁/明細/日程總表），
+   其他工具頁（checklist、shipment-generator…）維持原樣不受影響 */
+.modernist {
+  --mod-red: #ec3013;        /* 主色（LOPIA 紅） */
+  --mod-red-dark: #ae1800;   /* 深階，文字用 */
+  --mod-red-bg: #fff5f3;     /* 淺紅底 */
+  --mod-red-bg2: #fff2ef;
+  --mod-ink: #201e1d;        /* 主文字 */
+  --mod-sub: #605d5d;        /* 次要文字 */
+  --mod-sub2: #7d7979;
+  --mod-faint: #8a8785;      /* 淡文字 */
+  --mod-page: #f3f2f2;       /* 頁面底 */
+  --mod-line: rgba(32,30,29,.4);   /* 主要區塊分隔線 2px */
+  --mod-hair: rgba(32,30,29,.10);  /* 列與列分隔線 1px */
+  font-family: 'Archivo', 'Noto Sans TC', 'Noto Sans JP', sans-serif;
+  color: var(--mod-ink);
+  background: var(--mod-page);
+}
+/* 圓角一律 0：連 focus 外框也是方的 */
+.modernist *, .modernist ::before, .modernist ::after { border-radius: 0 !important; }
+.modernist button:focus-visible,
+.modernist a:focus-visible,
+.modernist select:focus-visible,
+.modernist input:focus-visible,
+.modernist [role="button"]:focus-visible,
+.modernist [tabindex="0"]:focus-visible {
+  outline: 2px solid var(--mod-red);
+  outline-offset: 2px;
+  border-radius: 0;
+}
+/* 目前階段的紅點光暈（明細垂直時間軸用） */
+@keyframes modGlow {
+  0%, 100% { box-shadow: 0 0 0 4px rgba(236,48,19,.18); }
+  50%      { box-shadow: 0 0 0 7px rgba(236,48,19,.08); }
+}
+.mod-glow { animation: modGlow 1.8s infinite; }
 
 /* 尊重「減少動態」系統偏好（前庭敏感/注意力） */
 @media (prefers-reduced-motion: reduce) {
