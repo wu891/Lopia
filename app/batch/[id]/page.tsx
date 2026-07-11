@@ -9,13 +9,7 @@ import type { Shipment, ShipmentRecord } from '@/lib/notion'
 import { Lang, t } from '@/lib/i18n'
 import { todayTaipei, STATUS_LABEL } from '@/lib/kanban'
 import { STAGES, deriveStage, stageDates, isUrgentBatch, etaInfo, fmtDateW } from '@/lib/batchView'
-import PasswordModal, { isAuthed, logChange } from '@/components/PasswordModal'
 import DeliveryPlan from '@/components/DeliveryPlan'
-
-// 出貨紀錄的「配送狀態」兩態：計畫中=待配送、已完成=已送達（沿用 Notion 既有值）
-function isDelivered(r: ShipmentRecord): boolean {
-  return r.planStatus === '已完成'
-}
 
 function BatchDetail() {
   const params = useParams<{ id: string }>()
@@ -27,9 +21,6 @@ function BatchDetail() {
   const [allBatchRecords, setAllBatchRecords] = useState<ShipmentRecord[]>([])  // DeliveryPlan 編輯用（含已取消）
   const [loading, setLoading] = useState(true)
   const [notFound, setNotFound] = useState(false)
-  const [askPassword, setAskPassword] = useState<null | (() => void)>(null)
-  const [savingId, setSavingId] = useState<string | null>(null)
-  const [errMsg, setErrMsg] = useState('')
 
   const T = t[lang]
   const today = todayTaipei()
@@ -58,31 +49,6 @@ function BatchDetail() {
 
   useEffect(() => { fetchData() }, [fetchData])
 
-  // 狀態徽章點擊：待配送 ↔ 已送達（需要編輯密碼）
-  async function toggleStatus(r: ShipmentRecord) {
-    const run = async () => {
-      setSavingId(r.id); setErrMsg('')
-      const next = isDelivered(r) ? '計畫中' : '已完成'
-      try {
-        const res = await fetch(`/api/records/${r.id}`, {
-          method: 'PUT',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ planStatus: next }),
-        })
-        if (res.status === 401) { setAskPassword(() => () => toggleStatus(r)); return }
-        if (!res.ok) throw new Error('update failed')
-        setRecords(prev => prev.map(x => x.id === r.id ? { ...x, planStatus: next } : x))
-        logChange('更新配送狀態', r.shipmentNo, `${r.store} → ${next}`)
-      } catch {
-        setErrMsg(T.updateFail)
-      } finally {
-        setSavingId(null)
-      }
-    }
-    if (!isAuthed()) { setAskPassword(() => run); return }
-    run()
-  }
-
   if (loading) {
     return (
       <div className="modernist flex min-h-screen items-center justify-center">
@@ -109,10 +75,20 @@ function BatchDetail() {
   const transport = s.transportMode === '空運' ? T.airFreight : s.transportMode === '海運' ? T.seaFreight : s.transportMode
   const vessel = s.flightNo ?? s.awbNo
 
-  // 門市配送統計
-  const totalBoxes = records.reduce((sum, r) => sum + (r.boxes ?? 0), 0)
-  const deliveredBoxes = records.filter(isDelivered).reduce((sum, r) => sum + (r.boxes ?? 0), 0)
-  const pendingBoxes = totalBoxes - deliveredBoxes
+  // 門市配送：店 × 出貨日 迷你樞紐表（這裡都是已出貨的單，不做狀態）
+  const dated = records.filter(r => r.date && r.store)
+  const shipDates = Array.from(new Set(dated.map(r => r.date as string))).sort()
+  const shipStores = Array.from(new Set(dated.map(r => r.store as string))).sort((a, b) => a.localeCompare(b, 'zh-TW'))
+  const cellBoxes = new Map<string, number>()   // `${store}|${date}` → 箱數
+  for (const r of dated) {
+    const key = `${r.store}|${r.date}`
+    cellBoxes.set(key, (cellBoxes.get(key) ?? 0) + (r.boxes ?? 0))
+  }
+  const rowTotal = (store: string) => shipDates.reduce((sum, d) => sum + (cellBoxes.get(`${store}|${d}`) ?? 0), 0)
+  const colTotal = (d: string) => shipStores.reduce((sum, st) => sum + (cellBoxes.get(`${st}|${d}`) ?? 0), 0)
+  const totalBoxes = dated.reduce((sum, r) => sum + (r.boxes ?? 0), 0)   // 跟表格同一份資料，總計才會對得上
+  // 最近一次出貨欄：今天以後最近的；沒有未來日期就取最後一欄
+  const nearestShipDate = shipDates.find(d => d >= today) ?? shipDates[shipDates.length - 1]
 
   return (
     <div className="modernist min-h-screen">
@@ -246,74 +222,89 @@ function BatchDetail() {
           </div>
         </div>
 
-        {/* 門市配送清單（有出貨紀錄才顯示） */}
-        {records.length > 0 && (
+        {/* 門市配送（有出貨紀錄才顯示；只列已出貨的單，不做狀態） */}
+        {dated.length > 0 && (
           <div className="border-2 border-[var(--mod-line)] bg-white p-5">
             <h2 className="mb-4 border-b-2 border-[var(--mod-line)] pb-2 text-[13px] font-extrabold uppercase tracking-[.06em] text-[var(--mod-ink)]">
               {T.storeDeliveryTitle}
             </h2>
-            {/* 總覽 */}
+            {/* 總覽：合計箱數／出貨次數／門市數 */}
             <div className="mb-4 grid grid-cols-3 gap-2.5">
               <div className="flex flex-col gap-0.5 border border-[var(--mod-hair)] px-3 py-2.5">
                 <span className="text-[10px] font-bold text-[var(--mod-sub2)] whitespace-nowrap">{T.sumOrdered}</span>
                 <span className="font-mono text-[20px] font-extrabold text-[var(--mod-ink)]">{totalBoxes.toLocaleString()}</span>
               </div>
               <div className="flex flex-col gap-0.5 border border-[var(--mod-hair)] px-3 py-2.5">
-                <span className="text-[10px] font-bold text-[var(--mod-sub2)] whitespace-nowrap">{T.sumDelivered}</span>
-                <span className="font-mono text-[20px] font-extrabold text-[var(--mod-ink)]">{deliveredBoxes.toLocaleString()}</span>
+                <span className="text-[10px] font-bold text-[var(--mod-sub2)] whitespace-nowrap">{T.sumTimes}</span>
+                <span className="font-mono text-[20px] font-extrabold text-[var(--mod-ink)]">{shipDates.length}</span>
               </div>
-              <div className={`flex flex-col gap-0.5 px-3 py-2.5 ${pendingBoxes > 0 ? 'border-2 border-[var(--mod-red)] bg-[var(--mod-red-bg)]' : 'border border-[var(--mod-hair)]'}`}>
-                <span className={`text-[10px] font-bold whitespace-nowrap ${pendingBoxes > 0 ? 'text-[var(--mod-red-dark)]' : 'text-[var(--mod-sub2)]'}`}>{T.sumPending}</span>
-                <span className={`font-mono text-[20px] font-extrabold ${pendingBoxes > 0 ? 'text-[var(--mod-red)]' : 'text-[var(--mod-ink)]'}`}>{pendingBoxes.toLocaleString()}</span>
+              <div className="flex flex-col gap-0.5 border border-[var(--mod-hair)] px-3 py-2.5">
+                <span className="text-[10px] font-bold text-[var(--mod-sub2)] whitespace-nowrap">{T.sumStoreCount}</span>
+                <span className="font-mono text-[20px] font-extrabold text-[var(--mod-ink)]">{shipStores.length}</span>
               </div>
             </div>
 
-            {errMsg && <p className="mb-2 text-xs font-bold text-[var(--mod-red-dark)]">{errMsg}</p>}
-
-            {/* 明細表 */}
+            {/* 迷你樞紐表：列＝門市、欄＝出貨日、格＝箱數 */}
             <div className="overflow-x-auto">
-              <table className="w-full min-w-[520px] border-collapse text-left">
+              <table className="w-full border-collapse text-left">
                 <thead>
                   <tr className="border-b-2 border-[var(--mod-line)]">
-                    {[T.thStore, T.thBoxes2, T.thStatus, T.thDate2].map(h => (
-                      <th key={h} className="whitespace-nowrap px-3 py-2 text-[11px] font-bold uppercase tracking-[.06em] text-[var(--mod-sub)]">{h}</th>
+                    <th className="sticky left-0 z-10 whitespace-nowrap bg-white px-3 py-2 text-[11px] font-bold uppercase tracking-[.06em] text-[var(--mod-sub)]">{T.thStore}</th>
+                    {shipDates.map(d => (
+                      <th
+                        key={d}
+                        className={`whitespace-nowrap px-2.5 py-2 text-center font-mono text-[11px] font-bold ${
+                          d === nearestShipDate ? 'bg-[var(--mod-red)] text-white' : 'text-[var(--mod-sub)]'
+                        }`}
+                      >
+                        {d.slice(5).replace('-', '/')}
+                      </th>
                     ))}
+                    <th className="whitespace-nowrap border-l-2 border-[var(--mod-line)] px-3 py-2 text-right text-[11px] font-bold uppercase tracking-[.06em] text-[var(--mod-ink)]">{T.sbRowTotal}</th>
                   </tr>
                 </thead>
                 <tbody>
-                  {records.map(r => {
-                    const delivered = isDelivered(r)
-                    const highlighted = highlightStore && r.store === highlightStore
+                  {shipStores.map(store => {
+                    const highlighted = highlightStore === store
                     return (
                       <tr
-                        key={r.id}
-                        className={`border-b border-[var(--mod-hair)] ${
-                          highlighted ? 'bg-[var(--mod-red-bg2)]' : !delivered ? 'bg-[var(--mod-red-bg)]/40' : ''
-                        }`}
+                        key={store}
+                        className={`border-b border-[var(--mod-hair)] ${highlighted ? 'bg-[var(--mod-red-bg2)]' : ''}`}
                         style={highlighted ? { boxShadow: 'inset 4px 0 0 var(--mod-red)' } : undefined}
                       >
-                        <td className="px-3 py-2.5 text-[13px] font-bold text-[var(--mod-ink)] whitespace-nowrap">{r.store ?? '—'}</td>
-                        <td className="px-3 py-2.5 font-mono text-[13px] font-bold text-[var(--mod-ink)] whitespace-nowrap">
-                          {r.boxes != null ? r.boxes.toLocaleString() : '—'}
+                        <td className={`sticky left-0 z-10 whitespace-nowrap px-3 py-2 text-[12px] font-bold text-[var(--mod-ink)] ${highlighted ? 'bg-[var(--mod-red-bg2)]' : 'bg-white'}`}>
+                          {store}
                         </td>
-                        <td className="px-3 py-2.5">
-                          <button
-                            onClick={() => toggleStatus(r)}
-                            disabled={savingId === r.id}
-                            className={`px-2.5 py-1 text-[11px] font-bold whitespace-nowrap cursor-pointer disabled:opacity-40 ${
-                              delivered
-                                ? 'bg-[var(--mod-ink)] text-white'
-                                : 'border-2 border-[var(--mod-red)] bg-white text-[var(--mod-red-dark)]'
-                            }`}
-                          >
-                            {savingId === r.id ? '…' : delivered ? T.stDelivered : T.stPending}
-                          </button>
+                        {shipDates.map(d => {
+                          const boxes = cellBoxes.get(`${store}|${d}`)
+                          return (
+                            <td key={d} className={`whitespace-nowrap px-2.5 py-2 text-center font-mono text-[12px] font-bold ${
+                              d === nearestShipDate ? 'bg-[var(--mod-red-bg)]' : ''
+                            } ${boxes ? 'text-[var(--mod-ink)]' : 'text-[#d5d3d1]'}`}>
+                              {boxes ? boxes.toLocaleString() : '·'}
+                            </td>
+                          )
+                        })}
+                        <td className="whitespace-nowrap border-l-2 border-[var(--mod-line)] px-3 py-2 text-right font-mono text-[12px] font-extrabold text-[var(--mod-ink)]">
+                          {rowTotal(store).toLocaleString()}
                         </td>
-                        <td className="px-3 py-2.5 text-[12px] text-[var(--mod-sub2)] whitespace-nowrap">{fmtDateW(r.date, lang)}</td>
                       </tr>
                     )
                   })}
                 </tbody>
+                <tfoot>
+                  <tr className="border-t-2 border-[var(--mod-line)]">
+                    <td className="sticky left-0 z-10 whitespace-nowrap bg-white px-3 py-2 text-[11px] font-bold uppercase tracking-[.06em] text-[var(--mod-ink)]">{T.sbDayTotal}</td>
+                    {shipDates.map(d => (
+                      <td key={d} className={`whitespace-nowrap px-2.5 py-2 text-center font-mono text-[12px] font-extrabold text-[var(--mod-ink)] ${d === nearestShipDate ? 'bg-[var(--mod-red-bg)]' : ''}`}>
+                        {colTotal(d).toLocaleString()}
+                      </td>
+                    ))}
+                    <td className="whitespace-nowrap border-l-2 border-[var(--mod-line)] bg-[var(--mod-ink)] px-3 py-2 text-right font-mono text-[13px] font-extrabold text-white">
+                      {totalBoxes.toLocaleString()}
+                    </td>
+                  </tr>
+                </tfoot>
               </table>
             </div>
           </div>
@@ -335,13 +326,6 @@ function BatchDetail() {
         </div>
       </div>
 
-      {askPassword && (
-        <PasswordModal
-          lang={lang}
-          onSuccess={() => { const fn = askPassword; setAskPassword(null); fn() }}
-          onCancel={() => setAskPassword(null)}
-        />
-      )}
     </div>
   )
 }
