@@ -1455,7 +1455,7 @@ function DiguaPanel() {
 
 export default function ShipmentGeneratorPage() {
   const [authed, setAuthed] = useState(false)
-  const [tab, setTab]       = useState<'lopia' | 'yushu' | 'apple11' | 'digua'>('lopia')
+  const [tab, setTab]       = useState<'lopia' | 'yushu' | 'apple11'>('lopia')
 
   useEffect(() => {
     // 以伺服器 cookie 為準：sessionStorage 可能與 cookie 過期時間不同步
@@ -1497,8 +1497,8 @@ export default function ShipmentGeneratorPage() {
         </div>
 
         {/* Tab bar */}
-        <div className="max-w-2xl mx-auto px-4 flex border-t border-gray-100 overflow-x-auto">
-          {([['lopia', '📦 LOPIA 出貨單'], ['yushu', '🏭 優儲出貨單'], ['apple11', '🍎 蘋果11庫存出貨'], ['digua', '🍠 地瓜大學芋']] as ['lopia' | 'yushu' | 'apple11' | 'digua', string][]).map(([key, label]) => (
+        <div className="max-w-2xl mx-auto px-4 flex border-t border-gray-100">
+          {([['lopia', '📦 LOPIA 出貨單'], ['yushu', '🏭 優儲出貨單'], ['apple11', '🍎 蘋果11庫存出貨']] as ['lopia' | 'yushu' | 'apple11', string][]).map(([key, label]) => (
             <button key={key} onClick={() => setTab(key)}
               className={`px-5 py-2.5 text-sm font-medium border-b-2 transition-colors ${
                 tab === key
@@ -1509,7 +1509,7 @@ export default function ShipmentGeneratorPage() {
         </div>
       </header>
 
-      {tab === 'lopia' ? <GeneratorPanel /> : tab === 'yushu' ? <YushuPanel /> : tab === 'apple11' ? <Apple11Panel /> : <DiguaPanel />}
+      {tab === 'lopia' ? <GeneratorPanel /> : tab === 'yushu' ? <YushuPanel /> : <Apple11Panel />}
     </div>
   )
 }
