@@ -345,7 +345,7 @@ async function processOneFile(
   // 兩趟分配：第一趟先算出「每店的商品實際落在哪個批次」，才知道哪些手動紀錄會被覆蓋；
   //   第二趟把「確定會被覆蓋的手動帳」從剩餘扣掉再算一次。這樣「排除的手動帳」＝「封存的手動帳」，
   //   不會發生「排除了卻沒封存 → 幽靈重複」或「別批手動帳被誤扣剩餘」。
-  const alloc1 = allocateFifo(wb.activeTabs, f.name, batches, computeRemaining(new Set()))
+  const alloc1 = allocateFifo(wb.activeTabs, f.name, batches, computeRemaining(new Set()), date)
   if (!alloc1.ok) {
     const detailLines = wb.activeTabs.filter(t => t.rows.length > 0).map(t => `・${t.store ?? t.sheetName} ${t.totalBoxes}箱`)
     const msg = [`⚠️ 無法自動扣帳｜${sNo}（${date}）`, `檔案：${f.name}`, `原因：`,
@@ -364,7 +364,7 @@ async function processOneFile(
       !!r.date && r.date <= today).map(r => r.id))
 
   const remainingByBatch = computeRemaining(manualArchiveIds)
-  const alloc = allocateFifo(wb.activeTabs, f.name, batches, remainingByBatch)
+  const alloc = allocateFifo(wb.activeTabs, f.name, batches, remainingByBatch, date)
   for (const n of alloc.notes) notes.push(n)
 
   // ── 跨檔撞單：別的檔案已寫過 同單號+同批次+同店 → 比修改時間，較新的檔贏 ──
@@ -537,7 +537,8 @@ async function processOneFile(
   ].join('\n')
 
   if (!dry) {
-    const status = verify.ok ? '已處理' : '異常'
+    // 有「待到貨」批次(之後會接手這張單) → 標「略過」讓它每輪重掃，等批次到貨(Colin 填入倉日)自動補扣；否則正常「已處理」
+    const status = !verify.ok ? '異常' : (alloc.hasWaiting ? '略過' : '已處理')
     const notifyHash = `ok:${sha1(message)}`
     if (changed || !verify.ok || conflicts.length > 0) {
       if (entry?.notifiedHash !== notifyHash) await maybePush(message)
