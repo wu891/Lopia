@@ -7,6 +7,7 @@ import { useRouter } from 'next/navigation'
 import type { Shipment, ShipmentRecord } from '@/lib/notion'
 import { Lang, t } from '@/lib/i18n'
 import { todayTaipei } from '@/lib/kanban'
+import { sortStoreNames } from '@/lib/stores'
 
 interface Cell {
   boxes: number
@@ -67,8 +68,7 @@ export default function ScheduleBoard() {
 
   // 樞紐：列＝門市、欄＝日期
   const dates = Array.from(new Set(shown.map(r => r.date as string))).sort()
-  const stores = Array.from(new Set(shown.map(r => r.store as string)))
-    .sort((a, b) => a.localeCompare(b, 'zh-TW'))
+  const stores = sortStoreNames(Array.from(new Set(shown.map(r => r.store as string))))
 
   const cellMap = new Map<string, Cell>()          // `${store}|${date}` → Cell
   const perBatchInCell = new Map<string, Map<string, number>>()

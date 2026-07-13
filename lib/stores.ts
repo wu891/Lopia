@@ -22,6 +22,12 @@ export function sortedStores(stores: Store[]): Store[] {
   })
 }
 
+// 依 STORES 順序（＝ Excel 分頁順序）排序門市名稱字串；不在名單裡的名稱排最後
+export function sortStoreNames(names: string[]): string[] {
+  const index = new Map(STORES.map((s, i) => [s.name_zh, i]))
+  return [...names].sort((a, b) => (index.get(a) ?? 999) - (index.get(b) ?? 999))
+}
+
 export const STORES: Store[] = [
   { id: 'taichung-lalaport', name_zh: 'LaLaport 台中店', name_ja: 'LaLaport台中店', address_zh: '台中市東區進德路700號 B1', city_zh: '台中', opened: '2023-01-17', status: 'open', excelSheetName: '台中' },
   { id: 'taoyuan-chunri', name_zh: '桃園春日店', name_ja: '桃園春日店', address_zh: '桃園市桃園區春日路618號 1F', city_zh: '桃園', opened: '2023-12-16', status: 'open', excelSheetName: '桃園' },

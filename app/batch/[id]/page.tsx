@@ -9,6 +9,7 @@ import type { Shipment, ShipmentRecord } from '@/lib/notion'
 import { Lang, t } from '@/lib/i18n'
 import { todayTaipei, STATUS_LABEL } from '@/lib/kanban'
 import { STAGES, deriveStage, stageDates, isUrgentBatch, etaInfo, fmtDateW } from '@/lib/batchView'
+import { sortStoreNames } from '@/lib/stores'
 import DeliveryPlan from '@/components/DeliveryPlan'
 
 function BatchDetail() {
@@ -78,7 +79,7 @@ function BatchDetail() {
   // 門市配送：店 × 出貨日 迷你樞紐表（這裡都是已出貨的單，不做狀態）
   const dated = records.filter(r => r.date && r.store)
   const shipDates = Array.from(new Set(dated.map(r => r.date as string))).sort()
-  const shipStores = Array.from(new Set(dated.map(r => r.store as string))).sort((a, b) => a.localeCompare(b, 'zh-TW'))
+  const shipStores = sortStoreNames(Array.from(new Set(dated.map(r => r.store as string))))
   const cellBoxes = new Map<string, number>()   // `${store}|${date}` → 箱數
   for (const r of dated) {
     const key = `${r.store}|${r.date}`
