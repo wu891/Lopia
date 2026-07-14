@@ -157,16 +157,24 @@ export async function syncReconciliation(params: {
 
   let creates = 0, updates = 0, archives = 0
   const touched = desiredMap.size > 0 || existingByKey.size > 0
+  // 這輪實際新增／更新過的頁面，讀回核對只認這些（見下方說明，不要重查資料庫）
+  const writtenIds: { id: string; want: DesiredReconRow }[] = []
 
   // ── 3) 鏡像同步：新增／更新 desired 裡的列 ──────────────────────────────────
   for (const [k, d] of desiredMap) {
     const ex = existingByKey.get(k)
     if (!ex) {
       creates++
-      if (!dry) await notionRetry(() => notion.pages.create({ parent: { database_id: db }, properties: buildProps(d, shipmentNo, date, fileId) }))
+      if (!dry) {
+        const page = await notionRetry(() => notion.pages.create({ parent: { database_id: db }, properties: buildProps(d, shipmentNo, date, fileId) }))
+        writtenIds.push({ id: page.id, want: d })
+      }
     } else if (ex.boxes !== d.boxes || ex.unitPrice !== d.unitPrice || ex.date !== date || ex.category !== d.category) {
       updates++
-      if (!dry) await notionRetry(() => notion.pages.update({ page_id: ex.id, properties: buildProps(d, shipmentNo, date, fileId) }))
+      if (!dry) {
+        await notionRetry(() => notion.pages.update({ page_id: ex.id, properties: buildProps(d, shipmentNo, date, fileId) }))
+        writtenIds.push({ id: ex.id, want: d })
+      }
     }
   }
   // ── 4) 鏡像同步：檔案裡已經拿掉的列 → 封存 ──────────────────────────────────
@@ -181,17 +189,24 @@ export async function syncReconciliation(params: {
     return { ok: true, creates: 0, updates: 0, archives: 0, skippedNoPrice, verify: { ok: true, detail: '無對帳資料（沒有可用單價的商品列）' } }
   }
 
-  // ── 5) 讀回核對：箱數/金額合計要跟 desired 一致 ─────────────────────────────
+  // ── 5) 讀回核對：逐筆用「頁面 ID」直接讀回剛寫的那幾筆 ──────────────────────
+  // 注意：這裡故意不重新查詢資料庫（databases.query）核對合計——Notion 的查詢／搜尋索引
+  // 剛寫入時會有短暫延遲，同一秒內重查常常讀不到剛建立的頁面，會把「寫成功」誤判成「讀不到」。
+  // 直接用 pages.retrieve(page_id) 讀單一頁面沒有這個延遲問題（庫存扣帳那邊本來就是這樣做，同一套邏輯）。
   let verify = { ok: true, detail: dry ? '試跑（未寫入）' : '無變更' }
-  if (!dry && creates + updates + archives > 0) {
-    const reread = await fetchReconRowsByFile(db, fileId)
-    const sumBoxes = reread.reduce((s, r) => s + r.boxes, 0)
-    const sumAmount = reread.reduce((s, r) => s + r.boxes * r.unitPrice, 0)
-    const wantBoxes = Array.from(desiredMap.values()).reduce((s, r) => s + r.boxes, 0)
-    const wantAmount = Array.from(desiredMap.values()).reduce((s, r) => s + r.boxes * r.unitPrice, 0)
-    verify = (sumBoxes !== wantBoxes || sumAmount !== wantAmount)
-      ? { ok: false, detail: `❌ 對帳讀回不一致（箱數 ${sumBoxes}/${wantBoxes}，金額 ${sumAmount}/${wantAmount}）` }
-      : { ok: true, detail: `讀回 ${reread.length} 筆一致（共 ${sumBoxes} 箱，${sumAmount} 元）` }
+  if (!dry && writtenIds.length > 0) {
+    let okCount = 0
+    const bad: string[] = []
+    for (const w of writtenIds) {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const page: any = await notionRetry(() => notion.pages.retrieve({ page_id: w.id }))
+      const p = page?.properties
+      if (p?.['箱數']?.number === w.want.boxes && p?.['單價']?.number === w.want.unitPrice) okCount++
+      else bad.push(`${w.want.store}「${w.want.product}」（寫${w.want.boxes}箱/${w.want.unitPrice}元，讀回${p?.['箱數']?.number ?? '?'}箱/${p?.['單價']?.number ?? '?'}元）`)
+    }
+    verify = bad.length === 0
+      ? { ok: true, detail: `讀回 ${okCount}/${writtenIds.length} 筆一致` }
+      : { ok: false, detail: `❌ 有 ${bad.length} 筆讀回不一致：${bad.join('、')}` }
   }
 
   return { ok: verify.ok, creates, updates, archives, skippedNoPrice, verify }
