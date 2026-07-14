@@ -93,6 +93,7 @@ export const LAYERS: Layer[] = [
     who: '川越さん',
     items: [
       { key: 'l4_shared', label: '已把資訊共享給平山さん（此單完結）', role: 'kawagoe' },
+      { key: 'l4_reminder', label: '出貨前一日提醒倉庫(美福OR優儲)和物流商確認配送時程', role: 'kawagoe' },
     ],
   },
 ]
