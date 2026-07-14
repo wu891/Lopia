@@ -64,7 +64,7 @@ export const LAYERS: Layer[] = [
       { key: 'colin_kido_qty',   label: '數量正確',   role: 'colin', checker: 'colin', target: 'kido' },
       { key: 'colin_kido_date',  label: '配送日正確', role: 'colin', checker: 'colin', target: 'kido' },
       // 兩人都查完後，共同送出（不屬於任一區塊，整寬顯示）
-      { key: 'l1_reported',      label: '已報告林さん並請他確認', role: ['kido', 'colin'] },
+      { key: 'l1_reported',      label: '已送出出貨總表(優儲)、店鋪貨單納品書(三義)或美福出庫單。並告知林さん檢查', role: ['kido', 'colin'] },
     ],
   },
   {
