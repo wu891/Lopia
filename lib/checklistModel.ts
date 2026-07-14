@@ -38,6 +38,7 @@ export interface SubItem {
   role: PersonId | PersonId[]     // 誰有權勾這一項（第一重互查要指定不同人；不能勾自己做的）
   checker?: PersonId              // 互查專用：這一項是「誰」在檢查（給畫面分區塊、上色）
   target?: PersonId               // 互查專用：檢查的是「誰」做的文件（給區塊標題顯示）
+  note?: string                   // 補充備註（顯示在項目文字下方的小字，純顯示用）
 }
 
 export interface Layer {
@@ -72,7 +73,7 @@ export const LAYERS: Layer[] = [
     title: '第二重：送達確認',
     who: '林さん',
     items: [
-      { key: 'l2_warehouse', label: '出貨指示已確實送達倉庫（優儲、美福或三義）', role: 'hayashi' },
+      { key: 'l2_warehouse', label: '出貨指示已確實送達倉庫（優儲、美福或三義）', role: 'hayashi', note: '如商品庫存於美福倉儲時，須向三義送達出貨指示' },
       { key: 'l2_logistics', label: '出貨指示已確實送達物流公司（三義）', role: 'hayashi' },
       { key: 'l2_reported',  label: '已報告蔡さん並請他確認', role: 'hayashi' },
     ],

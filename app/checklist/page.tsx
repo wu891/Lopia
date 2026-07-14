@@ -600,6 +600,7 @@ function ChecklistCard({ item, who, expanded, onToggle, onChanged, onDeleted, fl
                       baseLastEdited={item.lastEdited}
                       itemKey={it.key}
                       label={it.label}
+                      note={it.note}
                       mark={state.checks[it.key]}
                       allowed={canCheck(state, it.key, who)}
                       locked={!unlocked}
@@ -749,6 +750,7 @@ function Layer1Section({ item, state, who, active, unlocked, complete, marker, o
                     baseLastEdited={item.lastEdited}
                     itemKey={it.key}
                     label={it.label}
+                    note={it.note}
                     mark={state.checks[it.key]}
                     allowed={canCheck(state, it.key, who)}
                     locked={!unlocked}
@@ -769,6 +771,7 @@ function Layer1Section({ item, state, who, active, unlocked, complete, marker, o
             baseLastEdited={item.lastEdited}
             itemKey={reported.key}
             label={reported.label}
+            note={reported.note}
             mark={state.checks[reported.key]}
             allowed={canCheck(state, reported.key, who)}
             locked={!unlocked}
@@ -781,11 +784,12 @@ function Layer1Section({ item, state, who, active, unlocked, complete, marker, o
   )
 }
 
-function ItemCheckbox({ checklistId, baseLastEdited, itemKey, label, mark, allowed, locked, onChanged, flash }: {
+function ItemCheckbox({ checklistId, baseLastEdited, itemKey, label, note, mark, allowed, locked, onChanged, flash }: {
   checklistId: string
   baseLastEdited: string
   itemKey: string
   label: string
+  note?: string
   mark?: { checked: boolean; by?: string; proxyFor?: string }
   allowed: { ok: boolean; proxy: boolean; reason?: string }
   locked: boolean
@@ -839,6 +843,9 @@ function ItemCheckbox({ checklistId, baseLastEdited, itemKey, label, mark, allow
       </span>
       <span className="flex-1">
         <span className={checked ? 'text-slate-500 line-through' : 'text-slate-700'}>{label}</span>
+        {note && (
+          <span className="block text-[11px] text-amber-600 mt-0.5">※ {note}</span>
+        )}
         {checked && mark?.by && (
           <span className="block text-[10px] text-slate-400">
             {personName(mark.by)}{mark.proxyFor ? `（代 ${personName(mark.proxyFor)}）` : ''}
