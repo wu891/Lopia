@@ -25,11 +25,12 @@
 
 import { Client } from '@notionhq/client'
 import { createHash } from 'crypto'
-import { pushToGroup } from '../lineNotify'
+import { pushToGroup, pushToReconGroup } from '../lineNotify'
 import { listShipmentFiles, downloadAsXlsx, type DriveFileInfo } from './drive'
 import { parseStoreOrderWorkbook, type ParsedWorkbook } from './parseStoreOrder'
 import { fetchBatchesLite, allocateFifo, type BatchLite, type AllocationLine } from './match'
 import { getLedgerEntries, upsertLedgerEntry, ensureRecordsSchema, type LedgerEntry } from './ledger'
+import { syncReconciliation } from './reconciliation'
 
 const notion = new Client({ auth: process.env.NOTION_API_KEY })
 
@@ -43,6 +44,10 @@ let scanRunning = false
 let silentMode = false
 async function maybePush(text: string): Promise<void> {
   if (!silentMode) await pushToGroup(text)
+}
+// 對帳同步的訊息獨立發到「LOPIA對帳」群組，不跟扣帳通知混在一起
+async function maybePushRecon(text: string): Promise<void> {
+  if (!silentMode) await pushToReconGroup(text)
 }
 
 // ── 出貨紀錄自有讀寫（多讀「來源檔案」印章欄）──────────────────────────────────
@@ -488,6 +493,12 @@ async function processOneFile(
     }
   }
 
+  // ── 對帳同步：同一批解析好的商品列，順便寫進「對帳明細」Notion DB ──────────────
+  // 只有走到這裡（alloc.ok 已成立）才會呼叫；批次比對失敗時上面已提早 return，對帳也就一起不同步。
+  const recon = await syncReconciliation({
+    fileId: f.id, fileName: f.name, shipmentNo: sNo, date, tabs: wb.activeTabs, dry,
+  })
+
   // ── 讀回核對 ─────────────────────────────────────────────────────────────────
   let verify: FileOutcome['verify'] = { ok: true, detail: dry ? '試跑（未寫入）' : '無寫入動作' }
   if (!dry && writtenIds.length > 0) {
@@ -536,19 +547,32 @@ async function processOneFile(
     `核對：${verify.detail}${verify.ok ? ' ✅' : ''}`,
   ].join('\n')
 
+  // ── 對帳同步的 LINE 訊息：獨立一則，發到「LOPIA對帳」群組，不混進上面那則扣帳訊息 ──
+  const reconChanged = recon.creates + recon.updates + recon.archives > 0
+  const reconMessage = [
+    `📊 對帳同步｜${sNo}（配送 ${date}）`, `檔案：${f.name}`,
+    `新增 ${recon.creates} 筆／更新 ${recon.updates} 筆／移除 ${recon.archives} 筆`,
+    ...(recon.skippedNoPrice.length ? [`⚠️ 缺單價未同步：${recon.skippedNoPrice.join('、')}`] : []),
+    `核對：${recon.verify.detail}${recon.verify.ok ? ' ✅' : ''}`,
+  ].join('\n')
+
   if (!dry) {
     // 有「待到貨」批次(之後會接手這張單) → 標「略過」讓它每輪重掃，等批次到貨(Colin 填入倉日)自動補扣；否則正常「已處理」
-    const status = !verify.ok ? '異常' : (alloc.hasWaiting ? '略過' : '已處理')
+    // 對帳同步跟庫存扣帳綁在一起：對帳讀回不一致，整張單也標「異常」，下一輪重試，兩邊一起修好
+    const status = (!verify.ok || !recon.verify.ok) ? '異常' : (alloc.hasWaiting ? '略過' : '已處理')
     const notifyHash = `ok:${sha1(message)}`
     if (changed || !verify.ok || conflicts.length > 0) {
       if (entry?.notifiedHash !== notifyHash) await maybePush(message)
     }
+    if (reconChanged || !recon.verify.ok || recon.skippedNoPrice.length > 0) {
+      await maybePushRecon(reconMessage)
+    }
     await upsertLedgerEntry(entry, {
       fileId: f.id, fileName: f.name, fingerprint: fingerprintOf(f),
       fileModifiedTime: f.modifiedTime, status, notifiedHash: notifyHash,
-      summary: `${sNo} ${date}｜建${creates.length} 改${updates.length} 移${archives.length} 覆${manualOverwritten}｜${verify.detail}`,
+      summary: `${sNo} ${date}｜建${creates.length} 改${updates.length} 移${archives.length} 覆${manualOverwritten}｜${verify.detail}｜對帳建${recon.creates}改${recon.updates}移${recon.archives}｜${recon.verify.detail}`,
     })
   }
 
-  return { fileId: f.id, fileName: f.name, action: verify.ok ? 'processed' : 'anomaly', sNo, date, creates, updates, archives, conflicts, notes, verify }
+  return { fileId: f.id, fileName: f.name, action: (verify.ok && recon.verify.ok) ? 'processed' : 'anomaly', sNo, date, creates, updates, archives, conflicts, notes, verify }
 }

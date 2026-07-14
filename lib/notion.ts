@@ -631,7 +631,8 @@ export async function getExcelRows(): Promise<ExcelRow[]> {
 }
 
 // Notion 速率限制約每秒 3 筆；遇到 429 / 5xx / conflict 自動退避重試
-async function notionRetry<T>(fn: () => Promise<T>, tries = 6): Promise<T> {
+// export：也給 lib/driveScan/reconciliation.ts 共用，避免重寫一份退避邏輯
+export async function notionRetry<T>(fn: () => Promise<T>, tries = 6): Promise<T> {
   let delay = 400
   for (let i = 0; i < tries; i++) {
     try {
