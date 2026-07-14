@@ -30,7 +30,7 @@ import { listShipmentFiles, downloadAsXlsx, type DriveFileInfo } from './drive'
 import { parseStoreOrderWorkbook, type ParsedWorkbook } from './parseStoreOrder'
 import { fetchBatchesLite, allocateFifo, type BatchLite, type AllocationLine } from './match'
 import { getLedgerEntries, upsertLedgerEntry, ensureRecordsSchema, type LedgerEntry } from './ledger'
-import { syncReconciliation } from './reconciliation'
+import { syncReconciliation, type ReconSyncResult } from './reconciliation'
 
 const notion = new Client({ auth: process.env.NOTION_API_KEY })
 
@@ -171,6 +171,7 @@ export interface FileOutcome {
   notes?: string[]
   errors?: string[]
   verify?: { ok: boolean; detail: string }
+  recon?: ReconSyncResult   // 對帳同步結果（dry 模式也會算，方便試跑先看到預覽）
 }
 
 export interface ScanResult {
@@ -574,5 +575,5 @@ async function processOneFile(
     })
   }
 
-  return { fileId: f.id, fileName: f.name, action: (verify.ok && recon.verify.ok) ? 'processed' : 'anomaly', sNo, date, creates, updates, archives, conflicts, notes, verify }
+  return { fileId: f.id, fileName: f.name, action: (verify.ok && recon.verify.ok) ? 'processed' : 'anomaly', sNo, date, creates, updates, archives, conflicts, notes, verify, recon }
 }
