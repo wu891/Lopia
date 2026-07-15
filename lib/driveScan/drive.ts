@@ -29,7 +29,8 @@ export interface DriveFileInfo {
 }
 
 // 唯讀 Drive 連線（scope 是 drive.readonly，只能看不能改）
-function getReadonlyDrive() {
+// export：也給 lib/monthlyMargin/driveMonthFolder.ts 共用，避免重寫一份服務帳號連線邏輯
+export function getReadonlyDrive() {
   const clientEmail = process.env.GOOGLE_CLIENT_EMAIL?.trim()
   const privateKey = process.env.GOOGLE_PRIVATE_KEY?.replace(/\\n/g, '\n')
   if (!clientEmail || !privateKey) throw new Error('缺 GOOGLE_CLIENT_EMAIL / GOOGLE_PRIVATE_KEY')

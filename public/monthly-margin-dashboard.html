@@ -1,0 +1,348 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>LOPIA 月結毛利報告</title>
+<style>
+  :root {
+    --bg: #f5f6fa; --card: #ffffff; --red: #E8002D; --red-dark: #C0001F; --red-light: #FFEEF1;
+    --dark: #1a1a2e; --text: #212529; --text-2: #6c757d; --border: #e9ecef;
+    --good: #059669; --good-bg: #ecfdf5; --good-border: #a7f3d0;
+    --bad: #dc2626; --bad-bg: #fef2f2; --bad-border: #fecaca;
+    --warn: #b45309; --warn-bg: #fffbeb; --warn-border: #fde68a;
+    --radius: 12px;
+  }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Noto Sans TC', Roboto, sans-serif; background: var(--bg); color: var(--text); line-height: 1.55; }
+  .wrap { max-width: 1180px; margin: 0 auto; padding: 20px; }
+
+  /* ── 密碼閘門 ── */
+  #gate { min-height: 100vh; display: flex; align-items: center; justify-content: center; }
+  #gate .box { background: var(--card); border-radius: var(--radius); padding: 36px 32px; width: 320px; box-shadow: 0 4px 24px rgba(0,0,0,0.08); text-align: center; }
+  #gate h1 { font-size: 17px; margin-bottom: 4px; }
+  #gate p { font-size: 12px; color: var(--text-2); margin-bottom: 18px; }
+  #gate input { width: 100%; padding: 10px 12px; border: 1px solid var(--border); border-radius: 8px; font-size: 14px; margin-bottom: 10px; }
+  #gate button { width: 100%; padding: 10px; border: none; border-radius: 8px; background: var(--red); color: white; font-weight: 700; font-size: 14px; cursor: pointer; }
+  #gate button:disabled { opacity: 0.5; }
+  #gate .err { color: var(--bad); font-size: 12px; margin-top: 10px; min-height: 16px; }
+
+  /* ── 主畫面 ── */
+  #app { display: none; }
+  header.top { display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 12px; margin-bottom: 18px; }
+  header.top h1 { font-size: 20px; font-weight: 800; }
+  header.top .sub { font-size: 12px; color: var(--text-2); margin-top: 2px; }
+  select#monthPicker { padding: 8px 12px; border: 1px solid var(--border); border-radius: 8px; font-size: 13px; background: white; }
+  button.link { background: none; border: none; color: var(--text-2); font-size: 12px; cursor: pointer; text-decoration: underline; }
+
+  .banner { border-radius: var(--radius); padding: 12px 16px; font-size: 12.5px; margin-bottom: 14px; }
+  .banner.warn { background: var(--warn-bg); border: 1px solid var(--warn-border); color: var(--warn); }
+  .banner.bad { background: var(--bad-bg); border: 1px solid var(--bad-border); color: var(--bad); }
+  .banner ul { margin: 6px 0 0 18px; }
+
+  .kpis { display: grid; grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); gap: 10px; margin-bottom: 16px; }
+  .kpi { background: var(--card); border-radius: var(--radius); padding: 14px 16px; box-shadow: 0 1px 3px rgba(0,0,0,0.05); }
+  .kpi .l { font-size: 11px; color: var(--text-2); }
+  .kpi .v { font-size: 20px; font-weight: 800; margin-top: 4px; font-variant-numeric: tabular-nums; }
+  .kpi.margin-good { background: var(--good-bg); border: 1px solid var(--good-border); }
+  .kpi.margin-good .v { color: var(--good); }
+  .kpi.margin-bad { background: var(--bad-bg); border: 1px solid var(--bad-border); }
+  .kpi.margin-bad .v { color: var(--bad); }
+
+  .section-label { font-size: 12px; font-weight: 700; color: var(--text-2); text-transform: uppercase; letter-spacing: 0.5px; margin: 18px 0 8px; }
+
+  .groups { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 10px; }
+  .gcard { text-align: left; background: var(--card); border: 2px solid var(--border); border-radius: var(--radius); padding: 12px 14px; cursor: pointer; }
+  .gcard.loss { border-color: var(--bad-border); background: var(--bad-bg); }
+  .gcard.active { border-color: var(--red); box-shadow: 0 0 0 3px var(--red-light); }
+  .gcard .p { font-size: 12px; color: var(--text-2); }
+  .gcard .m { font-size: 15px; font-weight: 800; margin-top: 4px; font-variant-numeric: tabular-nums; }
+  .gcard .m.loss { color: var(--bad); }
+  .gcard .r { font-size: 11px; font-weight: 700; margin-top: 2px; }
+  .gcard .r.loss { color: var(--bad); } .gcard .r.good { color: var(--good); }
+
+  .detail { background: var(--card); border-radius: var(--radius); box-shadow: 0 1px 3px rgba(0,0,0,0.05); overflow: hidden; margin-top: 12px; }
+  .detail .head { padding: 14px 18px; border-bottom: 1px solid var(--border); }
+  .detail .head h3 { font-size: 15px; font-weight: 800; }
+  .detail .head p { font-size: 11px; color: var(--text-2); margin-top: 2px; }
+  table.rows { width: 100%; border-collapse: collapse; font-size: 12.5px; }
+  table.rows th { text-align: left; padding: 8px 14px; background: #fafafa; font-size: 10.5px; text-transform: uppercase; color: var(--text-2); border-bottom: 1px solid var(--border); }
+  table.rows td { padding: 8px 14px; border-bottom: 1px solid #f4f4f5; }
+  table.rows td.num, table.rows th.num { text-align: right; font-variant-numeric: tabular-nums; }
+  table.rows tr.loss td.num.margin { color: var(--bad); font-weight: 700; }
+  table.rows tr:not(.loss) td.num.margin { color: var(--good); font-weight: 700; }
+
+  .unmatched-item { background: var(--card); border: 1px solid var(--warn-border); border-radius: var(--radius); padding: 12px 16px; margin-bottom: 8px; display: flex; flex-wrap: wrap; gap: 10px; align-items: center; justify-content: space-between; }
+  .unmatched-item .info { font-size: 12.5px; }
+  .unmatched-item .info b { font-size: 13.5px; }
+  .unmatched-item select { padding: 6px 10px; border: 1px solid var(--border); border-radius: 6px; font-size: 12.5px; min-width: 220px; }
+  .tag { display: inline-block; font-size: 10px; font-weight: 700; padding: 2px 7px; border-radius: 20px; margin-left: 6px; }
+  .tag.pending { background: var(--warn-bg); color: var(--warn); border: 1px solid var(--warn-border); }
+  .tag.preview { background: #eef2ff; color: #4338ca; border: 1px solid #c7d2fe; }
+
+  footer.src { font-size: 11px; color: #b0b3ba; margin-top: 24px; text-align: center; }
+  #loading, #empty { text-align: center; padding: 60px 0; color: var(--text-2); font-size: 13px; }
+</style>
+</head>
+<body>
+
+<div id="gate">
+  <div class="box">
+    <h1>LOPIA 月結毛利報告</h1>
+    <p>財務資料，需要密碼才能查看</p>
+    <input id="pwInput" type="password" placeholder="請輸入密碼" autocomplete="current-password">
+    <button id="pwSubmit">進入</button>
+    <div class="err" id="pwErr"></div>
+  </div>
+</div>
+
+<div id="app">
+  <div class="wrap">
+    <header class="top">
+      <div>
+        <h1>月結毛利報告</h1>
+        <div class="sub">成本對回真正來源進口批次；每次打開現場重算，不存快照</div>
+      </div>
+      <div style="display:flex; gap:10px; align-items:center;">
+        <select id="monthPicker"></select>
+        <button class="link" id="refreshBtn">重新整理</button>
+      </div>
+    </header>
+
+    <div id="loading">載入中…</div>
+    <div id="empty" style="display:none;"></div>
+    <div id="content" style="display:none;"></div>
+
+    <footer class="src" id="srcFooter"></footer>
+  </div>
+</div>
+
+<script>
+const API_BASE = '';
+let currentData = null;
+let selectedGroupKey = null;
+
+function fmt(n) { return Math.round(n || 0).toLocaleString('en-US'); }
+function pct(r) { return ((r || 0) * 100).toFixed(1) + '%'; }
+function esc(s) { return String(s ?? '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;'); }
+
+// ── 密碼閘門 ──────────────────────────────────────────────────────────────
+async function checkAuth() {
+  try { const r = await fetch(API_BASE + '/api/auth'); const d = await r.json(); return !!d.ok; }
+  catch { return false; }
+}
+async function doLogin() {
+  const pw = document.getElementById('pwInput').value;
+  const btn = document.getElementById('pwSubmit');
+  const err = document.getElementById('pwErr');
+  btn.disabled = true; err.textContent = '';
+  try {
+    const r = await fetch(API_BASE + '/api/auth', { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify({ password: pw }) });
+    const d = await r.json();
+    if (d.ok) { showApp(); } else { err.textContent = d.error || '密碼錯誤'; }
+  } catch { err.textContent = '連線失敗，請重試'; }
+  finally { btn.disabled = false; }
+}
+function showApp() {
+  document.getElementById('gate').style.display = 'none';
+  document.getElementById('app').style.display = 'block';
+  initMonthPicker();
+  loadMonth();
+}
+
+// ── 月份選單：預設上個月，可往前翻 12 個月 ──────────────────────────────────
+function initMonthPicker() {
+  const sel = document.getElementById('monthPicker');
+  const now = new Date();
+  const opts = [];
+  for (let i = 1; i <= 13; i++) {
+    const d = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() - i, 1));
+    const y = d.getUTCFullYear(), m = d.getUTCMonth() + 1;
+    const value = `${y}-${String(m).padStart(2,'0')}`;
+    opts.push(`<option value="${value}">${y}年${m}月</option>`);
+  }
+  sel.innerHTML = opts.join('');
+  sel.selectedIndex = 0; // 上個月
+  sel.addEventListener('change', loadMonth);
+  document.getElementById('refreshBtn').addEventListener('click', loadMonth);
+}
+
+// ── 抓資料 ────────────────────────────────────────────────────────────────
+async function loadMonth() {
+  const month = document.getElementById('monthPicker').value;
+  document.getElementById('loading').style.display = 'block';
+  document.getElementById('empty').style.display = 'none';
+  document.getElementById('content').style.display = 'none';
+  selectedGroupKey = null;
+  try {
+    const r = await fetch(API_BASE + `/api/monthly-margin?month=${month}`, { cache: 'no-store' });
+    if (r.status === 401) { document.getElementById('gate').style.display = 'flex'; document.getElementById('app').style.display = 'none'; return; }
+    const d = await r.json();
+    if (!r.ok) throw new Error(d.error || '讀取失敗');
+    currentData = d;
+    render();
+  } catch (e) {
+    document.getElementById('loading').style.display = 'none';
+    document.getElementById('empty').style.display = 'block';
+    document.getElementById('empty').textContent = '載入失敗：' + e.message;
+  }
+}
+
+// ── 渲染 ──────────────────────────────────────────────────────────────────
+function render() {
+  document.getElementById('loading').style.display = 'none';
+  const d = currentData;
+  const hasData = d.groups.length > 0 || d.unmatched.length > 0;
+  if (!hasData) {
+    document.getElementById('empty').style.display = 'block';
+    document.getElementById('empty').textContent = `${d.year}年${d.month}月沒有讀到任何出貨單，請確認 Drive 出貨單資料夾裡有「${d.month}月」子資料夾`;
+    document.getElementById('srcFooter').textContent = '';
+    return;
+  }
+  document.getElementById('content').style.display = 'block';
+  const c = document.getElementById('content');
+  c.innerHTML = renderBanners(d) + renderKpis(d) + renderGroups(d) + renderUnmatched(d) + '<div id="detailSlot"></div>';
+  document.getElementById('srcFooter').textContent = renderSourceFooter(d);
+
+  bindGroupCards();
+  if (d.groups.length > 0) selectGroup(0);
+  bindUnmatchedSelects();
+}
+
+function renderBanners(d) {
+  let html = '';
+  if (d.logistics.status === 'partial') {
+    const missing = [];
+    if (d.logistics.yuchu?.untaxedTotal == null) missing.push('優儲倉儲');
+    if (d.logistics.sanyi?.untaxedSubtotal == null) missing.push('三義配送');
+    html += `<div class="banner warn">⚠️ ${missing.join('、')}對帳單尚未到帳，以下毛利為「營收＋進貨成本」初版，物流分攤尚未算入。</div>`;
+  }
+  if (d.totals.unmatchedCount > 0) {
+    html += `<div class="banner warn">⚠️ 有 ${d.totals.unmatchedCount} 筆出貨單比對不到來源批次（現金流「出荷票」欄沒填），成本未算入下方總計，毛利會偏高。請往下手動指定批次，或去現金流表補上出荷票欄。</div>`;
+  }
+  if (d.totals.missingPriceCount > 0) {
+    html += `<div class="banner warn">⚠️ 有 ${d.totals.missingPriceCount} 筆出貨單裡有商品項讀不到單價，該項未計入營收，請去對帳單補單價。</div>`;
+  }
+  if (d.warnings && d.warnings.length > 0) {
+    html += `<div class="banner bad">系統警告（${d.warnings.length}）<ul>${d.warnings.slice(0,20).map(w => `<li>${esc(w)}</li>`).join('')}</ul></div>`;
+  }
+  return html;
+}
+
+function renderKpis(d) {
+  const t = d.totals;
+  const marginCls = t.margin < 0 ? 'margin-bad' : 'margin-good';
+  return `<div class="kpis">
+    <div class="kpi"><div class="l">出貨箱數</div><div class="v">${fmt(t.boxes)} 箱</div></div>
+    <div class="kpi"><div class="l">營收（未稅）</div><div class="v">${fmt(t.revenue)}</div></div>
+    <div class="kpi"><div class="l">進貨成本</div><div class="v">${fmt(t.importCost)}</div></div>
+    <div class="kpi"><div class="l">物流成本</div><div class="v">${fmt(t.logisticsCost)}</div></div>
+    <div class="kpi ${marginCls}"><div class="l">毛利 / 毛利率</div><div class="v">${t.margin >= 0 ? '+' : ''}${fmt(t.margin)} · ${pct(t.marginRate)}</div></div>
+  </div>`;
+}
+
+function renderGroups(d) {
+  if (d.groups.length === 0) return '';
+  // 注意：卡片不用 onclick="..." 內嵌字串組 JS（Invoice 是現金流表自由填寫的文字，
+  // 混進單引號會讓內嵌 JS 字串斷開甚至被利用），一律用 data-idx + addEventListener。
+  const cards = d.groups.map((g, idx) => {
+    const loss = g.margin < 0;
+    return `<button class="gcard ${loss ? 'loss' : ''}" data-idx="${idx}">
+      <div class="p">${esc(g.sNo || g.invoice)} · ${esc(g.product)}</div>
+      <div class="m ${loss ? 'loss' : ''}">${g.margin >= 0 ? '+' : ''}${fmt(g.margin)}</div>
+      <div class="r ${loss ? 'loss' : 'good'}">${pct(g.marginRate)}</div>
+    </button>`;
+  }).join('');
+  return `<div class="section-label">依來源批次（點選展開明細，毛利低→高排序）</div><div class="groups">${cards}</div>`;
+}
+
+function bindGroupCards() {
+  document.querySelectorAll('.gcard').forEach(el => {
+    el.addEventListener('click', () => selectGroup(Number(el.dataset.idx)));
+  });
+}
+
+function selectGroup(idx) {
+  selectedGroupKey = idx;
+  document.querySelectorAll('.gcard').forEach(el => el.classList.toggle('active', Number(el.dataset.idx) === idx));
+  const g = currentData.groups[idx];
+  if (!g) return;
+  const rows = g.shipments.map(s => {
+    const loss = s.margin < 0;
+    return `<tr class="${loss ? 'loss' : ''}">
+      <td>${esc(s.date)}</td><td>${esc(s.store)}</td>
+      <td class="num">${fmt(s.boxes)}</td>
+      <td class="num">${fmt(s.revenue)}</td>
+      <td class="num">${fmt(s.allocImportCost)}</td>
+      <td class="num">${fmt(s.allocLogisticsCost)}</td>
+      <td class="num margin">${s.margin >= 0 ? '+' : ''}${fmt(s.margin)}</td>
+      <td class="num">${pct(s.marginRate)}</td>
+    </tr>`;
+  }).join('');
+  document.getElementById('detailSlot').innerHTML = `<div class="detail">
+    <div class="head"><h3>${esc(g.sNo || g.invoice)} · ${esc(g.product)}</h3>
+      <p>營收 ${fmt(g.revenue)} － 進貨 ${fmt(g.importCost)} － 物流 ${fmt(g.logisticsCost)} ＝ 毛利 ${g.margin >= 0 ? '+' : ''}${fmt(g.margin)}（${pct(g.marginRate)}）</p></div>
+    <table class="rows"><thead><tr>
+      <th>出貨日</th><th>門市</th><th class="num">箱數</th><th class="num">營收</th>
+      <th class="num">分攤進貨</th><th class="num">分攤物流</th><th class="num">毛利</th><th class="num">毛利率</th>
+    </tr></thead><tbody>${rows}</tbody></table>
+  </div>`;
+}
+
+function renderUnmatched(d) {
+  if (d.unmatched.length === 0) return '';
+  // 用陣列 index 當選項值，不用 Invoice 字串——Invoice 是現金流表自由填寫的文字，
+  // 同一個 Invoice 可能對到好幾筆不同批次（如一張發票拆多個商品各自的S單號），
+  // 拿它當 key 會抓到錯的那一筆。
+  const optHtml = ['<option value="">－ 選擇來源批次 －</option>']
+    .concat(d.allBatches.map((b, bi) => `<option value="${bi}">${esc(b.invoice)} · ${esc(b.product)}（成本${fmt(b.totalCost)}／${fmt(b.totalBoxes)}箱）</option>`))
+    .join('');
+  const items = d.unmatched.map((s, i) => `
+    <div class="unmatched-item" data-idx="${i}">
+      <div class="info"><b>${esc(s.sNo)}</b> · ${esc(s.date)} · ${esc(s.store)} · ${fmt(s.boxes)}箱 · 營收${fmt(s.revenue)}
+        <span class="tag pending">待指定</span><span class="preview-tag"></span></div>
+      <select data-idx="${i}">${optHtml}</select>
+    </div>`).join('');
+  return `<div class="section-label">待指定來源批次（現金流「出荷票」欄沒填，手動指定僅供本次預覽，不會寫回——記得之後去現金流表補上）</div>${items}`;
+}
+
+function bindUnmatchedSelects() {
+  document.querySelectorAll('.unmatched-item select').forEach(sel => {
+    sel.addEventListener('change', () => {
+      const idx = Number(sel.dataset.idx);
+      const s = currentData.unmatched[idx];
+      const item = sel.closest('.unmatched-item');
+      const tagSlot = item.querySelector('.preview-tag');
+      if (sel.value === '') { tagSlot.innerHTML = ''; return; }
+      const batch = currentData.allBatches[Number(sel.value)];
+      if (!batch) return;
+      const ratio = batch.totalBoxes > 0 ? s.boxes / batch.totalBoxes : 1;
+      const allocCost = batch.totalCost * ratio;
+      const margin = s.revenue - allocCost - s.allocLogisticsCost;
+      tagSlot.innerHTML = `<span class="tag preview">預覽：分攤成本 ${fmt(allocCost)}，毛利 ${margin >= 0 ? '+' : ''}${fmt(margin)}</span>`;
+    });
+  });
+}
+
+function renderSourceFooter(d) {
+  const src = d.sourceFiles;
+  const parts = [
+    `現金流：${src.cashflowSheet || '讀取失敗'}`,
+    `出貨單：${src.shipmentOrderFiles.length} 份`,
+    `優儲：${src.yuchuFile || '尚未到帳'}`,
+    `三義：${src.sanyiFile || '尚未到帳'}`,
+  ];
+  return parts.join(' ｜ ');
+}
+
+// ── 啟動 ──────────────────────────────────────────────────────────────────
+document.getElementById('pwSubmit').addEventListener('click', doLogin);
+document.getElementById('pwInput').addEventListener('keydown', e => { if (e.key === 'Enter') doLogin(); });
+
+(async function init() {
+  const authed = await checkAuth();
+  if (authed) showApp();
+})();
+</script>
+</body>
+</html>
