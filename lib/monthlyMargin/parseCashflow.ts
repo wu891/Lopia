@@ -15,8 +15,9 @@
 import * as XLSX from 'xlsx'
 
 export interface CashflowBatch {
+  id: number                // 這批在表裡的序號（第幾個抓到的批次列），當唯一 key 用——Invoice 不保證唯一
   invoice: string          // Invoice 欄（如 CITY20260102、LOP-001），供「商品+售上高」交叉比對備援用
-  sNo: string | null       // 出荷票欄，符合 S 單號格式（/^S\d{8,12}$/）才算數，格式怪的一律當沒填
+  sNos: string[]            // 出荷票欄，一格可以填多個 S 單號（逗號/頓號/換行分隔，一批供多次出貨時常見）
   product: string
   importDate: string | null
   totalBoxes: number       // CTNS 欄＝該批總箱數，用來把整批成本按箱數分攤到各次出貨；0＝這欄沒填或讀不到
@@ -69,10 +70,15 @@ function numOrZero(v: any, label: string, invoice: string, warnings: string[]): 
   return 0
 }
 
+// 一格可能填一個或多個 S 單號（一批供多次出貨時，Colin 會用逗號/頓號/換行把好幾張單號都填進同一格）。
+// 用逗號、頓號、換行、空白切開，每一段各自驗證格式，只留符合 S 單號格式的；其餘文字（如「有四筆」
+// 這種備註）自然被濾掉。
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
-function sNoOrNull(v: any): string | null {
-  const s = cellStr(v).toUpperCase().replace(/\s/g, '')
-  return /^S\d{8,12}$/.test(s) ? s : null
+function parseSNos(v: any): string[] {
+  const raw = cellStr(v)
+  if (!raw) return []
+  const parts = raw.toUpperCase().split(/[,，、\s\/]+/).map(s => s.trim()).filter(Boolean)
+  return parts.filter(s => /^S\d{8,12}$/.test(s))
 }
 
 // 直接標在金額欄上的標籤（找到就是那一欄）
@@ -178,7 +184,7 @@ export function parseCashflowWorkbook(buf: Buffer): ParsedCashflow {
     if (!product) continue
 
     const invoice = cellStr(row[cols.direct.invoice])
-    const sNo = sNoOrNull(row[cols.direct.sNo])
+    const sNos = parseSNos(row[cols.direct.sNo])
     const revenue = numOrZero(row[cols.direct.revenue], '売上高', invoice, warnings)
     const importCost = numOrZero(row[cols.direct.importCostTWD], '仕入原価(元)', invoice, warnings)
     // CTNS 沒填是常見情況（不是每批都記總箱數），不當警告；用 cellNum 直接取，null 就當 0
@@ -195,8 +201,9 @@ export function parseCashflowWorkbook(buf: Buffer): ParsedCashflow {
     const totalCost = importCost + tax + customsFee + sanyiFee + yuchuFee + otherFee + fumigationFee + pesticideFee
 
     batches.push({
+      id: batches.length,
       invoice,
-      sNo,
+      sNos,
       product,
       importDate: cellStr(row[cols.direct.importDate]) || null,
       totalBoxes,

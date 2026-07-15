@@ -125,6 +125,8 @@ let selectedGroupKey = null;
 function fmt(n) { return Math.round(n || 0).toLocaleString('en-US'); }
 function pct(r) { return ((r || 0) * 100).toFixed(1) + '%'; }
 function esc(s) { return String(s ?? '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;'); }
+// 一批可能對到好幾張出貨單的 S 單號（一批供多次出貨），卡片標題全部列出來
+function sNoLabel(g) { return (g.sNos && g.sNos.length > 0) ? g.sNos.join('、') : g.invoice; }
 
 // ── 密碼閘門 ──────────────────────────────────────────────────────────────
 async function checkAuth() {
@@ -248,7 +250,7 @@ function renderGroups(d) {
   const cards = d.groups.map((g, idx) => {
     const loss = g.margin < 0;
     return `<button class="gcard ${loss ? 'loss' : ''}" data-idx="${idx}">
-      <div class="p">${esc(g.sNo || g.invoice)} · ${esc(g.product)}</div>
+      <div class="p">${esc(sNoLabel(g))} · ${esc(g.product)}</div>
       <div class="m ${loss ? 'loss' : ''}">${g.margin >= 0 ? '+' : ''}${fmt(g.margin)}</div>
       <div class="r ${loss ? 'loss' : 'good'}">${pct(g.marginRate)}</div>
     </button>`;
@@ -280,7 +282,7 @@ function selectGroup(idx) {
     </tr>`;
   }).join('');
   document.getElementById('detailSlot').innerHTML = `<div class="detail">
-    <div class="head"><h3>${esc(g.sNo || g.invoice)} · ${esc(g.product)}</h3>
+    <div class="head"><h3>${esc(sNoLabel(g))} · ${esc(g.product)}</h3>
       <p>營收 ${fmt(g.revenue)} － 進貨 ${fmt(g.importCost)} － 物流 ${fmt(g.logisticsCost)} ＝ 毛利 ${g.margin >= 0 ? '+' : ''}${fmt(g.margin)}（${pct(g.marginRate)}）</p></div>
     <table class="rows"><thead><tr>
       <th>出貨日</th><th>門市</th><th class="num">箱數</th><th class="num">營收</th>
