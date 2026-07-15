@@ -7,6 +7,10 @@
     {
       "path": "/api/weekly/notify",
       "schedule": "0 1 * * 1"
+    },
+    {
+      "path": "/api/checklist/notify-upcoming",
+      "schedule": "0 1 * * *"
     }
   ]
 }

@@ -46,14 +46,14 @@ interface WeekMeta { from: string; to: string; label: string }
 
 const WEEKDAY = ['日', '一', '二', '三', '四', '五', '六']
 function fmtDate(iso: string | null): string {
-  if (!iso) return '未填配送日'
+  if (!iso) return '出貨日期待訂'
   const d = new Date(iso + 'T00:00:00')
   return `${d.getMonth() + 1}/${d.getDate()} (${WEEKDAY[d.getDay()]})`
 }
 
-// 依配送日算「倒數紅黃燈」：逾期/今天=紅、明天=黃、其餘=綠、沒填=灰
+// 依配送日算「倒數紅黃燈」：逾期/今天=紅、明天=黃、其餘=綠、沒填=灰（待訂）
 function light(deliveryDate: string | null): { color: string; label: string } {
-  if (!deliveryDate) return { color: 'bg-gray-300 text-gray-700', label: '未定配送日' }
+  if (!deliveryDate) return { color: 'bg-gray-300 text-gray-700', label: '待訂' }
   const today = new Date(); today.setHours(0, 0, 0, 0)
   const d = new Date(deliveryDate + 'T00:00:00')
   const days = Math.round((d.getTime() - today.getTime()) / 86400000)
@@ -377,6 +377,7 @@ function CreateForm({ onCreated, flash }: {
   const [open, setOpen] = useState(false)
   const [shipmentNo, setShipmentNo] = useState('')
   const [date, setDate] = useState('')
+  const [tbd, setTbd] = useState(false)
   const [content, setContent] = useState('')
   const [busy, setBusy] = useState(false)
 
@@ -387,10 +388,10 @@ function CreateForm({ onCreated, flash }: {
       const res = await fetch('/api/checklist', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ shipmentNo: shipmentNo.trim(), deliveryDate: date || null, content: content.trim() || null }),
+        body: JSON.stringify({ shipmentNo: shipmentNo.trim(), deliveryDate: tbd ? null : (date || null), content: content.trim() || null }),
       })
       const d = await res.json()
-      if (res.ok) { flash('ok', `已建立 ${shipmentNo.trim()}`); setShipmentNo(''); setDate(''); setContent(''); setOpen(false); onCreated() }
+      if (res.ok) { flash('ok', `已建立 ${shipmentNo.trim()}`); setShipmentNo(''); setDate(''); setTbd(false); setContent(''); setOpen(false); onCreated() }
       else flash('err', d.error ?? '建立失敗')
     } catch {
       flash('err', '建立失敗')
@@ -416,11 +417,17 @@ function CreateForm({ onCreated, flash }: {
           className="flex-1 border border-slate-300 rounded-lg px-3 py-2.5 text-base"
         />
         <input
-          type="date" value={date} onChange={e => setDate(e.target.value)}
-          className="border border-slate-300 rounded-lg px-3 py-2.5 text-base"
+          type="date" value={date} disabled={tbd}
+          onChange={e => setDate(e.target.value)}
+          className="border border-slate-300 rounded-lg px-3 py-2.5 text-base disabled:bg-slate-100 disabled:text-slate-400"
           title="配送日期"
         />
       </div>
+      <label className="flex items-center gap-1.5 mt-2 text-xs text-slate-500 select-none">
+        <input type="checkbox" checked={tbd}
+          onChange={e => { const v = e.target.checked; setTbd(v); if (v) setDate('') }} />
+        出貨日期待訂（之後再補配送日）
+      </label>
       <input
         placeholder="這批出什麼（選填，如：蘋果11｜全12店）"
         value={content} onChange={e => setContent(e.target.value)}
@@ -640,6 +647,7 @@ function EditInfoForm({ item, onSaved, onCancel, flash }: {
 }) {
   const [shipmentNo, setShipmentNo] = useState(item.shipmentNo)
   const [date, setDate] = useState(item.deliveryDate ?? '')
+  const [tbd, setTbd] = useState(!item.deliveryDate)
   const [content, setContent] = useState(item.content ?? '')
   const [busy, setBusy] = useState(false)
 
@@ -653,7 +661,7 @@ function EditInfoForm({ item, onSaved, onCancel, flash }: {
         body: JSON.stringify({
           action: 'edit',
           shipmentNo: shipmentNo.trim(),
-          deliveryDate: date || null,
+          deliveryDate: tbd ? null : (date || null),
           content: content.trim() || null,
           baseLastEdited: item.lastEdited,   // 樂觀鎖：中途被別人改過就會擋下
         }),
@@ -679,11 +687,17 @@ function EditInfoForm({ item, onSaved, onCancel, flash }: {
           className="flex-1 border border-slate-300 rounded-lg px-3 py-2 text-sm bg-white font-mono"
         />
         <input
-          type="date" value={date} onChange={e => setDate(e.target.value)}
-          className="border border-slate-300 rounded-lg px-3 py-2 text-sm bg-white"
+          type="date" value={date} disabled={tbd}
+          onChange={e => setDate(e.target.value)}
+          className="border border-slate-300 rounded-lg px-3 py-2 text-sm bg-white disabled:bg-slate-100 disabled:text-slate-400"
           title="配送日期"
         />
       </div>
+      <label className="flex items-center gap-1.5 mt-2 text-xs text-slate-500 select-none">
+        <input type="checkbox" checked={tbd}
+          onChange={e => { const v = e.target.checked; setTbd(v); if (v) setDate('') }} />
+        出貨日期待訂（之後再補配送日）
+      </label>
       <input
         placeholder="這批出什麼（選填，如：蘋果11｜全12店）"
         value={content} onChange={e => setContent(e.target.value)}
