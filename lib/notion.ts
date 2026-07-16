@@ -778,6 +778,55 @@ export async function saveBatchPrices(prices: Record<string, BatchPriceEntry[]>)
 }
 
 
+// ── 月結毛利批次配對（S單號 → 現金流Invoice）─────────────────────────────────
+// 取代直接改現金流表出荷票欄：現金流表是共用文件、格式常年混亂（舊註記、空白），
+// 改成在這裡存人工配對結果，網頁「待指定」選單選了就直接寫進來，不用再去貼 Excel。
+
+export async function getMarginMatches(): Promise<Record<string, string>> {
+  const DB = process.env.NOTION_MARGIN_MATCH_DB?.trim()
+  if (!DB) return {}
+  const map: Record<string, string> = {}
+  let cursor: string | undefined
+  do {
+    const res = await notion.databases.query({
+      database_id: DB,
+      page_size: 100,
+      ...(cursor ? { start_cursor: cursor } : {}),
+    })
+    for (const page of res.results) {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const p = (page as any).properties
+      const sNo = getText(p['S單號'])
+      const invoice = getText(p['現金流Invoice'])
+      if (sNo && invoice) map[sNo] = invoice
+    }
+    cursor = res.has_more ? (res.next_cursor ?? undefined) : undefined
+  } while (cursor)
+  return map
+}
+
+// 同一個 S 單號已有紀錄就更新（讓 Colin 改配對時不會留下重複紀錄），沒有就新增
+export async function saveMarginMatch(sNo: string, invoice: string, note?: string): Promise<void> {
+  const DB = process.env.NOTION_MARGIN_MATCH_DB?.trim()
+  if (!DB) throw new Error('Missing NOTION_MARGIN_MATCH_DB env var')
+  const existing = await notion.databases.query({
+    database_id: DB,
+    filter: { property: 'S單號', title: { equals: sNo } },
+    page_size: 1,
+  })
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const props: any = {
+    'S單號': { title: [{ text: { content: sNo } }] },
+    '現金流Invoice': { rich_text: [{ text: { content: invoice } }] },
+  }
+  if (note) props['備註'] = { rich_text: [{ text: { content: note } }] }
+  if (existing.results.length > 0) {
+    await notion.pages.update({ page_id: existing.results[0].id, properties: props })
+  } else {
+    await notion.pages.create({ parent: { database_id: DB }, properties: props })
+  }
+}
+
 // ── Batch Items (批次子品項) ──────────────────────────────────────────────────
 
 export interface BatchItem {

@@ -6,14 +6,16 @@
  * 跟現有 /margin 頁（lib/margin.ts）不同：那個以 Notion 批次為單位、即時；
  * 這個以「月份」為單位，成本對回現金流表的真實進口批次，物流對回真實對帳單。
  *
- * 資料來源（全部即時抓 Drive，不存快照）：
- *   ① 現金流表（固定檔案，DRIVE_CASHFLOW_FILE_ID）
+ * 資料來源（全部即時抓，不存快照）：
+ *   ① 現金流表（固定檔案，DRIVE_CASHFLOW_FILE_ID）——只拿成本資料，不讀「出荷票」欄
  *   ② 出貨單資料夾「N月」子資料夾（DRIVE_SHIPMENT_FOLDER_ID，沿用 driveScan 既有慣例）
  *   ③ 優儲倉儲對帳單「N月」子資料夾（DRIVE_YUCHU_FOLDER_ID）
  *   ④ 三義物流對帳單「N月」子資料夾（DRIVE_SANYI_FOLDER_ID）
+ *   ⑤ Notion「月結毛利批次配對」（S單號→現金流Invoice，NOTION_MARGIN_MATCH_DB）
  *
- * 批次比對只認現金流「出荷票」欄直接比對 S 單號；比對不到的標 unmatched，交給前端
- * 手動指定（只是當次預覽，不寫回，見 public/monthly-margin-dashboard.html）。
+ * 批次比對改用⑤這張 Notion 表（見 2026-07 決策：現金流表出荷票欄是共用文件、格式
+ * 常年混亂，改成 Colin 在網頁「待指定」選單選了就直接寫進 Notion，不再要求他回頭
+ * 貼現金流表）。比對不到的標 unmatched，前端可以手動指定並即時存進 Notion。
  *
  * 分攤重點：一個來源批次可能同月被好幾張出貨單瓜分（見 SKILL.md 2.4「一批供多次出貨」），
  * 所以先把「哪些出貨單命中同一個批次」全部收集起來，再一次算分攤比例——不能每筆各自
@@ -21,10 +23,11 @@
  */
 import { parseStoreOrderWorkbook, type ParsedOrderRow } from '../driveScan/parseStoreOrder'
 import { listMonthFolderFiles, downloadAsXlsx, type DriveFileInfo } from './driveMonthFolder'
-import { parseCashflowWorkbook, type CashflowBatch } from './parseCashflow'
+import { parseCashflowWorkbook } from './parseCashflow'
 import { parseYuchuSettlementWorkbook, type ParsedYuchuSettlement } from './parseYuchuSettlement'
 import { parseSanyiSettlementWorkbook, type ParsedSanyiSettlement } from './parseSanyiSettlement'
 import { getReadonlyDrive } from '../driveScan/drive'
+import { getMarginMatches } from '../notion'
 
 // 加工品關鍵字：命中就是應稅 5%，稅後金額要 ÷1.05 取未稅；沒命中的當蔬果免稅（見 SKILL.md 1.3）
 const PROCESSED_KEYWORDS = ['大学芋', '大學芋', 'あんぽ柿', '加工']
@@ -38,6 +41,30 @@ function untaxedRevenueOfRow(row: ParsedOrderRow): number {
   return isProcessedProduct(row.name) ? gross / 1.05 : gross
 }
 
+// 現金流表允許同一個 Invoice 拆成好幾列（如一張商業發票底下好幾項不同商品各自一列），
+// 這些其實是同一批成本，比對跟分攤都要用「合併後」的批次，Invoice 才是穩定唯一的 key。
+export interface MergedCashflowBatch {
+  invoice: string
+  product: string
+  totalCost: number
+  totalBoxes: number
+}
+
+function mergeCashflowBatches(batches: { invoice: string; product: string; totalCost: number; totalBoxes: number }[]): Map<string, MergedCashflowBatch> {
+  const map = new Map<string, MergedCashflowBatch>()
+  for (const b of batches) {
+    const existing = map.get(b.invoice)
+    if (existing) {
+      existing.totalCost += b.totalCost
+      existing.totalBoxes += b.totalBoxes
+      if (!existing.product.includes(b.product)) existing.product += '／' + b.product
+    } else {
+      map.set(b.invoice, { invoice: b.invoice, product: b.product, totalCost: b.totalCost, totalBoxes: b.totalBoxes })
+    }
+  }
+  return map
+}
+
 export interface ShipmentMargin {
   fileId: string
   fileName: string
@@ -47,14 +74,13 @@ export interface ShipmentMargin {
   boxes: number
   revenue: number            // 未稅
   matchedInvoice: string | null
-  matchedBatchId: number | null  // 對到的現金流批次 id，分組用（Invoice 不保證唯一，不能拿來分組）
   matchStatus: 'matched' | 'unmatched'
   allocImportCost: number    // 分攤到這筆的進口批次成本（未含物流）；unmatched 時為 0
   allocLogisticsCost: number
   margin: number
   marginRate: number
   productNames: string[]
-  missingPrice: boolean      // 有箱數卻有列讀不到單價（該列不計入營收，需人工去對帳單補）
+  missingPrice: boolean      // 有箱數卻有列讀不到單價（該項不計入營收，需人工去對帳單補）
   warnings: string[]
 }
 
@@ -92,7 +118,7 @@ export interface MonthlyMarginResult {
     yuchu: ParsedYuchuSettlement | null
     sanyi: ParsedSanyiSettlement | null
   }
-  allBatches: CashflowBatch[]  // 供前端「待指定」手動選單使用（前端用陣列 index 當 key，Invoice 不保證唯一）
+  allBatches: MergedCashflowBatch[]  // 供前端「待指定」手動選單使用；invoice 是唯一 key
   sourceFiles: {
     shipmentOrderFiles: string[]
     cashflowSheet: string
@@ -176,13 +202,15 @@ export async function computeMonthlyMargin(year: number, month: number): Promise
   }
   const cashflow = parseCashflowWorkbook(cashflowBuf)
   warnings.push(...cashflow.warnings)
-  // 一個批次的出荷票欄可能填了好幾個 S 單號（一批供多次出貨），每個 S 單號都個別指到同一個批次物件
-  const cashflowBySNo = new Map<string, CashflowBatch>()
-  for (const b of cashflow.batches) {
-    for (const sNo of b.sNos) {
-      if (cashflowBySNo.has(sNo)) warnings.push(`現金流表「出荷票」欄有重複 S 單號 ${sNo}（${b.invoice} 跟 ${cashflowBySNo.get(sNo)!.invoice}），取第一筆`)
-      else cashflowBySNo.set(sNo, b)
-    }
+  const cashflowByInvoice = mergeCashflowBatches(cashflow.batches)
+
+  // ── ⑤ Notion「月結毛利批次配對」：S單號 → Invoice，取代讀現金流表「出荷票」欄 ──
+  const marginMatches = await getMarginMatches()
+  const cashflowBySNo = new Map<string, MergedCashflowBatch>()
+  for (const [sNo, invoice] of Object.entries(marginMatches)) {
+    const batch = cashflowByInvoice.get(invoice)
+    if (!batch) { warnings.push(`Notion「月結毛利批次配對」裡「${sNo}」對到的 Invoice「${invoice}」在現金流表找不到，請確認拼字或現金流表是否換過`); continue }
+    cashflowBySNo.set(sNo, batch)
   }
 
   // ── ② 出貨單資料夾：抓這個月的「N月」子資料夾，解析成一筆筆「店鋪分頁」原始資料 ──
@@ -236,22 +264,21 @@ export async function computeMonthlyMargin(year: number, month: number): Promise
 
   // ── 比對來源批次＋分攤進貨成本 ──────────────────────────────────────────────
   // 同一個來源批次可能被好幾張出貨單瓜分，所以先分組再算比例，不能逐筆各自獨立算
-  // （逐筆各自算的話，CTNS 沒填時的備援比例會讓同一批成本被算好幾次）。用批次的 id
-  // （不是出荷票 S 單號）當分組 key——一個批次現在可能對到好幾個 S 單號。
-  const byBatchId = new Map<number, RawTab[]>()
+  // （逐筆各自算的話，CTNS 沒填時的備援比例會讓同一批成本被算好幾次）。用 Invoice
+  // 當分組 key（已經合併過，保證唯一）。
+  const byInvoice = new Map<string, RawTab[]>()
   const unmatchedTabs: RawTab[] = []
   for (const t of rawTabs) {
     const matched = cashflowBySNo.get(t.sNo)
     if (!matched) { unmatchedTabs.push(t); continue }
-    const arr = byBatchId.get(matched.id) ?? []
+    const arr = byInvoice.get(matched.invoice) ?? []
     arr.push(t)
-    byBatchId.set(matched.id, arr)
+    byInvoice.set(matched.invoice, arr)
   }
-  const cashflowById = new Map(cashflow.batches.map(b => [b.id, b]))
 
   const shipments: ShipmentMargin[] = []
-  for (const [batchId, tabs] of byBatchId) {
-    const batch = cashflowById.get(batchId)!
+  for (const [invoice, tabs] of byInvoice) {
+    const batch = cashflowByInvoice.get(invoice)!
     const claimedBoxes = tabs.reduce((s, t) => s + t.boxes, 0)
     let base = batch.totalBoxes
     if (base <= 0) {
@@ -267,7 +294,7 @@ export async function computeMonthlyMargin(year: number, month: number): Promise
       if (t.missingPrice) shipWarnings.push('有商品項讀不到單價，該項未計入營收')
       shipments.push({
         fileId: t.fileId, fileName: t.fileName, sNo: t.sNo, date: t.date, store: t.store, boxes: t.boxes,
-        revenue: t.revenue, matchedInvoice: batch.invoice, matchedBatchId: batch.id, matchStatus: 'matched',
+        revenue: t.revenue, matchedInvoice: batch.invoice, matchStatus: 'matched',
         allocImportCost, allocLogisticsCost: 0, margin: 0, marginRate: 0,
         productNames: t.productNames, missingPrice: t.missingPrice, warnings: shipWarnings,
       })
@@ -278,7 +305,7 @@ export async function computeMonthlyMargin(year: number, month: number): Promise
     if (t.missingPrice) shipWarnings.push('有商品項讀不到單價，該項未計入營收')
     shipments.push({
       fileId: t.fileId, fileName: t.fileName, sNo: t.sNo, date: t.date, store: t.store, boxes: t.boxes,
-      revenue: t.revenue, matchedInvoice: null, matchedBatchId: null, matchStatus: 'unmatched',
+      revenue: t.revenue, matchedInvoice: null, matchStatus: 'unmatched',
       allocImportCost: 0, allocLogisticsCost: 0, margin: 0, marginRate: 0,
       productNames: t.productNames, missingPrice: t.missingPrice, warnings: shipWarnings,
     })
@@ -335,17 +362,18 @@ export async function computeMonthlyMargin(year: number, month: number): Promise
     s.marginRate = s.revenue > 0 ? s.margin / s.revenue : 0
   }
 
-  // ── 依來源批次分組（用批次 id 當 key，保證唯一；Invoice 可能同名但不同批次）──
-  const groupMap = new Map<number, BatchGroupMargin>()
+  // ── 依來源批次分組（Invoice 已經合併過，保證唯一）──
+  const groupMap = new Map<string, BatchGroupMargin>()
   const unmatched: ShipmentMargin[] = []
   for (const s of shipments) {
-    if (s.matchStatus === 'unmatched' || s.matchedBatchId == null) { unmatched.push(s); continue }
-    let g = groupMap.get(s.matchedBatchId)
+    if (s.matchStatus === 'unmatched' || !s.matchedInvoice) { unmatched.push(s); continue }
+    let g = groupMap.get(s.matchedInvoice)
     if (!g) {
-      const batch = cashflowById.get(s.matchedBatchId)
-      g = { invoice: s.matchedInvoice ?? '', sNos: batch?.sNos ?? [s.sNo], product: s.productNames.join('/'), shipments: [], revenue: 0, importCost: 0, logisticsCost: 0, margin: 0, marginRate: 0 }
-      groupMap.set(s.matchedBatchId, g)
+      const batch = cashflowByInvoice.get(s.matchedInvoice)
+      g = { invoice: s.matchedInvoice, sNos: [], product: batch?.product ?? s.productNames.join('/'), shipments: [], revenue: 0, importCost: 0, logisticsCost: 0, margin: 0, marginRate: 0 }
+      groupMap.set(s.matchedInvoice, g)
     }
+    g.sNos.push(s.sNo)
     g.shipments.push(s)
     g.revenue += s.revenue
     g.importCost += s.allocImportCost
@@ -376,7 +404,7 @@ export async function computeMonthlyMargin(year: number, month: number): Promise
     unmatched,
     totals,
     logistics: { status: logisticsComplete ? 'complete' : 'partial', yuchu, sanyi },
-    allBatches: cashflow.batches,
+    allBatches: [...cashflowByInvoice.values()],
     sourceFiles: {
       shipmentOrderFiles: shipmentFiles.map(f => f.name),
       cashflowSheet: cashflow.sheetName,

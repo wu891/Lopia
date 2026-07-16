@@ -113,6 +113,7 @@
   }
   .preview-note { font-family: var(--sans); font-size: 11.5px; color: var(--ink-2); margin-top: 4px; font-style: italic; }
   .preview-note.set { color: var(--green); font-style: normal; font-weight: 600; }
+  .preview-note.bad { color: var(--red); font-style: normal; font-weight: 600; }
 
   footer.src { font-family: var(--sans); font-size: 11px; color: var(--ink-2); margin-top: 40px; padding-top: 16px; border-top: 1px solid var(--rule); text-align: center; line-height: 1.9; }
   #loading, #empty { font-family: var(--sans); text-align: center; padding: 80px 0; color: var(--ink-2); font-size: 14px; }
@@ -256,7 +257,7 @@ function renderBanners(d) {
     html += `<div class="banner"><span class="tag">尚未到帳</span>${esc(missing.join('、'))}對帳單尚未到帳，以下毛利為「營收＋進貨成本」初版，物流分攤尚未算入。</div>`;
   }
   if (d.totals.unmatchedCount > 0) {
-    html += `<div class="banner"><span class="tag">待處理</span>有 ${d.totals.unmatchedCount} 筆出貨單比對不到來源批次（現金流「出荷票」欄沒填），成本未算入下方總計，毛利會偏高。請往下手動指定批次，或去現金流表補上出荷票欄。</div>`;
+    html += `<div class="banner"><span class="tag">待處理</span>有 ${d.totals.unmatchedCount} 筆出貨單還沒指定來源批次，成本未算入下方總計，毛利會偏高。請往下手動指定，選了就會直接存起來。</div>`;
   }
   if (d.totals.missingPriceCount > 0) {
     html += `<div class="banner"><span class="tag">待處理</span>有 ${d.totals.missingPriceCount} 筆出貨單裡有商品項讀不到單價，該項未計入營收，請去對帳單補單價。</div>`;
@@ -342,11 +343,10 @@ function toggleBatchRow(idx) {
 
 function renderUnmatchedTable(d) {
   if (d.unmatched.length === 0) return '';
-  // 用陣列 index 當選項值，不用 Invoice 字串——Invoice 是現金流表自由填寫的文字，
-  // 同一個 Invoice 可能對到好幾筆不同批次（如一張發票拆多個商品各自的S單號），
-  // 拿它當 key 會抓到錯的那一筆。
+  // allBatches 已經依 Invoice 合併過（Invoice 保證唯一），直接拿 Invoice 字串當選項值，
+  // 選了就是要存進 Notion 的值，不用再另外轉換。
   const optHtml = ['<option value="">－ 選擇來源批次 －</option>']
-    .concat(d.allBatches.map((b, bi) => `<option value="${bi}">${esc(b.invoice)} · ${esc(b.product)}（成本${fmt(b.totalCost)}／${fmt(b.totalBoxes)}箱）</option>`))
+    .concat(d.allBatches.map(b => `<option value="${esc(b.invoice)}">${esc(b.invoice)} · ${esc(b.product)}（成本${fmt(b.totalCost)}／${fmt(b.totalBoxes)}箱）</option>`))
     .join('');
   const rows = d.unmatched.map((s, i) => `<tr>
       <td class="mono">${esc(s.sNo)}</td>
@@ -356,10 +356,10 @@ function renderUnmatchedTable(d) {
       <td class="num mono">${fmt(s.revenue)}</td>
       <td>
         <select class="picker" data-idx="${i}">${optHtml}</select>
-        <div class="preview-note" data-preview="${i}">尚未指定，僅供本次預覽</div>
+        <div class="preview-note" data-preview="${i}">尚未指定</div>
       </td>
     </tr>`).join('');
-  return `<h2 class="section">待指定來源批次<span class="hint"> · 現金流「出荷票」欄沒填，手動指定僅供本次預覽，不會寫回</span></h2>
+  return `<h2 class="section">待指定來源批次<span class="hint"> · 選了就直接存進 Notion「月結毛利批次配對」</span></h2>
     <table class="ledger-table">
       <thead><tr>
         <th class="sans">S單號</th><th class="sans">日期</th><th class="sans">門市</th>
@@ -371,18 +371,31 @@ function renderUnmatchedTable(d) {
 
 function bindUnmatchedSelects() {
   document.querySelectorAll('select.picker[data-idx]').forEach(sel => {
-    sel.addEventListener('change', () => {
+    sel.addEventListener('change', async () => {
       const idx = Number(sel.dataset.idx);
       const s = currentData.unmatched[idx];
       const note = document.querySelector(`.preview-note[data-preview="${idx}"]`);
-      if (sel.value === '') { note.textContent = '尚未指定，僅供本次預覽'; note.classList.remove('set'); return; }
-      const batch = currentData.allBatches[Number(sel.value)];
-      if (!batch) return;
-      const ratio = batch.totalBoxes > 0 ? s.boxes / batch.totalBoxes : 1;
-      const allocCost = batch.totalCost * ratio;
-      const margin = s.revenue - allocCost - s.allocLogisticsCost;
-      note.textContent = `預覽：分攤成本 ${fmt(allocCost)}，毛利 ${margin >= 0 ? '+' : ''}${fmt(margin)}`;
-      note.classList.add('set');
+      if (sel.value === '') { note.textContent = '尚未指定'; note.className = 'preview-note'; return; }
+      const invoice = sel.value;
+      sel.disabled = true;
+      note.textContent = '存檔中…';
+      note.className = 'preview-note';
+      try {
+        const r = await fetch(API_BASE + '/api/monthly-margin/match', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ sNo: s.sNo, invoice }),
+        });
+        const resp = await r.json();
+        if (!r.ok) throw new Error(resp.error || '存檔失敗');
+        note.textContent = '已存進 Notion，重新整理中…';
+        note.classList.add('set');
+        await loadMonth(); // 重抓整份報表，讓這筆從「待指定」搬進對應批次的分組
+      } catch (e) {
+        note.textContent = '存檔失敗：' + e.message;
+        note.classList.add('bad');
+        sel.disabled = false;
+      }
     });
   });
 }
