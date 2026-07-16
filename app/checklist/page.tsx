@@ -457,20 +457,51 @@ function ChecklistList({ items, who, expandedId, setExpandedId, onChanged, onDel
   if (items.length === 0) {
     return <div className="text-center text-slate-400 py-10 text-sm">目前沒有檢查清單。用上方按鈕新增，或到「本週出貨」一鍵建立。</div>
   }
+  // 已完結的單另外放到最下方一個獨立區塊，避免跟還在跑的單混在一起看到「逾期」誤會成沒處理
+  const pending = items.filter(it => !it.completed)
+  const done = items.filter(it => it.completed)
   return (
-    <div className="space-y-3">
-      {items.map(item => (
-        <ChecklistCard
-          key={item.id}
-          item={item}
-          who={who}
-          expanded={expandedId === item.id}
-          onToggle={() => setExpandedId(expandedId === item.id ? null : item.id)}
-          onChanged={onChanged}
-          onDeleted={onDeleted}
-          flash={flash}
-        />
-      ))}
+    <div>
+      <div className="space-y-3">
+        {pending.map(item => (
+          <ChecklistCard
+            key={item.id}
+            item={item}
+            who={who}
+            expanded={expandedId === item.id}
+            onToggle={() => setExpandedId(expandedId === item.id ? null : item.id)}
+            onChanged={onChanged}
+            onDeleted={onDeleted}
+            flash={flash}
+          />
+        ))}
+        {pending.length === 0 && (
+          <div className="text-center text-slate-400 py-6 text-sm">目前沒有進行中的檢查單。</div>
+        )}
+      </div>
+
+      {done.length > 0 && (
+        <div className="mt-8">
+          <div className="flex items-center gap-2 mb-3">
+            <span className="text-xs font-bold text-emerald-700">✅ 已完成（{done.length}）</span>
+            <div className="flex-1 border-t border-slate-200" />
+          </div>
+          <div className="space-y-3">
+            {done.map(item => (
+              <ChecklistCard
+                key={item.id}
+                item={item}
+                who={who}
+                expanded={expandedId === item.id}
+                onToggle={() => setExpandedId(expandedId === item.id ? null : item.id)}
+                onChanged={onChanged}
+                onDeleted={onDeleted}
+                flash={flash}
+              />
+            ))}
+          </div>
+        </div>
+      )}
     </div>
   )
 }
@@ -522,7 +553,10 @@ function ChecklistCard({ item, who, expanded, onToggle, onChanged, onDeleted, fl
           <div className="text-xs text-slate-500 mt-0.5">{fmtDate(item.deliveryDate)}</div>
           {item.content && <div className="text-[11px] text-slate-400 mt-0.5 truncate">{item.content}</div>}
         </div>
-        <span className={`text-[11px] px-2 py-1 rounded-full whitespace-nowrap ${lit.color}`}>{lit.label}</span>
+        {/* 已完結的單不顯示逾期/倒數燈號，免得誤會成還沒處理 */}
+        {!item.completed && (
+          <span className={`text-[11px] px-2 py-1 rounded-full whitespace-nowrap ${lit.color}`}>{lit.label}</span>
+        )}
         <div className="text-right">
           <div className={`text-xs font-semibold ${item.completed ? 'text-emerald-600' : 'text-slate-600'}`}>
             {item.completed ? '✅ 已完結' : stageLabel(state)}
