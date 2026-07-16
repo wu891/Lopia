@@ -16,13 +16,24 @@ const XLSX_MIME = 'application/vnd.openxmlformats-officedocument.spreadsheetml.s
 const GSHEET_MIME = 'application/vnd.google-apps.spreadsheet'
 const FOLDER_MIME = 'application/vnd.google-apps.folder'
 
+// 中文數字月份（Colin 建對帳單資料夾時實測用了「三月」而不是「3月」，兩種命名習慣都接受，
+// 避免每個月都要提醒他改用阿拉伯數字）
+const CHINESE_MONTH = ['一', '二', '三', '四', '五', '六', '七', '八', '九', '十', '十一', '十二']
+
+function monthFolderNames(month: number): string[] {
+  const names = [`${month}月`]
+  const cn = CHINESE_MONTH[month - 1]
+  if (cn) names.push(`${cn}月`)
+  return names
+}
+
 /**
- * 列出 rootFolderId 底下「N月」子資料夾（N=month，1-12）裡的所有試算表檔案。
+ * 列出 rootFolderId 底下「N月」（阿拉伯數字或中文數字皆可）子資料夾裡的所有試算表檔案。
  * 找不到該月子資料夾就回傳空陣列（呼叫端可據此判斷「這個月的資料還沒放進去」）。
  */
 export async function listMonthFolderFiles(rootFolderId: string, month: number): Promise<DriveFileInfo[]> {
   const drive = getReadonlyDrive()
-  const folderName = `${month}月`
+  const wantedNames = monthFolderNames(month)
 
   const folderRes = await drive.files.list({
     q: `'${rootFolderId}' in parents and mimeType = '${FOLDER_MIME}' and trashed = false`,
@@ -32,10 +43,14 @@ export async function listMonthFolderFiles(rootFolderId: string, month: number):
     includeItemsFromAllDrives: true,
   })
   const folders = folderRes.data.files ?? []
-  // 同名資料夾取最近建立的那個（跟 driveScan/drive.ts 同一套規則）
-  const target = folders
-    .filter(f => (f.name ?? '').trim() === folderName)
-    .sort((a, b) => (b.createdTime ?? '').localeCompare(a.createdTime ?? ''))[0]
+  // 同名資料夾取最近建立的那個（跟 driveScan/drive.ts 同一套規則）；阿拉伯數字命名優先於中文數字
+  let target: { id?: string | null; name?: string | null } | undefined
+  for (const name of wantedNames) {
+    target = folders
+      .filter(f => (f.name ?? '').trim() === name)
+      .sort((a, b) => (b.createdTime ?? '').localeCompare(a.createdTime ?? ''))[0]
+    if (target?.id) break
+  }
   if (!target?.id) return []
 
   const out: DriveFileInfo[] = []
@@ -58,7 +73,7 @@ export async function listMonthFolderFiles(rootFolderId: string, month: number):
         modifiedTime: f.modifiedTime ?? '',
         size: f.size ?? null,
         md5Checksum: f.md5Checksum ?? null,
-        parentFolderName: folderName,
+        parentFolderName: target.name ?? '',
       })
     }
     pageToken = res.data.nextPageToken ?? undefined
