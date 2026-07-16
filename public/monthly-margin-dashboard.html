@@ -4,91 +4,132 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>LOPIA 月結毛利報告</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Noto+Serif+TC:wght@600;700&family=Noto+Sans+TC:wght@400;500;700&family=JetBrains+Mono:wght@500;700&display=swap" rel="stylesheet">
 <style>
+  /* ── 設計方向：総勘定（帳簿風）── 這頁的本質就是核對一本現金流帳簿，
+     所以整頁做成一張真正的「帳」：襯線標題、米白紙感、等寬數字、狀態用文字
+     不用色塊，跟現有網站的卡片式視覺刻意區分開，因為這裡是財務對帳工具。 */
   :root {
-    --bg: #f5f6fa; --card: #ffffff; --red: #E8002D; --red-dark: #C0001F; --red-light: #FFEEF1;
-    --dark: #1a1a2e; --text: #212529; --text-2: #6c757d; --border: #e9ecef;
-    --good: #059669; --good-bg: #ecfdf5; --good-border: #a7f3d0;
-    --bad: #dc2626; --bad-bg: #fef2f2; --bad-border: #fecaca;
-    --warn: #b45309; --warn-bg: #fffbeb; --warn-border: #fde68a;
-    --radius: 12px;
+    --paper: #f6f4ee; --paper-2: #fffdf9; --ink: #1e1c18; --ink-2: #6b6558;
+    --rule: #d9d2c2; --rule-strong: #b7ae98;
+    --red: #b3122b; --red-bg: #f6e3e1; --green: #2e5d40; --green-bg: #e7efe9;
+    --amber: #8a5a19; --amber-bg: #f3ead4;
+    --serif: 'Noto Serif TC', 'Hiragino Mincho ProN', Georgia, serif;
+    --sans: -apple-system, 'Hiragino Sans', 'Noto Sans TC', sans-serif;
+    --mono: 'JetBrains Mono', ui-monospace, 'Noto Sans TC', monospace;
   }
   * { margin: 0; padding: 0; box-sizing: border-box; }
-  body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Noto Sans TC', Roboto, sans-serif; background: var(--bg); color: var(--text); line-height: 1.55; }
-  .wrap { max-width: 1180px; margin: 0 auto; padding: 20px; }
+  body { font-family: var(--serif); background: var(--paper); color: var(--ink); line-height: 1.6; -webkit-font-smoothing: antialiased; }
+  .sans { font-family: var(--sans); }
+  .mono { font-family: var(--mono); font-variant-numeric: tabular-nums; }
 
   /* ── 密碼閘門 ── */
   #gate { min-height: 100vh; display: flex; align-items: center; justify-content: center; }
-  #gate .box { background: var(--card); border-radius: var(--radius); padding: 36px 32px; width: 320px; box-shadow: 0 4px 24px rgba(0,0,0,0.08); text-align: center; }
-  #gate h1 { font-size: 17px; margin-bottom: 4px; }
-  #gate p { font-size: 12px; color: var(--text-2); margin-bottom: 18px; }
-  #gate input { width: 100%; padding: 10px 12px; border: 1px solid var(--border); border-radius: 8px; font-size: 14px; margin-bottom: 10px; }
-  #gate button { width: 100%; padding: 10px; border: none; border-radius: 8px; background: var(--red); color: white; font-weight: 700; font-size: 14px; cursor: pointer; }
-  #gate button:disabled { opacity: 0.5; }
-  #gate .err { color: var(--bad); font-size: 12px; margin-top: 10px; min-height: 16px; }
+  #gate .box { background: var(--paper-2); border: 1px solid var(--rule); border-radius: 4px; padding: 44px 40px; width: 320px; text-align: center; }
+  #gate .rule { width: 40px; height: 3px; background: var(--red); margin: 0 auto 18px; }
+  #gate h1 { font-size: 19px; font-weight: 700; margin-bottom: 8px; }
+  #gate p { font-family: var(--sans); font-size: 12.5px; color: var(--ink-2); margin-bottom: 24px; }
+  #gate input {
+    width: 100%; padding: 11px 13px; border: none; border-bottom: 1.5px solid var(--rule-strong);
+    background: transparent; font-family: var(--sans); font-size: 14px; margin-bottom: 14px; text-align: center;
+  }
+  #gate input:focus { outline: none; border-bottom-color: var(--red); }
+  #gate button {
+    width: 100%; padding: 11px; border: 1.5px solid var(--ink); border-radius: 2px; background: var(--ink);
+    color: var(--paper-2); font-family: var(--sans); font-weight: 700; font-size: 13.5px; letter-spacing: 0.5px; cursor: pointer;
+  }
+  #gate button:hover:not(:disabled) { background: var(--red); border-color: var(--red); }
+  #gate button:disabled { opacity: 0.5; cursor: not-allowed; }
+  #gate .err { font-family: var(--sans); color: var(--red); font-size: 12px; margin-top: 12px; min-height: 16px; font-weight: 600; }
 
   /* ── 主畫面 ── */
   #app { display: none; }
-  header.top { display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 12px; margin-bottom: 18px; }
-  header.top h1 { font-size: 20px; font-weight: 800; }
-  header.top .sub { font-size: 12px; color: var(--text-2); margin-top: 2px; }
-  select#monthPicker { padding: 8px 12px; border: 1px solid var(--border); border-radius: 8px; font-size: 13px; background: white; }
-  button.link { background: none; border: none; color: var(--text-2); font-size: 12px; cursor: pointer; text-decoration: underline; }
+  .wrap { max-width: 920px; margin: 0 auto; padding: 52px 36px 100px; }
 
-  .banner { border-radius: var(--radius); padding: 12px 16px; font-size: 12.5px; margin-bottom: 14px; }
-  .banner.warn { background: var(--warn-bg); border: 1px solid var(--warn-border); color: var(--warn); }
-  .banner.bad { background: var(--bad-bg); border: 1px solid var(--bad-border); color: var(--bad); }
-  .banner ul { margin: 6px 0 0 18px; }
+  .letterhead { display: flex; justify-content: space-between; align-items: flex-end; padding-bottom: 18px; border-bottom: 3px double var(--rule-strong); flex-wrap: wrap; gap: 12px; }
+  .letterhead h1 { font-size: 25px; font-weight: 700; letter-spacing: 0.5px; }
+  .letterhead .actions { display: flex; gap: 10px; align-items: center; font-family: var(--sans); }
+  select#monthPicker {
+    font-family: var(--sans); font-size: 13.5px; font-weight: 600; background: var(--paper-2);
+    border: 1px solid var(--rule-strong); padding: 8px 12px; border-radius: 2px; color: var(--ink); cursor: pointer;
+  }
+  button.link {
+    font-family: var(--sans); background: none; border: 1px solid var(--rule-strong); color: var(--ink-2);
+    font-size: 12.5px; font-weight: 600; cursor: pointer; padding: 8px 14px; border-radius: 2px;
+  }
+  button.link:hover { border-color: var(--ink); color: var(--ink); }
+  .subline { font-family: var(--sans); font-size: 12.5px; color: var(--ink-2); margin-top: 10px; }
 
-  .kpis { display: grid; grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); gap: 10px; margin-bottom: 16px; }
-  .kpi { background: var(--card); border-radius: var(--radius); padding: 14px 16px; box-shadow: 0 1px 3px rgba(0,0,0,0.05); }
-  .kpi .l { font-size: 11px; color: var(--text-2); }
-  .kpi .v { font-size: 20px; font-weight: 800; margin-top: 4px; font-variant-numeric: tabular-nums; }
-  .kpi.margin-good { background: var(--good-bg); border: 1px solid var(--good-border); }
-  .kpi.margin-good .v { color: var(--good); }
-  .kpi.margin-bad { background: var(--bad-bg); border: 1px solid var(--bad-border); }
-  .kpi.margin-bad .v { color: var(--bad); }
+  .banner { font-family: var(--sans); font-size: 13px; padding: 11px 0; border-bottom: 1px dotted var(--rule-strong); line-height: 1.7; }
+  .banner .tag { font-weight: 700; color: var(--amber); margin-right: 6px; }
+  .banner.bad .tag { color: var(--red); }
+  .banner ul { margin: 6px 0 0 20px; }
+  .banner li { margin-bottom: 2px; }
 
-  .section-label { font-size: 12px; font-weight: 700; color: var(--text-2); text-transform: uppercase; letter-spacing: 0.5px; margin: 18px 0 8px; }
+  .totals-row { display: flex; margin: 32px 0; border-top: 1px solid var(--rule); border-bottom: 1px solid var(--rule); flex-wrap: wrap; }
+  .totals-row .cell { flex: 1; min-width: 130px; padding: 16px 20px; border-left: 1px solid var(--rule); }
+  .totals-row .cell:first-child { border-left: none; }
+  .totals-row .cell .l { font-family: var(--sans); font-size: 11px; color: var(--ink-2); letter-spacing: 0.3px; }
+  .totals-row .cell .v { font-size: 21px; margin-top: 5px; }
+  .totals-row .cell.hero .v { color: var(--green); font-weight: 700; }
+  .totals-row .cell.hero.loss .v { color: var(--red); }
 
-  .groups { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 10px; }
-  .gcard { text-align: left; background: var(--card); border: 2px solid var(--border); border-radius: var(--radius); padding: 12px 14px; cursor: pointer; }
-  .gcard.loss { border-color: var(--bad-border); background: var(--bad-bg); }
-  .gcard.active { border-color: var(--red); box-shadow: 0 0 0 3px var(--red-light); }
-  .gcard .p { font-size: 12px; color: var(--text-2); }
-  .gcard .m { font-size: 15px; font-weight: 800; margin-top: 4px; font-variant-numeric: tabular-nums; }
-  .gcard .m.loss { color: var(--bad); }
-  .gcard .r { font-size: 11px; font-weight: 700; margin-top: 2px; }
-  .gcard .r.loss { color: var(--bad); } .gcard .r.good { color: var(--good); }
+  h2.section {
+    font-family: var(--sans); font-size: 12.5px; font-weight: 700; letter-spacing: 1.2px; color: var(--ink-2);
+    margin: 38px 0 6px; text-transform: uppercase;
+  }
+  h2.section .hint { font-weight: 400; text-transform: none; letter-spacing: 0; color: var(--ink-2); font-size: 11.5px; }
 
-  .detail { background: var(--card); border-radius: var(--radius); box-shadow: 0 1px 3px rgba(0,0,0,0.05); overflow: hidden; margin-top: 12px; }
-  .detail .head { padding: 14px 18px; border-bottom: 1px solid var(--border); }
-  .detail .head h3 { font-size: 15px; font-weight: 800; }
-  .detail .head p { font-size: 11px; color: var(--text-2); margin-top: 2px; }
-  table.rows { width: 100%; border-collapse: collapse; font-size: 12.5px; }
-  table.rows th { text-align: left; padding: 8px 14px; background: #fafafa; font-size: 10.5px; text-transform: uppercase; color: var(--text-2); border-bottom: 1px solid var(--border); }
-  table.rows td { padding: 8px 14px; border-bottom: 1px solid #f4f4f5; }
-  table.rows td.num, table.rows th.num { text-align: right; font-variant-numeric: tabular-nums; }
-  table.rows tr.loss td.num.margin { color: var(--bad); font-weight: 700; }
-  table.rows tr:not(.loss) td.num.margin { color: var(--good); font-weight: 700; }
+  table.ledger-table { width: 100%; border-collapse: collapse; margin-top: 8px; }
+  table.ledger-table thead th {
+    font-family: var(--sans); text-align: left; font-size: 10.5px; font-weight: 700; color: var(--ink-2);
+    padding: 8px 10px; border-bottom: 1.5px solid var(--rule-strong); text-transform: uppercase; letter-spacing: 0.4px;
+  }
+  table.ledger-table tbody td { padding: 13px 10px; border-bottom: 1px solid var(--rule); font-size: 14.5px; vertical-align: top; }
+  table.ledger-table td.num, table.ledger-table th.num { text-align: right; }
+  table.ledger-table tr.batch-row { cursor: pointer; }
+  table.ledger-table tr.batch-row:hover { background: rgba(0,0,0,0.02); }
+  table.ledger-table tr.batch-row.open td { border-bottom-color: var(--rule); }
+  table.ledger-table .caret { display: inline-block; width: 12px; font-family: var(--sans); color: var(--ink-2); transition: transform .12s; }
+  table.ledger-table tr.batch-row.open .caret { transform: rotate(90deg); }
+  .status { font-family: var(--sans); font-size: 11px; font-weight: 700; }
+  .status.good { color: var(--green); }
+  .status.bad { color: var(--red); }
+  .status.pending::before { content: "待指定 · "; color: var(--amber); }
+  .margin-figure.good { color: var(--green); font-weight: 700; }
+  .margin-figure.bad { color: var(--red); font-weight: 700; }
 
-  .unmatched-item { background: var(--card); border: 1px solid var(--warn-border); border-radius: var(--radius); padding: 12px 16px; margin-bottom: 8px; display: flex; flex-wrap: wrap; gap: 10px; align-items: center; justify-content: space-between; }
-  .unmatched-item .info { font-size: 12.5px; }
-  .unmatched-item .info b { font-size: 13.5px; }
-  .unmatched-item select { padding: 6px 10px; border: 1px solid var(--border); border-radius: 6px; font-size: 12.5px; min-width: 220px; }
-  .tag { display: inline-block; font-size: 10px; font-weight: 700; padding: 2px 7px; border-radius: 20px; margin-left: 6px; }
-  .tag.pending { background: var(--warn-bg); color: var(--warn); border: 1px solid var(--warn-border); }
-  .tag.preview { background: #eef2ff; color: #4338ca; border: 1px solid #c7d2fe; }
+  tr.expand-row td { background: #efece2; padding: 4px 10px 18px; }
+  tr.expand-row table { width: 100%; font-size: 12.5px; margin-top: 6px; }
+  tr.expand-row table th { font-family: var(--sans); font-weight: 600; color: var(--ink-2); text-align: left; padding: 4px 10px; font-size: 10px; text-transform: uppercase; letter-spacing: 0.3px; }
+  tr.expand-row table td { padding: 6px 10px; border-bottom: 1px dotted var(--rule-strong); font-size: 13px; }
+  tr.expand-row table td.num, tr.expand-row table th.num { text-align: right; }
 
-  footer.src { font-size: 11px; color: #b0b3ba; margin-top: 24px; text-align: center; }
-  #loading, #empty { text-align: center; padding: 60px 0; color: var(--text-2); font-size: 13px; }
+  select.picker {
+    font-family: var(--sans); font-size: 12.5px; background: var(--paper-2); border: 1px solid var(--rule-strong);
+    padding: 6px 10px; border-radius: 2px; cursor: pointer; min-width: 220px;
+  }
+  .preview-note { font-family: var(--sans); font-size: 11.5px; color: var(--ink-2); margin-top: 4px; font-style: italic; }
+  .preview-note.set { color: var(--green); font-style: normal; font-weight: 600; }
+
+  footer.src { font-family: var(--sans); font-size: 11px; color: var(--ink-2); margin-top: 40px; padding-top: 16px; border-top: 1px solid var(--rule); text-align: center; line-height: 1.9; }
+  #loading, #empty { font-family: var(--sans); text-align: center; padding: 80px 0; color: var(--ink-2); font-size: 14px; }
+
+  @media (max-width: 640px) {
+    .wrap { padding: 32px 18px 80px; }
+    table.ledger-table thead { display: none; }
+    table.ledger-table td:not(:first-child):not(.always-show) { display: none; }
+  }
 </style>
 </head>
 <body>
 
 <div id="gate">
   <div class="box">
-    <h1>LOPIA 月結毛利報告</h1>
+    <div class="rule"></div>
+    <h1>月結毛利報告</h1>
     <p>財務資料，需要密碼才能查看</p>
     <input id="pwInput" type="password" placeholder="請輸入密碼" autocomplete="current-password">
     <button id="pwSubmit">進入</button>
@@ -98,16 +139,14 @@
 
 <div id="app">
   <div class="wrap">
-    <header class="top">
-      <div>
-        <h1>月結毛利報告</h1>
-        <div class="sub">成本對回真正來源進口批次；每次打開現場重算，不存快照</div>
-      </div>
-      <div style="display:flex; gap:10px; align-items:center;">
+    <div class="letterhead">
+      <h1>月結毛利報告</h1>
+      <div class="actions">
         <select id="monthPicker"></select>
         <button class="link" id="refreshBtn">重新整理</button>
       </div>
-    </header>
+    </div>
+    <div class="subline">成本對回真正來源進口批次 · 每次打開現場重算，不存快照</div>
 
     <div id="loading">載入中…</div>
     <div id="empty" style="display:none;"></div>
@@ -120,12 +159,11 @@
 <script>
 const API_BASE = '';
 let currentData = null;
-let selectedGroupKey = null;
 
 function fmt(n) { return Math.round(n || 0).toLocaleString('en-US'); }
 function pct(r) { return ((r || 0) * 100).toFixed(1) + '%'; }
 function esc(s) { return String(s ?? '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;'); }
-// 一批可能對到好幾張出貨單的 S 單號（一批供多次出貨），卡片標題全部列出來
+// 一批可能對到好幾張出貨單的 S 單號（一批供多次出貨），列表標題全部列出來
 function sNoLabel(g) { return (g.sNos && g.sNos.length > 0) ? g.sNos.join('、') : g.invoice; }
 
 // ── 密碼閘門 ──────────────────────────────────────────────────────────────
@@ -175,7 +213,6 @@ async function loadMonth() {
   document.getElementById('loading').style.display = 'block';
   document.getElementById('empty').style.display = 'none';
   document.getElementById('content').style.display = 'none';
-  selectedGroupKey = null;
   try {
     const r = await fetch(API_BASE + `/api/monthly-margin?month=${month}`, { cache: 'no-store' });
     if (r.status === 401) { document.getElementById('gate').style.display = 'flex'; document.getElementById('app').style.display = 'none'; return; }
@@ -203,11 +240,10 @@ function render() {
   }
   document.getElementById('content').style.display = 'block';
   const c = document.getElementById('content');
-  c.innerHTML = renderBanners(d) + renderKpis(d) + renderGroups(d) + renderUnmatched(d) + '<div id="detailSlot"></div>';
+  c.innerHTML = renderBanners(d) + renderTotals(d) + renderGroupTable(d) + renderUnmatchedTable(d);
   document.getElementById('srcFooter').textContent = renderSourceFooter(d);
 
-  bindGroupCards();
-  if (d.groups.length > 0) selectGroup(0);
+  bindBatchRows();
   bindUnmatchedSelects();
 }
 
@@ -217,81 +253,94 @@ function renderBanners(d) {
     const missing = [];
     if (d.logistics.yuchu?.untaxedTotal == null) missing.push('優儲倉儲');
     if (d.logistics.sanyi?.untaxedSubtotal == null) missing.push('三義配送');
-    html += `<div class="banner warn">⚠️ ${missing.join('、')}對帳單尚未到帳，以下毛利為「營收＋進貨成本」初版，物流分攤尚未算入。</div>`;
+    html += `<div class="banner"><span class="tag">尚未到帳</span>${esc(missing.join('、'))}對帳單尚未到帳，以下毛利為「營收＋進貨成本」初版，物流分攤尚未算入。</div>`;
   }
   if (d.totals.unmatchedCount > 0) {
-    html += `<div class="banner warn">⚠️ 有 ${d.totals.unmatchedCount} 筆出貨單比對不到來源批次（現金流「出荷票」欄沒填），成本未算入下方總計，毛利會偏高。請往下手動指定批次，或去現金流表補上出荷票欄。</div>`;
+    html += `<div class="banner"><span class="tag">待處理</span>有 ${d.totals.unmatchedCount} 筆出貨單比對不到來源批次（現金流「出荷票」欄沒填），成本未算入下方總計，毛利會偏高。請往下手動指定批次，或去現金流表補上出荷票欄。</div>`;
   }
   if (d.totals.missingPriceCount > 0) {
-    html += `<div class="banner warn">⚠️ 有 ${d.totals.missingPriceCount} 筆出貨單裡有商品項讀不到單價，該項未計入營收，請去對帳單補單價。</div>`;
+    html += `<div class="banner"><span class="tag">待處理</span>有 ${d.totals.missingPriceCount} 筆出貨單裡有商品項讀不到單價，該項未計入營收，請去對帳單補單價。</div>`;
   }
   if (d.warnings && d.warnings.length > 0) {
-    html += `<div class="banner bad">系統警告（${d.warnings.length}）<ul>${d.warnings.slice(0,20).map(w => `<li>${esc(w)}</li>`).join('')}</ul></div>`;
+    html += `<div class="banner bad"><span class="tag">系統警告</span>共 ${d.warnings.length} 則<ul>${d.warnings.slice(0,20).map(w => `<li>${esc(w)}</li>`).join('')}</ul></div>`;
   }
   return html;
 }
 
-function renderKpis(d) {
+function renderTotals(d) {
   const t = d.totals;
-  const marginCls = t.margin < 0 ? 'margin-bad' : 'margin-good';
-  return `<div class="kpis">
-    <div class="kpi"><div class="l">出貨箱數</div><div class="v">${fmt(t.boxes)} 箱</div></div>
-    <div class="kpi"><div class="l">營收（未稅）</div><div class="v">${fmt(t.revenue)}</div></div>
-    <div class="kpi"><div class="l">進貨成本</div><div class="v">${fmt(t.importCost)}</div></div>
-    <div class="kpi"><div class="l">物流成本</div><div class="v">${fmt(t.logisticsCost)}</div></div>
-    <div class="kpi ${marginCls}"><div class="l">毛利 / 毛利率</div><div class="v">${t.margin >= 0 ? '+' : ''}${fmt(t.margin)} · ${pct(t.marginRate)}</div></div>
+  const heroCls = 'hero' + (t.margin < 0 ? ' loss' : '');
+  return `<div class="totals-row mono">
+    <div class="cell"><div class="l sans">出貨箱數</div><div class="v">${fmt(t.boxes)}</div></div>
+    <div class="cell"><div class="l sans">營收（未稅）</div><div class="v">${fmt(t.revenue)}</div></div>
+    <div class="cell"><div class="l sans">進貨成本</div><div class="v">${fmt(t.importCost)}</div></div>
+    <div class="cell"><div class="l sans">物流成本</div><div class="v">${fmt(t.logisticsCost)}</div></div>
+    <div class="cell ${heroCls}"><div class="l sans">毛利 · 毛利率</div><div class="v">${t.margin >= 0 ? '+' : ''}${fmt(t.margin)} · ${pct(t.marginRate)}</div></div>
   </div>`;
 }
 
-function renderGroups(d) {
+function renderGroupTable(d) {
   if (d.groups.length === 0) return '';
-  // 注意：卡片不用 onclick="..." 內嵌字串組 JS（Invoice 是現金流表自由填寫的文字，
-  // 混進單引號會讓內嵌 JS 字串斷開甚至被利用），一律用 data-idx + addEventListener。
-  const cards = d.groups.map((g, idx) => {
+  const rows = d.groups.map((g, idx) => {
     const loss = g.margin < 0;
-    return `<button class="gcard ${loss ? 'loss' : ''}" data-idx="${idx}">
-      <div class="p">${esc(sNoLabel(g))} · ${esc(g.product)}</div>
-      <div class="m ${loss ? 'loss' : ''}">${g.margin >= 0 ? '+' : ''}${fmt(g.margin)}</div>
-      <div class="r ${loss ? 'loss' : 'good'}">${pct(g.marginRate)}</div>
-    </button>`;
+    return `<tr class="batch-row" data-idx="${idx}">
+        <td><span class="caret">▸</span>${esc(sNoLabel(g))} · ${esc(g.product)}</td>
+        <td><span class="status good">已比對</span></td>
+        <td class="num mono">${fmt(g.shipments.reduce((s,x)=>s+x.boxes,0))}</td>
+        <td class="num mono">${fmt(g.revenue)}</td>
+        <td class="num mono">${fmt(g.importCost + g.logisticsCost)}</td>
+        <td class="num mono margin-figure ${loss ? 'bad' : 'good'}">${g.margin >= 0 ? '+' : ''}${fmt(g.margin)}（${pct(g.marginRate)}）</td>
+      </tr>
+      <tr class="expand-row" data-expand="${idx}" style="display:none;"><td colspan="6"></td></tr>`;
   }).join('');
-  return `<div class="section-label">依來源批次（點選展開明細，毛利低→高排序）</div><div class="groups">${cards}</div>`;
+  return `<h2 class="section">依來源批次<span class="hint"> · 點列展開明細，毛利低→高排序</span></h2>
+    <table class="ledger-table">
+      <thead><tr>
+        <th class="sans">批次 / 商品</th><th class="sans">狀態</th><th class="num sans">箱數</th>
+        <th class="num sans">營收</th><th class="num sans">成本</th><th class="num sans">毛利</th>
+      </tr></thead>
+      <tbody>${rows}</tbody>
+    </table>`;
 }
 
-function bindGroupCards() {
-  document.querySelectorAll('.gcard').forEach(el => {
-    el.addEventListener('click', () => selectGroup(Number(el.dataset.idx)));
+function bindBatchRows() {
+  document.querySelectorAll('tr.batch-row').forEach(row => {
+    row.addEventListener('click', () => toggleBatchRow(Number(row.dataset.idx)));
   });
 }
 
-function selectGroup(idx) {
-  selectedGroupKey = idx;
-  document.querySelectorAll('.gcard').forEach(el => el.classList.toggle('active', Number(el.dataset.idx) === idx));
+function toggleBatchRow(idx) {
+  const row = document.querySelector(`tr.batch-row[data-idx="${idx}"]`);
+  const expandRow = document.querySelector(`tr.expand-row[data-expand="${idx}"]`);
+  const isOpen = row.classList.contains('open');
+  // 手風琴：一次只展開一筆，先把其他都收起來
+  document.querySelectorAll('tr.batch-row.open').forEach(r => { r.classList.remove('open'); });
+  document.querySelectorAll('tr.expand-row').forEach(r => { r.style.display = 'none'; r.querySelector('td').innerHTML = ''; });
+  if (isOpen) return; // 本來就開著 → 收起來就好
+
+  row.classList.add('open');
   const g = currentData.groups[idx];
-  if (!g) return;
-  const rows = g.shipments.map(s => {
+  const subRows = g.shipments.map(s => {
     const loss = s.margin < 0;
-    return `<tr class="${loss ? 'loss' : ''}">
+    return `<tr>
       <td>${esc(s.date)}</td><td>${esc(s.store)}</td>
       <td class="num">${fmt(s.boxes)}</td>
       <td class="num">${fmt(s.revenue)}</td>
       <td class="num">${fmt(s.allocImportCost)}</td>
       <td class="num">${fmt(s.allocLogisticsCost)}</td>
-      <td class="num margin">${s.margin >= 0 ? '+' : ''}${fmt(s.margin)}</td>
+      <td class="num margin-figure ${loss ? 'bad' : 'good'}">${s.margin >= 0 ? '+' : ''}${fmt(s.margin)}</td>
       <td class="num">${pct(s.marginRate)}</td>
     </tr>`;
   }).join('');
-  document.getElementById('detailSlot').innerHTML = `<div class="detail">
-    <div class="head"><h3>${esc(sNoLabel(g))} · ${esc(g.product)}</h3>
-      <p>營收 ${fmt(g.revenue)} － 進貨 ${fmt(g.importCost)} － 物流 ${fmt(g.logisticsCost)} ＝ 毛利 ${g.margin >= 0 ? '+' : ''}${fmt(g.margin)}（${pct(g.marginRate)}）</p></div>
-    <table class="rows"><thead><tr>
-      <th>出貨日</th><th>門市</th><th class="num">箱數</th><th class="num">營收</th>
-      <th class="num">分攤進貨</th><th class="num">分攤物流</th><th class="num">毛利</th><th class="num">毛利率</th>
-    </tr></thead><tbody>${rows}</tbody></table>
-  </div>`;
+  expandRow.querySelector('td').innerHTML = `<table class="mono">
+    <thead><tr>
+      <th class="sans">出貨日</th><th class="sans">門市</th><th class="num sans">箱數</th><th class="num sans">營收</th>
+      <th class="num sans">分攤進貨</th><th class="num sans">分攤物流</th><th class="num sans">毛利</th><th class="num sans">毛利率</th>
+    </tr></thead><tbody>${subRows}</tbody></table>`;
+  expandRow.style.display = 'table-row';
 }
 
-function renderUnmatched(d) {
+function renderUnmatchedTable(d) {
   if (d.unmatched.length === 0) return '';
   // 用陣列 index 當選項值，不用 Invoice 字串——Invoice 是現金流表自由填寫的文字，
   // 同一個 Invoice 可能對到好幾筆不同批次（如一張發票拆多個商品各自的S單號），
@@ -299,29 +348,41 @@ function renderUnmatched(d) {
   const optHtml = ['<option value="">－ 選擇來源批次 －</option>']
     .concat(d.allBatches.map((b, bi) => `<option value="${bi}">${esc(b.invoice)} · ${esc(b.product)}（成本${fmt(b.totalCost)}／${fmt(b.totalBoxes)}箱）</option>`))
     .join('');
-  const items = d.unmatched.map((s, i) => `
-    <div class="unmatched-item" data-idx="${i}">
-      <div class="info"><b>${esc(s.sNo)}</b> · ${esc(s.date)} · ${esc(s.store)} · ${fmt(s.boxes)}箱 · 營收${fmt(s.revenue)}
-        <span class="tag pending">待指定</span><span class="preview-tag"></span></div>
-      <select data-idx="${i}">${optHtml}</select>
-    </div>`).join('');
-  return `<div class="section-label">待指定來源批次（現金流「出荷票」欄沒填，手動指定僅供本次預覽，不會寫回——記得之後去現金流表補上）</div>${items}`;
+  const rows = d.unmatched.map((s, i) => `<tr>
+      <td class="mono">${esc(s.sNo)}</td>
+      <td class="mono">${esc(s.date)}</td>
+      <td>${esc(s.store)}</td>
+      <td class="num mono">${fmt(s.boxes)}</td>
+      <td class="num mono">${fmt(s.revenue)}</td>
+      <td>
+        <select class="picker" data-idx="${i}">${optHtml}</select>
+        <div class="preview-note" data-preview="${i}">尚未指定，僅供本次預覽</div>
+      </td>
+    </tr>`).join('');
+  return `<h2 class="section">待指定來源批次<span class="hint"> · 現金流「出荷票」欄沒填，手動指定僅供本次預覽，不會寫回</span></h2>
+    <table class="ledger-table">
+      <thead><tr>
+        <th class="sans">S單號</th><th class="sans">日期</th><th class="sans">門市</th>
+        <th class="num sans">箱數</th><th class="num sans">營收</th><th class="sans">指定批次</th>
+      </tr></thead>
+      <tbody>${rows}</tbody>
+    </table>`;
 }
 
 function bindUnmatchedSelects() {
-  document.querySelectorAll('.unmatched-item select').forEach(sel => {
+  document.querySelectorAll('select.picker[data-idx]').forEach(sel => {
     sel.addEventListener('change', () => {
       const idx = Number(sel.dataset.idx);
       const s = currentData.unmatched[idx];
-      const item = sel.closest('.unmatched-item');
-      const tagSlot = item.querySelector('.preview-tag');
-      if (sel.value === '') { tagSlot.innerHTML = ''; return; }
+      const note = document.querySelector(`.preview-note[data-preview="${idx}"]`);
+      if (sel.value === '') { note.textContent = '尚未指定，僅供本次預覽'; note.classList.remove('set'); return; }
       const batch = currentData.allBatches[Number(sel.value)];
       if (!batch) return;
       const ratio = batch.totalBoxes > 0 ? s.boxes / batch.totalBoxes : 1;
       const allocCost = batch.totalCost * ratio;
       const margin = s.revenue - allocCost - s.allocLogisticsCost;
-      tagSlot.innerHTML = `<span class="tag preview">預覽：分攤成本 ${fmt(allocCost)}，毛利 ${margin >= 0 ? '+' : ''}${fmt(margin)}</span>`;
+      note.textContent = `預覽：分攤成本 ${fmt(allocCost)}，毛利 ${margin >= 0 ? '+' : ''}${fmt(margin)}`;
+      note.classList.add('set');
     });
   });
 }
