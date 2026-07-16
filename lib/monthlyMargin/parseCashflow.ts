@@ -113,21 +113,26 @@ interface ColumnMap {
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 function findTargetSheet(wb: XLSX.WorkBook): { name: string; grid: any[][] } | null {
-  // 「進口管理表」或「副本」字樣的分頁優先試；都沒有再退而掃全部分頁
+  // 「進口管理表」或「副本」字樣的分頁優先試；都沒有再退而掃全部分頁。
+  // Colin 的團隊會複製分頁交接（如「…副本」接手後變成「…副本」小晋接手KEY」），
+  // 同一份檔案裡可能同時存在好幾個都符合條件的分頁——不能只取「第一個符合的」，
+  // 那樣會抓到舊的、資料較少的那份。改成全部候選都試過，取「抓到批次數最多」
+  // 的那個（資料最完整＝最新，實測 2026-07 遇過這個情況）。
   const preferred = wb.SheetNames.filter(n => n.includes('進口管理表') || n.includes('副本'))
   const order = [...preferred, ...wb.SheetNames.filter(n => !preferred.includes(n))]
+  let best: { name: string; grid: any[][] } | null = null
+  let bestRowCount = -1
   for (const name of order) {
     const ws = wb.Sheets[name]
     if (!ws) continue
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const grid = XLSX.utils.sheet_to_json<any[]>(ws, { header: 1, defval: null })
     const headerText = grid.slice(0, 4).map(r => (r || []).map(cellStr).join('|')).join('|')
-    // 「副本」分頁欄位最完整（有出荷票／三義費用／優儲費用），跟舊版２月表區分開
-    if (headerText.includes('出荷票') && headerText.includes('売上高') && headerText.includes('仕入原価')) {
-      return { name, grid }
-    }
+    // 有出荷票／三義費用／優儲費用等欄位才算候選，跟舊版２月表（欄位較簡單）區分開
+    if (!headerText.includes('出荷票') || !headerText.includes('売上高') || !headerText.includes('仕入原価')) continue
+    if (grid.length > bestRowCount) { best = { name, grid }; bestRowCount = grid.length }
   }
-  return null
+  return best
 }
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
