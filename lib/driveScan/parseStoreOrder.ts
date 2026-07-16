@@ -161,8 +161,11 @@ function parseSheet(sheetName: string, ws: XLSX.WorkSheet): ParsedStoreTab | 'no
 
     // 1) 標籤列：出貨單號／配送日期／收貨店鋪
     //    值可能跟標籤同一格（手打「收貨店鋪：高雄夢時代店」）或在右邊一格
+    //    「出貨日期」「客戶名稱」是舊版（driveScan 上線前，約 2026 年 3 月以前）貨單用的標籤，
+    //    當時是純手工出貨單、跟現在的產生器版型完全不同（無「配送日期」「收貨店鋪」字樣）。
+    //    月結毛利要回頭看舊月份，所以額外認這兩個當同義詞；新版檔案不含這兩個字串，不影響現有解析。
     for (let c = 0; c < row.length; c++) {
-      const lm = row[c].match(/^(出貨單號|配送日期|收貨店鋪)[：:]?\s*(.*)$/)
+      const lm = row[c].match(/^(出貨單號|配送日期|出貨日期|收貨店鋪|客戶名稱)[：:]?\s*(.*)$/)
       if (!lm) continue
       const kind = lm[1]
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -177,9 +180,9 @@ function parseSheet(sheetName: string, ws: XLSX.WorkSheet): ParsedStoreTab | 'no
         const up = normalizeDigits(strVal).toUpperCase()
         if (/^S\d{8,12}$/.test(up)) tab.sNo = up
         else { tab.sNo = strVal; tab.warnings.push(`出貨單號格式特殊：「${strVal}」`) }
-      } else if (kind === '配送日期' && !tab.deliveryDate) {
+      } else if ((kind === '配送日期' || kind === '出貨日期') && !tab.deliveryDate) {
         tab.deliveryDate = toIsoDate(rawVal)
-      } else if (kind === '收貨店鋪' && !tab.storeRaw && strVal) {
+      } else if ((kind === '收貨店鋪' || kind === '客戶名稱') && !tab.storeRaw && strVal) {
         tab.storeRaw = strVal
         tab.store = resolveStoreName(strVal)
       }
