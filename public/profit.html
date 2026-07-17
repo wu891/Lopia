@@ -14,11 +14,14 @@
      因為 Cormorant/Lora 本身不含中文字glyph。 */
   :root {
     --bg: #f3f2f2; --surface: #eae9e9; --surface-2: #ffffff; --text: #201f1d;
-    --text-muted: rgba(32,31,29,.55); --text-faint: rgba(32,31,29,.42);
-    --divider: rgba(32,31,29,.16); --divider-strong: rgba(32,31,29,.28);
-    --gold: #b68235; --gold-deep: #7d5411; --gold-bg: rgba(182,130,53,.14);
-    --neutral: #605d5d; --neutral-bg: rgba(32,31,29,.06);
-    --loss: #a8432c; --loss: oklch(0.52 0.15 32); --loss-bg: rgba(168,67,44,.12);
+    --header-tint: #e2ddd3;
+    /* 2026-07-17 對比修正：muted/faint 加深到符合可讀對比度（見對讀改稿驗證），
+       表頭改用 --header-tint 跟資料列做出區隔 */
+    --text-muted: rgba(32,31,29,.72); --text-faint: rgba(32,31,29,.66);
+    --divider: rgba(32,31,29,.24); --divider-strong: rgba(32,31,29,.4);
+    --gold: #b68235; --gold-deep: #7d5411; --gold-bg: rgba(182,130,53,.16);
+    --neutral: #55524f; --neutral-bg: rgba(32,31,29,.08);
+    --loss: #a8432c; --loss: oklch(0.52 0.15 32); --loss-bg: rgba(168,67,44,.14);
     --font-heading: 'Cormorant Garamond', 'Noto Serif TC', Georgia, serif;
     --font-body: 'Lora', 'Noto Sans TC', -apple-system, sans-serif;
     --radius-card: 4px; --radius-lg: 7px;
@@ -91,7 +94,7 @@
   .hero .cell.main .big-row .pct { font-size: 26px; }
   .hero .mid { font-family: var(--font-heading); font-size: 34px; line-height: 1; font-feature-settings: 'tnum'; }
   .hero .note { font-size: 11.5px; color: var(--text-muted); }
-  .hero .note.dim { font-size: 11px; color: var(--text-faint); margin-top: 1px; }
+  .hero .note.dim { font-size: 10px; color: var(--text-faint); margin-top: 7px; }
   .hero .bar-track { height: 4px; border-radius: 2px; background: rgba(32,31,29,.12); overflow: hidden; margin: 2px 0; }
   .hero .bar-fill { height: 100%; background: var(--gold); }
 
@@ -119,11 +122,14 @@
   .seg button.active { background: var(--gold-deep); color: var(--surface-2); }
   .helper-text { font-size: 12px; color: var(--text-muted); margin-bottom: 14px; }
 
-  /* ── 提醒橫幅 ── */
-  .banner { font-size: 13px; padding: 10px 14px; border-left: 3px solid var(--gold); background: var(--gold-bg); border-radius: 2px; line-height: 1.7; margin-bottom: 8px; }
-  .banner.bad { border-left-color: var(--loss); background: var(--loss-bg); }
-  .banner .tag { font-weight: 700; color: var(--gold-deep); margin-right: 6px; }
-  .banner.bad .tag { color: var(--loss); }
+  /* ── 提醒（合併成單一待辦卡，不再疊 3 個滿版色塊搶主數字的注意力）── */
+  .todo-card { border: 1px solid var(--divider-strong); border-radius: var(--radius-card); background: var(--surface-2); padding: 12px 16px; margin-bottom: 8px; }
+  .todo-card .todo-title { font-size: 10.5px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; color: var(--text-muted); margin-bottom: 8px; }
+  .todo-row { display: flex; align-items: flex-start; gap: 8px; font-size: 12.5px; line-height: 1.7; }
+  .todo-row + .todo-row { margin-top: 6px; }
+  .todo-dot { width: 7px; height: 7px; border-radius: 50%; margin-top: 6px; flex-shrink: 0; background: var(--gold); }
+  .todo-dot.bad { background: var(--loss); }
+  .todo-row .tag { font-weight: 700; color: var(--text); margin-right: 2px; }
 
   h2.section {
     font-family: var(--font-body); font-size: 12px; font-weight: 700; letter-spacing: 1px; color: var(--text-muted);
@@ -137,10 +143,12 @@
   table.data-table thead th {
     text-align: left; font-size: 10.5px; font-weight: 700; color: var(--text-muted);
     padding: 10px 14px; border-bottom: 1px solid var(--divider-strong); text-transform: uppercase; letter-spacing: .04em;
-    background: var(--surface);
+    background: var(--header-tint);
   }
   table.data-table td.num, table.data-table th.num { text-align: right; }
   table.data-table tbody td { padding: 14px; border-bottom: 1px solid var(--divider); font-size: 14px; vertical-align: top; background: var(--surface); }
+  /* 斑馬紋讓一列列分得開，不用瞇眼數欄位 */
+  table.data-table tbody tr:nth-child(even) td { background: var(--surface-2); }
   table.data-table tr.batch-row { cursor: pointer; transition: background .15s; }
   table.data-table tr.batch-row:hover td { background: rgba(32,31,29,.04); }
   table.data-table tr.batch-row.muted td { color: var(--text-muted); }
@@ -153,12 +161,12 @@
   .mini-bar-fill { height: 100%; background: var(--gold); }
   .margin-rate { font-family: var(--font-heading); font-size: 19px; font-weight: 500; }
 
-  .pill { font-size: 10px; font-weight: 700; padding: 2px 8px; border-radius: 999px; white-space: nowrap; letter-spacing: .02em; }
-  .pill.outline-gold { border: 1px solid rgba(125,84,17,.4); color: var(--gold-deep); background: transparent; }
-  .pill.outline-neutral { border: 1px solid var(--divider-strong); color: var(--text-muted); background: transparent; }
-  .pill.fill-loss { background: var(--loss-bg); color: var(--loss); }
-  .pill.fill-gold { background: var(--gold-bg); color: var(--gold-deep); }
-  .pill.fill-neutral { background: var(--neutral-bg); color: var(--neutral); }
+  /* 狀態徽章：每列最多 1 個彩色 chip（正常/注意/問題）＋純文字備註，不再同時疊好幾種顏色 */
+  .chip { font-size: 10.5px; font-weight: 700; padding: 3px 9px; border-radius: 999px; white-space: nowrap; letter-spacing: .02em; }
+  .chip.ok { background: var(--neutral-bg); color: var(--neutral); }
+  .chip.warn { background: var(--gold-bg); color: var(--gold-deep); }
+  .chip.bad { background: var(--loss-bg); color: var(--loss); }
+  .plain-note { font-size: 10.5px; color: var(--text-faint); }
 
   tr.expand-row td { background: rgba(32,31,29,.03); padding: 6px 14px 20px; }
   tr.expand-row .detail-table { width: 100%; font-size: 12.5px; margin-top: 6px; border-collapse: collapse; }
@@ -388,18 +396,19 @@ function render() {
 }
 
 function renderBanners(d) {
-  let html = '';
+  const rows = [];
   if (d.fy.batchesWithMissingCost > 0) {
-    html += `<div class="banner bad"><span class="tag">成本未填</span>本財年有 ${d.fy.batchesWithMissingCost} 個出貨中批次的成本還沒填齊，這些批次毛利會偏高。點批次列展開就能填。</div>`;
+    rows.push(`<div class="todo-row"><span class="todo-dot bad"></span><span><span class="tag">成本未填</span>本財年有 ${d.fy.batchesWithMissingCost} 個出貨中批次的成本還沒填齊，這些批次毛利會偏高。點批次列展開就能填。</span></div>`);
   }
   if (d.fy.monthsWithMissingLogistics.length > 0) {
-    html += `<div class="banner"><span class="tag">物流未填</span>${d.fy.monthsWithMissingLogistics.map(esc).join('、')} 的三義／優儲月度總額還沒填，這幾個月的毛利尚未扣物流。到最下方「月度彙總」填。</div>`;
+    rows.push(`<div class="todo-row"><span class="todo-dot"></span><span><span class="tag">物流未填</span>${d.fy.monthsWithMissingLogistics.map(esc).join('、')} 的三義／優儲月度總額還沒填，這幾個月的毛利尚未扣物流。到最下方「月度彙總」填。</span></div>`);
   }
   const orphan = d.batches.find(b => b.batchId === '__unlinked__');
   if (orphan) {
-    html += `<div class="banner"><span class="tag">未連結</span>有 ${orphan.rows.length} 筆出貨紀錄沒填「關聯批次」（多為3–4月對帳時代的資料）。營收已計入月度彙總，但進貨成本無法分攤到這些筆，明細見批次表最後的「未連結批次」列。</div>`;
+    rows.push(`<div class="todo-row"><span class="todo-dot"></span><span><span class="tag">未連結</span>有 ${orphan.rows.length} 筆出貨紀錄沒填「關聯批次」（多為3–4月對帳時代的資料）。營收已計入月度彙總，但進貨成本無法分攤到這些筆，明細見批次表最後的「未連結批次」列。</span></div>`);
   }
-  return html;
+  if (!rows.length) return '';
+  return `<div class="todo-card"><div class="todo-title">待處理</div>${rows.join('')}</div>`;
 }
 
 function renderHero(d) {
@@ -442,22 +451,25 @@ function renderHero(d) {
 }
 
 function batchStatusHtml(b) {
+  // 每列最多 1 個彩色 chip（依優先序取最需要注意的狀態），缺單價筆數用純文字備註附在後面，
+  // 不再讓 3 種顏色的徽章疊在同一列搶注意力；出貨/庫存欄位本來就有數字+進度條，
+  // 成本已填齊時 chip 才顯示出貨狀態，資訊不會不見。
   if (b.batchId === '__unlinked__') {
-    let badges = '<span class="pill fill-gold">沒填關聯批次</span>';
-    if (b.missingPriceRows > 0) badges += `<span class="pill fill-neutral">缺單價${b.missingPriceRows}筆</span>`;
-    return badges;
+    let html = '<span class="chip warn">未連結</span>';
+    if (b.missingPriceRows > 0) html += `<span class="plain-note">缺單價${b.missingPriceRows}筆</span>`;
+    return html;
   }
-  let ship;
+  let chip;
   // 歷史批次的出貨紀錄可能不完整（Notion紀錄3月才開始），Notion「配送狀態」標了全數出貨就以人工認定為準
-  if (b.deliveryStatus === '全數出貨') ship = '<span class="pill outline-gold">已出完</span>';
-  else if (b.shippedBoxes <= 0 && b.futureBoxes <= 0) ship = '<span class="pill outline-neutral">未出貨</span>';
-  else if (b.shippedBoxes >= b.totalBoxes && b.totalBoxes > 0) ship = '<span class="pill outline-gold">已出完</span>';
-  else ship = '<span class="pill outline-neutral">出貨中</span>';
-  let badges = '';
-  if (b.costStatus === 'none') badges += '<span class="pill fill-loss">成本未填</span>';
-  else if (b.costStatus === 'partial') badges += '<span class="pill fill-gold">成本未齊</span>';
-  if (b.missingPriceRows > 0) badges += `<span class="pill fill-neutral">缺單價${b.missingPriceRows}筆</span>`;
-  return ship + badges;
+  const isDone = b.deliveryStatus === '全數出貨' || (b.shippedBoxes >= b.totalBoxes && b.totalBoxes > 0);
+  if (b.costStatus === 'none') chip = '<span class="chip bad">成本未填</span>';
+  else if (b.costStatus === 'partial') chip = '<span class="chip warn">成本未齊</span>';
+  else if (isDone) chip = '<span class="chip ok">已完成</span>';
+  else if (b.shippedBoxes <= 0 && b.futureBoxes <= 0) chip = '<span class="chip ok">未出貨</span>';
+  else chip = '<span class="chip warn">出貨中</span>';
+  let html = chip;
+  if (b.missingPriceRows > 0) html += `<span class="plain-note">缺單價${b.missingPriceRows}筆</span>`;
+  return html;
 }
 
 function renderBatchTable(d) {
