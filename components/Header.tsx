@@ -40,6 +40,15 @@ export const TOOLS = [
     ),
   },
   {
+    label: '批次即時毛利',
+    href: '/profit.html',
+    icon: (
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+        <path d="M3 3v18h18"/><path d="M18.7 8l-5.1 5.1-2.8-2.8L7 14"/>
+      </svg>
+    ),
+  },
+  {
     label: '進口流程',
     href: '/import-training.html',
     icon: (
