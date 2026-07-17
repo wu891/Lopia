@@ -197,6 +197,32 @@
 
   .pd-demo-banner { background: var(--color-profit-bg); color: var(--color-profit); border: 1px solid #bfe3cd; border-radius: var(--radius-md); padding: 10px 16px; font-size: 12.5px; font-weight: 600; margin-bottom: var(--space-4); text-align: center; }
 
+  /* ── 2a 強化：注意橫幅、KPI 趨勢、可排序欄頭、虧損標色 ── */
+  .pd-alert { display: flex; align-items: center; gap: 12px; border-radius: var(--radius-md); padding: 13px 16px; margin-bottom: var(--space-4); font-size: 14px; font-weight: 600; line-height: 1.5; }
+  .pd-alert .dot { width: 9px; height: 9px; border-radius: 50%; flex-shrink: 0; }
+  .pd-alert b { font-weight: 800; }
+  .pd-alert .go { margin-left: auto; white-space: nowrap; font-weight: 700; }
+  .pd-alert.bad { background: var(--color-loss-bg); border: 1px solid #eec3b8; color: #8f2410; }
+  .pd-alert.bad .dot { background: var(--color-loss); }
+  .pd-alert.ok { background: var(--color-profit-bg); border: 1px solid #bfe3cd; color: var(--color-profit); }
+  .pd-alert.ok .dot { background: var(--color-profit); }
+  .pd-kpi .kpi-top { display: flex; justify-content: space-between; align-items: flex-start; gap: 8px; }
+  .kpi-delta { font-size: 11px; font-weight: 700; white-space: nowrap; margin-top: 1px; }
+  .kpi-delta.up { color: var(--color-profit); }
+  .kpi-delta.down { color: var(--color-loss); }
+  .kpi-delta.muted { color: var(--color-neutral-600); }
+  .kpi-spark { width: 100%; height: 22px; margin-top: 10px; display: block; overflow: visible; }
+  .pd-kpi .accent .kpi-delta.up { color: #7ee0a4; }
+  .pd-kpi .accent .kpi-delta.down { color: #ffb4a2; }
+  .pd-kpi .accent .kpi-delta.muted { color: rgba(255,255,255,.55); }
+  table.pd-table thead th.sortable { cursor: pointer; user-select: none; }
+  table.pd-table thead th.sortable:hover { color: var(--color-text); }
+  .th-arrow { font-size: 9px; margin-left: 3px; color: var(--color-profit); }
+  tr.pd-row.is-loss td { background: var(--color-loss-bg); }
+  tr.pd-row.is-loss:hover td { background: #f7ddd4; }
+  tr.pd-row.is-loss td:first-child { box-shadow: inset 3px 0 0 var(--color-loss); }
+  tr.pd-row.is-below td:first-child { box-shadow: inset 3px 0 0 var(--color-neutral-400); }
+
   /* ── 手機：批次表轉成 1b 卡片流 ── */
   @media (max-width: 720px) {
     .pd-table-wrap { border: none; box-shadow: none; background: transparent; overflow: visible; }
@@ -269,6 +295,7 @@
 const API_BASE = '';
 // 只有在非正式網域（預覽／本機）才啟用示範資料，讓設計可被檢視；部署到 lopia-status 走真實 API。
 const DEMO = !/lopia-status/.test(location.hostname);
+const TARGET_RATE = 0.28; // 毛利率目標線（可自行調整）
 let currentData = null;
 let showInactive = false;
 let lossOnly = false;
@@ -302,6 +329,9 @@ const T = {
     kpiTotalCost: '總成本', kpiCostConverted: '仕入已換算',
     kpiTotalProfit: '總毛利', kpiIncludesShipping: '含出貨中批次',
     kpiAvgMargin: '平均毛利率', kpiLossCount: n => `虧損 ${n} 個批次`,
+    kpiVsPrev: 'vs 前月', kpiTarget: '目標',
+    alertLossN: n => `${n} 批虧損`, alertMissN: n => `${n} 批成本未填`,
+    alertPrefix: '本月', alertSuffix: '，建議優先處理。', alertAllGood: '本月出貨中批次皆為正毛利，暫無警戒項目。', alertGo: '查看 →',
     catAll: '全部', catShipping: '出貨中', catDone: '已完成', catMissing: '成本未填', catUnlinked: '未連結',
     sortLabel: '排序', sortMargin: '毛利率', sortProfit: '毛利額', sortBatch: '批次',
     lossOnlyLabel: '只看虧損批次',
@@ -353,6 +383,9 @@ const T = {
     kpiTotalCost: '総原価', kpiCostConverted: '仕入換算済み',
     kpiTotalProfit: '総粗利', kpiIncludesShipping: '出荷中ロット含む',
     kpiAvgMargin: '平均粗利率', kpiLossCount: n => `赤字 ${n}ロット`,
+    kpiVsPrev: 'vs 前月', kpiTarget: '目標',
+    alertLossN: n => `赤字 ${n}ロット`, alertMissN: n => `原価未入力 ${n}ロット`,
+    alertPrefix: '今月', alertSuffix: '。優先対応をおすすめします。', alertAllGood: '今月の出荷中ロットはすべて黒字。警戒項目はありません。', alertGo: '見る →',
     catAll: 'すべて', catShipping: '出荷中', catDone: '完了', catMissing: '原価未入力', catUnlinked: '未紐付け',
     sortLabel: '並び替え', sortMargin: '粗利率', sortProfit: '粗利額', sortBatch: 'ロット順',
     lossOnlyLabel: '赤字ロットのみ表示',
@@ -447,6 +480,28 @@ function formatClock(iso) {
   if (isNaN(d.getTime())) return '—';
   const p = n => String(n).padStart(2, '0');
   return p(d.getHours()) + ':' + p(d.getMinutes()) + ':' + p(d.getSeconds());
+}
+// 迷你趨勢線：把數列正規化到 viewBox 100x26
+function sparkPoints(vals) {
+  if (!vals || vals.length < 2) return '0,24 100,24';
+  const min = Math.min(...vals), max = Math.max(...vals), span = (max - min) || 1;
+  return vals.map((v, i) => {
+    const x = (i / (vals.length - 1)) * 100;
+    const y = 24 - ((v - min) / span) * 22;
+    return x.toFixed(1) + ',' + y.toFixed(1);
+  }).join(' ');
+}
+// 最新月 vs 前月 的變化標籤；goodUp=該指標往上是好事，isPt=以百分點顯示
+function deltaChip(cur, prev, goodUp, isPt) {
+  if (prev == null || !isFinite(prev)) return '';
+  let diff;
+  if (isPt) diff = (cur - prev) * 100;
+  else { if (prev === 0) return ''; diff = (cur - prev) / Math.abs(prev) * 100; }
+  const up = diff >= 0;
+  const flat = Math.abs(diff) < 0.05;
+  const cls = flat ? 'muted' : (up === goodUp ? 'up' : 'down');
+  const arrow = flat ? '' : (up ? '▲ ' : '▼ ');
+  return `<span class="kpi-delta ${cls}">${arrow}${Math.abs(diff).toFixed(1)}${isPt ? 'pt' : '%'} ${t('kpiVsPrev')}</span>`;
 }
 
 // ── 語言切換：只換介面文字，批次／商品名稱等 Notion 原始資料不動 ─────────────────
@@ -569,7 +624,7 @@ function render() {
   document.getElementById('content').style.display = 'block';
   document.getElementById('content').innerHTML =
     (DEMO ? '<div class="pd-demo-banner">示範資料（此為預覽版本，數字為虛構）· 部署到正式網址會顯示真實資料</div>' : '') +
-    renderBanners(d) + renderKPI(d) + renderCatTabsHtml(d) + renderControls() + renderVisualSection() + renderBatchTable(d) + renderMonthTable(d);
+    renderAlert(d) + renderBanners(d) + renderKPI(d) + renderCatTabsHtml(d) + renderControls() + renderVisualSection() + renderBatchTable(d) + renderMonthTable(d);
   document.getElementById('lastUpdatedClock').textContent = formatClock(d.lastUpdated);
   document.getElementById('srcFooter').textContent = t('footerSource', (d.lastUpdated || '').replace('T',' ').slice(0,16));
   bindCatTabs();
@@ -577,8 +632,25 @@ function render() {
   renderMonthTrend(currentData);
   bindControls();
   bindBatchRows();
+  bindSortHeaders();
   bindCostForms();
   bindLogisticsRows();
+}
+
+// 頁首「注意」橫幅：直接點名虧損與成本未填的批次，主管不用自己找
+function renderAlert(d) {
+  const losses = d.batches.filter(b => b.batchId !== '__unlinked__' && b.shippedBoxes > 0 && b.margin < 0).sort((a, b) => a.margin - b.margin);
+  const missing = d.batches.filter(b => b.batchId !== '__unlinked__' && b.costStatus === 'none');
+  if (!losses.length && !missing.length) {
+    return `<div class="pd-alert ok"><span class="dot"></span><span>${t('alertAllGood')}</span></div>`;
+  }
+  const parts = [];
+  if (losses.length) {
+    const names = losses.slice(0, 2).map(b => `${esc(b.productSummary || b.ivName)} ${fmtSigned(b.margin)}`).join('、');
+    parts.push(`<b>${t('alertLossN', losses.length)}</b>（${names}${losses.length > 2 ? ' …' : ''}）`);
+  }
+  if (missing.length) parts.push(`<b>${t('alertMissN', missing.length)}</b>`);
+  return `<div class="pd-alert bad"><span class="dot"></span><span>${t('alertPrefix')} ${parts.join('、')}${t('alertSuffix')}</span></div>`;
 }
 
 function renderBanners(d) {
@@ -597,7 +669,7 @@ function renderBanners(d) {
   return `<div class="pd-todo"><div class="pd-todo-title">${t('todoTitle')}</div>${rows.join('')}</div>`;
 }
 
-// KPI 一律統計全部批次（不受篩選影響）
+// KPI 一律統計全部批次（不受篩選影響）；附月度趨勢線與「最新月 vs 前月」變化
 function renderKPI(d) {
   const all = d.batches;
   const totalRevenue = all.reduce((s, b) => s + b.revenue, 0);
@@ -605,11 +677,21 @@ function renderKPI(d) {
   const totalProfit = totalRevenue - totalCost;
   const avgMargin = totalRevenue ? (totalProfit / totalRevenue * 100) : 0;
   const lossCount = all.filter(b => b.shippedBoxes > 0 && b.margin < 0).length;
+  const ms = (d.months || []).slice().sort((a, b) => a.month.localeCompare(b.month));
+  const rev = ms.map(m => m.revenue), cost = ms.map(m => (m.importCost || 0) + (m.logistics || 0));
+  const prof = ms.map(m => m.margin), rate = ms.map(m => m.marginRate);
+  const L = ms.length - 1, P = ms.length - 2, has2 = ms.length >= 2;
+  const card = (label, value, sub, series, sparkColor, valColor, delta, accent) =>
+    `<div${accent ? ' class="accent"' : ''}><div class="kpi-top"><div class="lbl">${label}</div>${delta || ''}</div>` +
+    `<div class="val num"${(!accent && valColor) ? ` style="color:${valColor}"` : ''}>${value}</div>` +
+    `<div class="sub">${sub}</div>` +
+    `<svg class="kpi-spark" viewBox="0 0 100 26" preserveAspectRatio="none"><polyline points="${sparkPoints(series)}" fill="none" stroke="${sparkColor}" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" vector-effect="non-scaling-stroke"></polyline></svg></div>`;
+  const green = 'var(--color-profit)', muted = 'var(--color-neutral-400)';
   return `<div class="pd-kpi">
-    <div><div class="lbl">${t('kpiTotalRevenue')}</div><div class="val num">NT$ ${fmt(totalRevenue)}</div><div class="sub">${t('kpiBatchesUnit', all.length)}</div></div>
-    <div><div class="lbl">${t('kpiTotalCost')}</div><div class="val num">NT$ ${fmt(totalCost)}</div><div class="sub">${t('kpiCostConverted')}</div></div>
-    <div class="accent"><div class="lbl">${t('kpiTotalProfit')}</div><div class="val num">NT$ ${fmt(totalProfit)}</div><div class="sub">${t('kpiIncludesShipping')}</div></div>
-    <div><div class="lbl">${t('kpiAvgMargin')}</div><div class="val num">${avgMargin.toFixed(1)}%</div><div class="sub">${t('kpiLossCount', lossCount)}</div></div>
+    ${card(t('kpiTotalRevenue'), 'NT$ ' + fmt(totalRevenue), t('kpiBatchesUnit', all.length), rev, muted, null, has2 ? deltaChip(rev[L], rev[P], true, false) : '', false)}
+    ${card(t('kpiTotalCost'), 'NT$ ' + fmt(totalCost), t('kpiCostConverted'), cost, muted, null, has2 ? deltaChip(cost[L], cost[P], false, false) : '', false)}
+    ${card(t('kpiTotalProfit'), 'NT$ ' + fmt(totalProfit), t('kpiIncludesShipping'), prof, '#7ee0a4', null, has2 ? deltaChip(prof[L], prof[P], true, false) : '', true)}
+    ${card(t('kpiAvgMargin'), avgMargin.toFixed(1) + '%', t('kpiLossCount', lossCount), rate, green, green, has2 ? deltaChip(rate[L], rate[P], true, true) : '', false)}
   </div>`;
 }
 
@@ -675,13 +757,15 @@ function renderMonthTrend(d) {
   const months = d.months.filter(m => m.revenue > 0).slice().sort((a, b) => a.month.localeCompare(b.month));
   if (!months.length) { el.innerHTML = `<div class="pd-empty-note">${t('noMonthData')}</div>`; return; }
   const maxAbs = Math.max(1, ...months.map(m => Math.abs(m.marginRate)));
-  el.innerHTML = months.map(m => {
+  const targetLeft = Math.min(100, TARGET_RATE / maxAbs * 100);
+  const bars = months.map(m => {
     const barPct = Math.max(2, Math.abs(m.marginRate) / maxAbs * 100);
     const color = marginColor(m.margin);
     return `<div class="pd-bar-row"><div class="pd-bar-name">${esc(m.month)}</div>
-      <div class="pd-bar-track"><div class="pd-bar-fill" style="width:${barPct}%;background:${color};"></div></div>
+      <div class="pd-bar-track"><div class="pd-bar-fill" style="width:${barPct}%;background:${color};"></div><div style="position:absolute;top:-3px;bottom:-3px;left:${targetLeft}%;width:0;border-left:2px dashed var(--color-profit);"></div></div>
       <div class="pd-bar-val num" style="color:${color};">${pct(m.marginRate)}</div></div>`;
   }).join('');
+  el.innerHTML = `<div style="font-size:11px;color:var(--color-profit);font-weight:600;margin-bottom:12px;">- - ${t('kpiTarget')} ${(TARGET_RATE * 100).toFixed(0)}%</div>` + bars;
 }
 function renderVisual(d) {
   const list = visibleBatches(d).filter(b => b.shippedBoxes > 0); // 尚未出貨的批次沒有意義的毛利可畫
@@ -732,14 +816,15 @@ function batchStatusHtml(b) {
 
 function renderBatchTable(d) {
   const list = visibleBatches(d);
+  const arr = m => sortMode === m ? ' <span class="th-arrow">▼</span>' : '';
   return `<div class="pd-table-wrap">
     <div class="pd-table-head"><h3>${t('tableTitle')}</h3><span class="meta">${t('tableMeta', list.length)}</span></div>
     <div class="pd-scroll"><table class="pd-table">
       <thead><tr>
-        <th style="width:26%">${t('colBatchProduct')}</th><th class="r" style="width:14%">${t('colShipStock')}</th>
+        <th class="sortable" data-sort="batch" style="width:26%">${t('colBatchProduct')}${arr('batch')}</th><th class="r" style="width:14%">${t('colShipStock')}</th>
         <th class="r" style="width:11%">${t('colShiire')}</th><th class="r" style="width:13%">${t('colCost')}</th>
-        <th class="r" style="width:13%">${t('colRevenue')}</th><th class="r" style="width:13%">${t('colMargin')}</th>
-        <th class="r" style="width:10%">${t('colMarginRate')}</th><th style="width:10%">${t('colStatus')}</th>
+        <th class="r" style="width:13%">${t('colRevenue')}</th><th class="r sortable" data-sort="profit" style="width:13%">${t('colMargin')}${arr('profit')}</th>
+        <th class="r sortable" data-sort="margin" style="width:10%">${t('colMarginRate')}${arr('margin')}</th><th style="width:10%">${t('colStatus')}</th>
       </tr></thead>
       <tbody id="batchBody">${list.map((b, idx) => {
         const noData = b.shippedBoxes <= 0;
@@ -748,7 +833,9 @@ function renderBatchTable(d) {
         const costInput = b.batchId === '__unlinked__' || b.shiireJpyRaw == null
           ? `<span class="num" style="color:var(--color-neutral-600);">${t('notFilled')}</span>`
           : `<span class="num">${fmt(b.shiireJpyRaw)}</span>`;
-        return `<tr class="pd-row" data-idx="${idx}">
+        const belowTarget = !noData && b.margin >= 0 && b.marginRate < TARGET_RATE;
+        const rowClass = (!noData && b.margin < 0) ? ' is-loss' : (belowTarget ? ' is-below' : '');
+        return `<tr class="pd-row${rowClass}" data-idx="${idx}">
             <td class="cell-name">
               <div class="pd-name"><span class="pd-caret">▸</span>${esc(b.productSummary || b.ivName)}</div>
               <div class="pd-id num">${esc(b.ivName)}</div>
@@ -757,8 +844,8 @@ function renderBatchTable(d) {
               <div class="num">${fmt(b.shippedBoxes)} / ${fmt(b.totalBoxes)}</div>
               <div class="pd-bucket-track" style="max-width:90px;margin-top:5px;margin-left:auto;"><div class="pd-bucket-fill" style="width:${barPct}%;background:var(--color-text);"></div></div>
             </td>
-            <td class="r" data-label="${t('colShiire')}">${costInput}</td>
-            <td class="r num" data-label="${t('colCost')}">${fmt(b.allocImport + b.allocLogistics)}</td>
+            <td class="r" data-label="${t('colShiire')}" style="color:var(--color-neutral-600);">${costInput}</td>
+            <td class="r num" data-label="${t('colCost')}" style="color:var(--color-neutral-600);">${fmt(b.allocImport + b.allocLogistics)}</td>
             <td class="r num" data-label="${t('colRevenue')}">${fmt(b.revenue)}</td>
             <td class="r num" data-label="${t('colMargin')}" style="font-weight:800;color:${color};">${noData ? '－' : fmtSigned(b.margin)}</td>
             <td class="r num" data-label="${t('colMarginRate')}" style="font-weight:700;color:${color};">${noData ? '－' : pct(b.marginRate)}</td>
@@ -777,6 +864,13 @@ function bindBatchRows() {
       if (e.target.closest('.pd-costform')) return;
       toggleBatchRow(Number(row.dataset.idx));
     });
+  });
+}
+
+// 點欄位標題排序（毛利／毛利率／品項）
+function bindSortHeaders() {
+  document.querySelectorAll('table.pd-table thead th.sortable').forEach(th => {
+    th.addEventListener('click', () => { sortMode = th.dataset.sort; render(); });
   });
 }
 
