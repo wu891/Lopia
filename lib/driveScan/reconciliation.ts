@@ -63,6 +63,7 @@ export interface ReconSyncResult {
   updates: number
   archives: number
   skippedNoPrice: string[]   // 「門市「商品名」」描述，供 LINE 訊息用
+  manualDupes: number        // 同單號、沒有「來源檔案」的手動上傳列數（跟自動列並存＝金額會重複計算，要提醒清理）
   verify: { ok: boolean; detail: string }
 }
 
@@ -130,7 +131,7 @@ export async function syncReconciliation(params: {
 }): Promise<ReconSyncResult> {
   const db = process.env.NOTION_EXCEL_ROWS_DB?.trim()
   if (!db) {
-    return { ok: true, creates: 0, updates: 0, archives: 0, skippedNoPrice: [], verify: { ok: true, detail: '未設定 NOTION_EXCEL_ROWS_DB，略過對帳同步' } }
+    return { ok: true, creates: 0, updates: 0, archives: 0, skippedNoPrice: [], manualDupes: 0, verify: { ok: true, detail: '未設定 NOTION_EXCEL_ROWS_DB，略過對帳同步' } }
   }
   const { fileId, shipmentNo, date, tabs, dry } = params
 
@@ -154,6 +155,26 @@ export async function syncReconciliation(params: {
   // ── 2) 這個檔案「目前已經寫過」的對帳列 ──────────────────────────────────────
   const existing = await fetchReconRowsByFile(db, fileId)
   const existingByKey = new Map(existing.map(r => [reconKey(r), r]))
+
+  // ── 2.5) 手動上傳的舊列偵測：同一個單號、但沒有「來源檔案」標記的列 ─────────────
+  // 這種列是人在對帳系統網頁上傳出的（自動同步之前的時代、或人工補登），跟本檔的自動列
+  // 「並存」時，同一趟出貨會被算兩次錢（2026-06 就這樣整月翻倍過）。這裡只數不刪
+  // （可能是人工刻意補登的，如缺單價的補列），交給 LINE 訊息提醒 Colin 去確認清理。
+  let manualDupes = 0
+  if (desiredMap.size > 0) {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const dupRes: any = await notionRetry(() => notion.databases.query({
+      database_id: db,
+      filter: {
+        and: [
+          { property: 'ShipmentNo', rich_text: { equals: shipmentNo } },
+          { property: '來源檔案', rich_text: { is_empty: true } },
+        ],
+      },
+      page_size: 100,
+    }))
+    manualDupes = dupRes.results.length
+  }
 
   let creates = 0, updates = 0, archives = 0
   const touched = desiredMap.size > 0 || existingByKey.size > 0
@@ -186,7 +207,7 @@ export async function syncReconciliation(params: {
   }
 
   if (!touched) {
-    return { ok: true, creates: 0, updates: 0, archives: 0, skippedNoPrice, verify: { ok: true, detail: '無對帳資料（沒有可用單價的商品列）' } }
+    return { ok: true, creates: 0, updates: 0, archives: 0, skippedNoPrice, manualDupes, verify: { ok: true, detail: '無對帳資料（沒有可用單價的商品列）' } }
   }
 
   // ── 5) 讀回核對：逐筆用「頁面 ID」直接讀回剛寫的那幾筆 ──────────────────────
@@ -209,5 +230,5 @@ export async function syncReconciliation(params: {
       : { ok: false, detail: `❌ 有 ${bad.length} 筆讀回不一致：${bad.join('、')}` }
   }
 
-  return { ok: verify.ok, creates, updates, archives, skippedNoPrice, verify }
+  return { ok: verify.ok, creates, updates, archives, skippedNoPrice, manualDupes, verify }
 }

@@ -516,6 +516,14 @@ async function processOneFile(
       : { ok: false, detail: `❌ 有 ${bad.length} 筆讀回不一致：${bad.join('、')}` }
   }
 
+  // ── 零入帳偵測：檔案裡明明有商品，卻一箱都沒記到任何批次 ─────────────────────────
+  // 會發生在：商品全屬「已收完(全數出貨)」或「出貨日早於入倉日」的批次（規則①故意不扣）。
+  // 以前這種情況默默標「已處理」，出貨紀錄就永遠少這張單（2026-06 有 6 張單這樣漏掉，
+  // 營收憑空消失 100 多萬）。現在改成大聲提醒，請人工決定要不要補記。
+  // 待到貨(hasWaiting)不算：那是之後會自動補扣的正常狀態。
+  const hasProducts = wb.activeTabs.some(t => !!t.store && t.rows.length > 0)
+  const bookedNothing = hasProducts && lines.length === 0 && !alloc.hasWaiting
+
   // ── 組 LINE 訊息 ─────────────────────────────────────────────────────────────
   const changed = creates.length + updates.length + archives.length + manualOverwritten > 0
   // 本檔動到的每個批次，用「所有動作做完後的記憶體帳」算真實剩餘（含超領＝負數）
@@ -540,7 +548,10 @@ async function processOneFile(
     if (b?.deliveryStatus === '全數出貨') notes.push(`⚠️「${b.ivName}」批次標「全數出貨」卻仍有出貨單 → 配送狀態可能要更新`)
   }
   const message = [
-    `✅ 自動扣帳｜${sNo}（配送 ${date}）`, `檔案：${f.name}`, ...batchLines,
+    bookedNothing
+      ? `🚨 自動扣帳０箱入帳｜${sNo}（配送 ${date}）\n這張單的商品全屬「已關帳」或「日期不符」的批次，出貨紀錄完全沒有這張單（營收會漏算）→ 請確認是否手動補記`
+      : `✅ 自動扣帳｜${sNo}（配送 ${date}）`,
+    `檔案：${f.name}`, ...batchLines,
     ...(updates.length ? [`鏡像更新 ${updates.length} 筆：${updates.map(u => `${u.store} ${u.from}→${u.boxes}`).join('、')}`] : []),
     ...(archives.length ? [`已移除 ${archives.length} 筆（檔案裡已刪）：${archives.map(a => a.store).join('、')}`] : []),
     ...(conflicts.length ? [`⚠️ 提醒：`, ...conflicts.map(c => `・${c}`)] : []),
@@ -554,6 +565,7 @@ async function processOneFile(
     `📊 對帳同步｜${sNo}（配送 ${date}）`, `檔案：${f.name}`,
     `新增 ${recon.creates} 筆／更新 ${recon.updates} 筆／移除 ${recon.archives} 筆`,
     ...(recon.skippedNoPrice.length ? [`⚠️ 缺單價未同步：${recon.skippedNoPrice.join('、')}`] : []),
+    ...(recon.manualDupes > 0 ? [`🚨 同單號另有 ${recon.manualDupes} 筆「手動上傳」的對帳列（無來源檔案標記）→ 跟自動列並存會重複計算金額，請到對帳系統確認清理`] : []),
     `核對：${recon.verify.detail}${recon.verify.ok ? ' ✅' : ''}`,
   ].join('\n')
 
@@ -562,10 +574,10 @@ async function processOneFile(
     // 對帳同步跟庫存扣帳綁在一起：對帳讀回不一致，整張單也標「異常」，下一輪重試，兩邊一起修好
     const status = (!verify.ok || !recon.verify.ok) ? '異常' : (alloc.hasWaiting ? '略過' : '已處理')
     const notifyHash = `ok:${sha1(message)}`
-    if (changed || !verify.ok || conflicts.length > 0) {
+    if (changed || !verify.ok || conflicts.length > 0 || bookedNothing) {
       if (entry?.notifiedHash !== notifyHash) await maybePush(message)
     }
-    if (reconChanged || !recon.verify.ok || recon.skippedNoPrice.length > 0) {
+    if (reconChanged || !recon.verify.ok || recon.skippedNoPrice.length > 0 || recon.manualDupes > 0) {
       await maybePushRecon(reconMessage)
     }
     await upsertLedgerEntry(entry, {
