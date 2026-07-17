@@ -6,17 +6,17 @@
 <title>LOPIA 批次即時毛利</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Archivo:wght@400;500;600;700;800;900&family=Noto+Sans+TC:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Archivo:wght@400;500;600;700;800;900&family=Noto+Sans+TC:wght@400;500;600;700;800&family=Noto+Sans+JP:wght@400;500;600;700;800&display=swap" rel="stylesheet">
 <style>
   /* ── 2026-07-17 改版：套用「Modernist」設計交付包（Archivo 字體、紅 #ec3013 單一強調色、
      2px 黑框無圓角）。資料來源、密碼驗證、成本／物流寫入邏輯完全不動，只換版面與視覺。
-     中文沿用 Noto Sans TC 當後備字體（Archivo 本身不含中文字glyph）。 */
+     中文沿用 Noto Sans TC、日文沿用 Noto Sans JP 當後備字體（Archivo 本身不含中日文字glyph）。 */
   :root {
     --color-accent: #ec3013; --color-accent-200: #ffe0d9; --color-accent-600: #dd2b0f; --color-accent-700: #ae1800;
     --color-text: #201e1d; --color-bg: #f3f2f2; --color-neutral-200: #eae7e7; --color-neutral-400: #b3aeae;
     --color-neutral-600: #7d7979; --color-neutral-700: #605d5d;
     --space-2: 8px; --space-3: 12px; --space-4: 16px; --space-6: 24px; --space-8: 32px;
-    --font: 'Archivo', 'Noto Sans TC', -apple-system, sans-serif;
+    --font: 'Archivo', 'Noto Sans TC', 'Noto Sans JP', -apple-system, sans-serif;
   }
   * { margin: 0; padding: 0; box-sizing: border-box; }
   body { font-family: var(--font); color: var(--color-text); background: var(--color-bg); line-height: 1.5; -webkit-font-smoothing: antialiased; }
@@ -49,7 +49,7 @@
   .pd-head { display: flex; align-items: flex-end; justify-content: space-between; gap: var(--space-4); flex-wrap: wrap; border-bottom: 2px solid var(--color-text); padding-bottom: var(--space-3); }
   .pd-eyebrow { font-size: 11px; letter-spacing: 0.18em; text-transform: uppercase; color: var(--color-neutral-600); margin-bottom: 6px; font-weight: 700; }
   .pd-h1 { font-size: 34px; line-height: 1; font-weight: 800; }
-  .pd-headctrl { display: flex; align-items: center; gap: var(--space-3); }
+  .pd-headctrl { display: flex; align-items: center; gap: var(--space-3); flex-wrap: wrap; }
   .pd-chk { display: inline-flex; align-items: center; gap: 8px; font-size: 13px; cursor: pointer; user-select: none; }
   .pd-chk input { width: 16px; height: 16px; accent-color: var(--color-accent); cursor: pointer; }
   button.btn { font-family: var(--font); font-size: 13px; font-weight: 700; padding: 9px 15px; border: 2px solid var(--color-text); background: var(--color-text); color: var(--color-bg); cursor: pointer; display: inline-flex; align-items: center; gap: 6px; }
@@ -59,6 +59,12 @@
   button.btn svg { transition: transform .5s ease; }
   button.btn.spinning svg { transform: rotate(360deg); }
   .pd-helper { font-size: 12px; color: var(--color-neutral-600); margin-top: var(--space-2); }
+
+  /* ── 語言切換 ── */
+  .pd-langseg { display: flex; border: 2px solid var(--color-text); }
+  .pd-langseg button { font-family: var(--font); font-size: 12px; font-weight: 700; padding: 8px 13px; border: none; border-left: 2px solid var(--color-text); background: var(--color-bg); color: var(--color-text); cursor: pointer; }
+  .pd-langseg button:first-child { border-left: none; }
+  .pd-langseg button.active { background: var(--color-text); color: var(--color-bg); }
 
   /* ── 待處理提醒卡 ── */
   .pd-todo { border: 2px solid var(--color-text); margin-top: var(--space-4); padding: var(--space-3) var(--space-4); }
@@ -193,20 +199,24 @@
   <div class="pd-wrap">
     <div class="pd-head">
       <div>
-        <div class="pd-eyebrow">LOPIA TAIWAN · 財務</div>
-        <div class="pd-h1">批次即時毛利</div>
+        <div class="pd-eyebrow" id="pageEyebrow"></div>
+        <div class="pd-h1" id="pageH1"></div>
       </div>
       <div class="pd-headctrl">
-        <label class="pd-chk"><input type="checkbox" id="showInactiveChk"> 顯示未出貨批次</label>
+        <div class="pd-langseg" id="langSeg">
+          <button data-lang="zh">中文</button>
+          <button data-lang="ja">日本語</button>
+        </div>
+        <label class="pd-chk"><input type="checkbox" id="showInactiveChk"> <span id="showUnshippedLabel"></span></label>
         <button class="btn btn-secondary" id="refreshBtn">
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12a9 9 0 0 1 15-6.7L21 8"/><path d="M21 3v5h-5"/><path d="M21 12a9 9 0 0 1-15 6.7L3 16"/><path d="M3 21v-5h5"/></svg>
-          重新整理
+          <span id="refreshLabel"></span>
         </button>
       </div>
     </div>
-    <div class="pd-helper">出貨隨自動扣庫存即時更新 · 成本在這頁直接填，填了立刻反映毛利 · 仕入填日圓（÷4.5換算），關稅通關／雜費點列展開填 · 最後更新 <span id="lastUpdatedClock">—</span></div>
+    <div class="pd-helper"><span id="helperText"></span><span id="lastUpdatedClock">—</span></div>
 
-    <div id="loading">載入中…</div>
+    <div id="loading"></div>
     <div id="empty" style="display:none;"></div>
     <div id="content" style="display:none;"></div>
 
@@ -221,6 +231,107 @@ let showInactive = false;
 let lossOnly = false;
 let sortMode = 'margin'; // 'margin' | 'profit' | 'batch'
 let currentCat = 'all'; // 'all' | 'shipping' | 'done' | 'missing' | 'unlinked'
+let lang = localStorage.getItem('profitLang') === 'ja' ? 'ja' : 'zh';
+
+// ── 中日文字串（UI 介面用；批次/商品名稱等 Notion 原始資料不翻譯） ──────────────
+const T = {
+  zh: {
+    pageH1: '批次即時毛利', eyebrow: 'LOPIA TAIWAN · 財務',
+    showUnshipped: '顯示未出貨批次', refresh: '重新整理',
+    helperText: '出貨隨自動扣庫存即時更新 · 成本在這頁直接填，填了立刻反映毛利 · 仕入填日圓（÷4.5換算），關稅通關／雜費點列展開填 · 最後更新 ',
+    loading: '載入中…', loadFailed: '載入失敗：',
+    todoTitle: '待處理',
+    tagMissingCost: '成本未填',
+    missingCostMsg: n => `本財年有 ${n} 個出貨中批次的成本還沒填齊，這些批次毛利會偏高。點批次列展開就能填。`,
+    tagMissingLogistics: '物流未填',
+    missingLogisticsMsg: months => `${months} 的三義／優儲月度總額還沒填，這幾個月的毛利尚未扣物流。到最下方「月度彙總」填。`,
+    tagUnlinked: '未連結',
+    unlinkedMsg: n => `有 ${n} 筆出貨紀錄沒填「關聯批次」（多為3–4月對帳時代的資料）。營收已計入月度彙總，但進貨成本無法分攤到這些筆，明細見批次表最後的「未連結批次」列。`,
+    kpiTotalRevenue: '總營收', kpiBatchesUnit: n => `${n} 個批次`,
+    kpiTotalCost: '總成本', kpiCostConverted: '仕入已換算',
+    kpiTotalProfit: '總毛利', kpiIncludesShipping: '含出貨中批次',
+    kpiAvgMargin: '平均毛利率', kpiLossCount: n => `虧損 ${n} 個批次`,
+    catAll: '全部', catShipping: '出貨中', catDone: '已完成', catMissing: '成本未填', catUnlinked: '未連結',
+    sortLabel: '排序', sortMargin: '毛利率', sortProfit: '毛利額', sortBatch: '批次',
+    lossOnlyLabel: '只看虧損批次',
+    panelBatchMargin: '各批次毛利', panelMarginBucket: '毛利率區間', panelMonthTrend: '月度毛利率趨勢',
+    noBatchInCat: '此分類目前沒有批次', noMonthData: '尚無月度資料',
+    bucket40: '40% 以上', bucket20_40: '20 – 40%', bucket0_20: '0 – 20%', bucketLoss: '虧損（0% 以下）',
+    countUnit: n => `${n} 批`,
+    tableTitle: '批次明細', tableMeta: n => `顯示 ${n} 筆 · 點列展開可編輯成本`,
+    colBatchProduct: '批次 / 商品', colShipStock: '出貨/庫存', colShiire: '仕入 ¥',
+    colCost: '成本 NT$', colRevenue: '營收 NT$', colMargin: '毛利 NT$', colMarginRate: '毛利率', colStatus: '狀態',
+    notFilled: '未填', tagDone: '已完成', tagCostPartial: '成本未齊', tagNotShipped: '未出貨',
+    missingPriceNote: n => `缺單價${n}筆`,
+    tableNote: '＊仕入／關稅通關／雜費都在點列展開後才能填，避免手滑誤觸表格直接改掉金額。',
+    detailShipDate: '出貨日', detailStore: '門市', detailBoxes: '箱數', detailRevenue: '營收',
+    detailAllocImport: '分攤進貨', detailAllocLogistics: '分攤物流', detailMargin: '毛利',
+    detailNoRecords: '尚無出貨紀錄', planned: '（計畫）',
+    costNoteTpl: (shiire, tariff, misc, total, shipped, totalBoxes) =>
+      `整批成本：仕入 ${shiire}（台幣換算）＋ 關稅通關 ${tariff} ＋ 雜費 ${misc} ＝ ${total}，攤到已出 ${shipped}／${totalBoxes} 箱`,
+    fieldShiire: '仕入原價（日圓）', fieldTariff: '關稅＋通關費（台幣）', fieldMisc: '雜費（台幣）',
+    saveBtn: '儲存', savingMsg: '存檔中…', savedOkMsg: '已存進 Notion，重新計算中…', saveFailedPrefix: '存檔失敗：',
+    errShiireLabel: '仕入原價', errTariffLabel: '關稅通關費', errMiscLabel: '雜費',
+    errMustBeNonNeg: label => `${label} 必須是 0 以上的數字`,
+    monthSectionTitle: '月度彙總',
+    monthSectionHint: '· 三義／優儲收到月結帳單就填在這裡（台幣），按當月出貨箱數自動攤到各批',
+    colMonth: '月份', colBoxes: '箱數', colRevenue2: '營收', colImportAlloc: '進貨分攤', colLogistics: '物流（三義／優儲）',
+    logisticsUnfilledNote: '未填，該月毛利尚未扣物流', addOtherMonth: '補其他月份：', saveShort: '存',
+    pleaseSelectMonth: '請先選月份', errSanyiLabel: '三義費用', errYuchuLabel: '優儲費用',
+    savedNote: '已存，重新計算中…',
+    footerSource: dateStr => `資料來源：Notion（進口批次成本欄＋出貨紀錄＋月度物流費用） ｜ 最後更新 ${dateStr}`,
+  },
+  ja: {
+    pageH1: 'バッチ別リアルタイム粗利', eyebrow: 'LOPIA TAIWAN・財務',
+    showUnshipped: '未出荷ロットを表示', refresh: '更新',
+    helperText: '出荷は自動在庫引当でリアルタイム更新・原価はこのページで直接入力すると粗利に即反映・仕入は円で入力（÷4.5で台湾ドル換算）、関税通関費／雑費は行を展開して入力・最終更新 ',
+    loading: '読み込み中…', loadFailed: '読み込み失敗：',
+    todoTitle: '要対応',
+    tagMissingCost: '原価未入力',
+    missingCostMsg: n => `今期は出荷中のロットのうち${n}件で原価が未入力です。粗利が実際より高く表示されます。行を展開すると入力できます。`,
+    tagMissingLogistics: '物流費未入力',
+    missingLogisticsMsg: months => `${months}分の三義／優儲（物流業者）の月額がまだ未入力です。該当月の粗利はまだ物流費が引かれていません。ページ下部の「月次集計」で入力してください。`,
+    tagUnlinked: '未紐付け',
+    unlinkedMsg: n => `出荷記録${n}件が「関連ロット」未設定です（主に3〜4月の照合期のデータ）。売上は月次集計に反映済みですが、仕入原価をこれらの記録に按分できません。詳細はロット表最後の「未紐付けロット」行をご覧ください。`,
+    kpiTotalRevenue: '総売上', kpiBatchesUnit: n => `${n}ロット`,
+    kpiTotalCost: '総原価', kpiCostConverted: '仕入換算済み',
+    kpiTotalProfit: '総粗利', kpiIncludesShipping: '出荷中ロット含む',
+    kpiAvgMargin: '平均粗利率', kpiLossCount: n => `赤字 ${n}ロット`,
+    catAll: 'すべて', catShipping: '出荷中', catDone: '完了', catMissing: '原価未入力', catUnlinked: '未紐付け',
+    sortLabel: '並び替え', sortMargin: '粗利率', sortProfit: '粗利額', sortBatch: 'ロット順',
+    lossOnlyLabel: '赤字ロットのみ表示',
+    panelBatchMargin: 'ロット別粗利', panelMarginBucket: '粗利率レンジ', panelMonthTrend: '月次粗利率推移',
+    noBatchInCat: 'このカテゴリーには該当ロットがありません', noMonthData: '月次データがまだありません',
+    bucket40: '40%以上', bucket20_40: '20〜40%', bucket0_20: '0〜20%', bucketLoss: '赤字（0%未満）',
+    countUnit: n => `${n}ロット`,
+    tableTitle: 'ロット明細', tableMeta: n => `${n}件表示・行を展開すると原価を編集できます`,
+    colBatchProduct: 'ロット／商品', colShipStock: '出荷／在庫', colShiire: '仕入 ¥',
+    colCost: '原価 NT$', colRevenue: '売上 NT$', colMargin: '粗利 NT$', colMarginRate: '粗利率', colStatus: '状態',
+    notFilled: '未入力', tagDone: '完了', tagCostPartial: '原価一部未入力', tagNotShipped: '未出荷',
+    missingPriceNote: n => `単価未設定${n}件`,
+    tableNote: '＊仕入／関税通関費／雑費は行を展開してから入力できます。誤操作で金額が変わらないようにするためです。',
+    detailShipDate: '出荷日', detailStore: '店舗', detailBoxes: '箱数', detailRevenue: '売上',
+    detailAllocImport: '仕入按分', detailAllocLogistics: '物流按分', detailMargin: '粗利',
+    detailNoRecords: '出荷記録がありません', planned: '（予定）',
+    costNoteTpl: (shiire, tariff, misc, total, shipped, totalBoxes) =>
+      `ロット全体の原価：仕入 ${shiire}（台湾ドル換算）＋ 関税通関費 ${tariff} ＋ 雑費 ${misc} ＝ ${total}、出荷済み ${shipped}／${totalBoxes} 箱に按分`,
+    fieldShiire: '仕入原価（円）', fieldTariff: '関税＋通関費（台湾ドル）', fieldMisc: '雑費（台湾ドル）',
+    saveBtn: '保存', savingMsg: '保存中…', savedOkMsg: 'Notionに保存しました。再計算中…', saveFailedPrefix: '保存失敗：',
+    errShiireLabel: '仕入原価', errTariffLabel: '関税通関費', errMiscLabel: '雑費',
+    errMustBeNonNeg: label => `${label}は0以上の数値で入力してください`,
+    monthSectionTitle: '月次集計',
+    monthSectionHint: '・三義／優儲（物流業者）の月次請求が届いたらここに入力（台湾ドル）。当月の出荷箱数で各ロットに自動按分されます',
+    colMonth: '年月', colBoxes: '箱数', colRevenue2: '売上', colImportAlloc: '仕入按分', colLogistics: '物流（三義／優儲）',
+    logisticsUnfilledNote: '未入力。当月の粗利はまだ物流費が引かれていません', addOtherMonth: '他の月を追加：', saveShort: '保存',
+    pleaseSelectMonth: '先に年月を選択してください', errSanyiLabel: '三義費用', errYuchuLabel: '優儲費用',
+    savedNote: '保存しました。再計算中…',
+    footerSource: dateStr => `データソース：Notion（輸入ロット原価欄＋出荷記録＋月次物流費用）｜最終更新 ${dateStr}`,
+  },
+};
+function t(key, ...args) {
+  const v = (T[lang] || T.zh)[key];
+  return typeof v === 'function' ? v(...args) : v;
+}
 
 function fmt(n) { return Math.round(n || 0).toLocaleString('en-US'); }
 function fmtSigned(n) { const r = Math.round(n || 0); return (r < 0 ? '-' : '') + 'NT$' + Math.abs(r).toLocaleString('en-US'); }
@@ -232,7 +343,7 @@ function parseInputNum(el, label) {
   const v = el.value.trim().replace(/,/g, '');
   if (v === '') return null;
   const n = Number(v);
-  if (!isFinite(n) || n < 0) throw new Error(label + ' 必須是 0 以上的數字');
+  if (!isFinite(n) || n < 0) throw new Error(t('errMustBeNonNeg', label));
   return n;
 }
 function formatClock(iso) {
@@ -241,6 +352,27 @@ function formatClock(iso) {
   if (isNaN(d.getTime())) return '—';
   const p = n => String(n).padStart(2, '0');
   return p(d.getHours()) + ':' + p(d.getMinutes()) + ':' + p(d.getSeconds());
+}
+
+// ── 語言切換：只換介面文字，批次／商品名稱等 Notion 原始資料不動 ─────────────────
+function applyStaticTranslations() {
+  document.getElementById('pageEyebrow').textContent = t('eyebrow');
+  document.getElementById('pageH1').textContent = t('pageH1');
+  document.getElementById('showUnshippedLabel').textContent = t('showUnshipped');
+  document.getElementById('refreshLabel').textContent = t('refresh');
+  document.getElementById('helperText').textContent = t('helperText');
+  document.getElementById('loading').textContent = t('loading');
+  document.querySelectorAll('#langSeg button').forEach(b => b.classList.toggle('active', b.dataset.lang === lang));
+}
+function bindLangSeg() {
+  document.querySelectorAll('#langSeg button').forEach(btn => {
+    btn.addEventListener('click', () => {
+      lang = btn.dataset.lang;
+      localStorage.setItem('profitLang', lang);
+      applyStaticTranslations();
+      if (currentData) render();
+    });
+  });
 }
 
 // ── 密碼閘門 ──────────────────────────────────────────────────────────────
@@ -284,7 +416,7 @@ async function loadData() {
   } catch (e) {
     document.getElementById('loading').style.display = 'none';
     document.getElementById('empty').style.display = 'block';
-    document.getElementById('empty').textContent = '載入失敗：' + e.message;
+    document.getElementById('empty').textContent = t('loadFailed') + e.message;
   } finally {
     refreshBtn.disabled = false;
     setTimeout(() => refreshBtn.classList.remove('spinning'), 500);
@@ -300,13 +432,15 @@ function catKey(b) {
   if (isDone) return 'done';
   return 'shipping';
 }
-const CATS = [
-  { key: 'all', label: '全部' },
-  { key: 'shipping', label: '出貨中' },
-  { key: 'done', label: '已完成' },
-  { key: 'missing', label: '成本未填' },
-  { key: 'unlinked', label: '未連結' },
-];
+function catsList() {
+  return [
+    { key: 'all', label: t('catAll') },
+    { key: 'shipping', label: t('catShipping') },
+    { key: 'done', label: t('catDone') },
+    { key: 'missing', label: t('catMissing') },
+    { key: 'unlinked', label: t('catUnlinked') },
+  ];
+}
 // baseVisible：目前「顯示未出貨批次」設定下，會出現在分頁計數/篩選裡的批次全集
 function baseVisible(d) {
   return d.batches.filter(b => showInactive || b.shippedBoxes > 0 || b.futureBoxes > 0);
@@ -327,14 +461,14 @@ function visibleBatches(d) {
 
 // ── 渲染 ──────────────────────────────────────────────────────────────────
 function render() {
+  applyStaticTranslations();
   document.getElementById('loading').style.display = 'none';
   const d = currentData;
   document.getElementById('content').style.display = 'block';
   document.getElementById('content').innerHTML =
     renderBanners(d) + renderKPI(d) + renderCatTabsHtml(d) + renderControls() + renderVisualSection() + renderBatchTable(d) + renderMonthTable(d);
   document.getElementById('lastUpdatedClock').textContent = formatClock(d.lastUpdated);
-  document.getElementById('srcFooter').textContent =
-    '資料來源：Notion（進口批次成本欄＋出貨紀錄＋月度物流費用） ｜ 最後更新 ' + (d.lastUpdated || '').replace('T',' ').slice(0,16);
+  document.getElementById('srcFooter').textContent = t('footerSource', (d.lastUpdated || '').replace('T',' ').slice(0,16));
   bindCatTabs();
   renderVisual(currentData);
   renderMonthTrend(currentData);
@@ -347,17 +481,17 @@ function render() {
 function renderBanners(d) {
   const rows = [];
   if (d.fy.batchesWithMissingCost > 0) {
-    rows.push(`<div class="pd-todo-row"><span class="pd-todo-dot bad"></span><span><span class="pd-todo-tag">成本未填</span>本財年有 ${d.fy.batchesWithMissingCost} 個出貨中批次的成本還沒填齊，這些批次毛利會偏高。點批次列展開就能填。</span></div>`);
+    rows.push(`<div class="pd-todo-row"><span class="pd-todo-dot bad"></span><span><span class="pd-todo-tag">${t('tagMissingCost')}</span>${esc(t('missingCostMsg', d.fy.batchesWithMissingCost))}</span></div>`);
   }
   if (d.fy.monthsWithMissingLogistics.length > 0) {
-    rows.push(`<div class="pd-todo-row"><span class="pd-todo-dot"></span><span><span class="pd-todo-tag">物流未填</span>${d.fy.monthsWithMissingLogistics.map(esc).join('、')} 的三義／優儲月度總額還沒填，這幾個月的毛利尚未扣物流。到最下方「月度彙總」填。</span></div>`);
+    rows.push(`<div class="pd-todo-row"><span class="pd-todo-dot"></span><span><span class="pd-todo-tag">${t('tagMissingLogistics')}</span>${esc(t('missingLogisticsMsg', d.fy.monthsWithMissingLogistics.map(esc).join('、')))}</span></div>`);
   }
   const orphan = d.batches.find(b => b.batchId === '__unlinked__');
   if (orphan) {
-    rows.push(`<div class="pd-todo-row"><span class="pd-todo-dot"></span><span><span class="pd-todo-tag">未連結</span>有 ${orphan.rows.length} 筆出貨紀錄沒填「關聯批次」（多為3–4月對帳時代的資料）。營收已計入月度彙總，但進貨成本無法分攤到這些筆，明細見批次表最後的「未連結批次」列。</span></div>`);
+    rows.push(`<div class="pd-todo-row"><span class="pd-todo-dot"></span><span><span class="pd-todo-tag">${t('tagUnlinked')}</span>${esc(t('unlinkedMsg', orphan.rows.length))}</span></div>`);
   }
   if (!rows.length) return '';
-  return `<div class="pd-todo"><div class="pd-todo-title">待處理</div>${rows.join('')}</div>`;
+  return `<div class="pd-todo"><div class="pd-todo-title">${t('todoTitle')}</div>${rows.join('')}</div>`;
 }
 
 // KPI 一律統計全部批次（不受篩選影響）
@@ -369,10 +503,10 @@ function renderKPI(d) {
   const avgMargin = totalRevenue ? (totalProfit / totalRevenue * 100) : 0;
   const lossCount = all.filter(b => b.shippedBoxes > 0 && b.margin < 0).length;
   return `<div class="pd-kpi">
-    <div><div class="lbl">總營收</div><div class="val num">NT$ ${fmt(totalRevenue)}</div><div class="sub">${all.length} 個批次</div></div>
-    <div><div class="lbl">總成本</div><div class="val num">NT$ ${fmt(totalCost)}</div><div class="sub">仕入已換算</div></div>
-    <div class="accent"><div class="lbl">總毛利</div><div class="val num">NT$ ${fmt(totalProfit)}</div><div class="sub">含出貨中批次</div></div>
-    <div><div class="lbl">平均毛利率</div><div class="val num">${avgMargin.toFixed(1)}%</div><div class="sub">虧損 ${lossCount} 個批次</div></div>
+    <div><div class="lbl">${t('kpiTotalRevenue')}</div><div class="val num">NT$ ${fmt(totalRevenue)}</div><div class="sub">${t('kpiBatchesUnit', all.length)}</div></div>
+    <div><div class="lbl">${t('kpiTotalCost')}</div><div class="val num">NT$ ${fmt(totalCost)}</div><div class="sub">${t('kpiCostConverted')}</div></div>
+    <div class="accent"><div class="lbl">${t('kpiTotalProfit')}</div><div class="val num">NT$ ${fmt(totalProfit)}</div><div class="sub">${t('kpiIncludesShipping')}</div></div>
+    <div><div class="lbl">${t('kpiAvgMargin')}</div><div class="val num">${avgMargin.toFixed(1)}%</div><div class="sub">${t('kpiLossCount', lossCount)}</div></div>
   </div>`;
 }
 
@@ -382,7 +516,7 @@ function catCount(d, key) {
   return base.filter(b => catKey(b) === key).length;
 }
 function renderCatTabsHtml(d) {
-  return `<div class="pd-tabs" id="catTabs">${CATS.map(c =>
+  return `<div class="pd-tabs" id="catTabs">${catsList().map(c =>
     `<button class="pd-tab${c.key===currentCat?' active':''}" data-cat="${c.key}">${c.label}<span class="cnt">${catCount(d, c.key)}</span></button>`
   ).join('')}</div>`;
 }
@@ -394,13 +528,13 @@ function bindCatTabs() {
 
 function renderControls() {
   return `<div class="pd-controls">
-    <span class="lbl">排序</span>
+    <span class="lbl">${t('sortLabel')}</span>
     <div class="pd-seg" id="sortSeg">
-      <button data-sort="margin" class="${sortMode==='margin'?'active':''}">毛利率</button>
-      <button data-sort="profit" class="${sortMode==='profit'?'active':''}">毛利額</button>
-      <button data-sort="batch" class="${sortMode==='batch'?'active':''}">批次</button>
+      <button data-sort="margin" class="${sortMode==='margin'?'active':''}">${t('sortMargin')}</button>
+      <button data-sort="profit" class="${sortMode==='profit'?'active':''}">${t('sortProfit')}</button>
+      <button data-sort="batch" class="${sortMode==='batch'?'active':''}">${t('sortBatch')}</button>
     </div>
-    <label class="pd-chk"><input type="checkbox" id="lossOnlyChk" ${lossOnly?'checked':''}> 只看虧損批次</label>
+    <label class="pd-chk"><input type="checkbox" id="lossOnlyChk" ${lossOnly?'checked':''}> ${t('lossOnlyLabel')}</label>
   </div>`;
 }
 function bindControls() {
@@ -418,16 +552,16 @@ function bindControls() {
 function renderVisualSection() {
   return `<div class="pd-visual">
     <div class="pd-panel">
-      <div class="pd-panel-head"><h3>各批次毛利</h3><span class="unit">NT$</span></div>
+      <div class="pd-panel-head"><h3>${t('panelBatchMargin')}</h3><span class="unit">NT$</span></div>
       <div id="chartBars"></div>
     </div>
     <div class="pd-panel">
-      <h3 style="margin-bottom:var(--space-3);">毛利率區間</h3>
+      <h3 style="margin-bottom:var(--space-3);">${t('panelMarginBucket')}</h3>
       <div id="bucketChart"></div>
     </div>
   </div>
   <div class="pd-panel" style="margin-top:var(--space-4);">
-    <div class="pd-panel-head"><h3>月度毛利率趨勢</h3><span class="unit">%</span></div>
+    <div class="pd-panel-head"><h3>${t('panelMonthTrend')}</h3><span class="unit">%</span></div>
     <div id="monthTrend"></div>
   </div>`;
 }
@@ -436,7 +570,7 @@ function renderMonthTrend(d) {
   const el = document.getElementById('monthTrend');
   if (!el) return;
   const months = d.months.filter(m => m.revenue > 0).slice().sort((a, b) => a.month.localeCompare(b.month));
-  if (!months.length) { el.innerHTML = '<div class="pd-empty-note">尚無月度資料</div>'; return; }
+  if (!months.length) { el.innerHTML = `<div class="pd-empty-note">${t('noMonthData')}</div>`; return; }
   const maxAbs = Math.max(1, ...months.map(m => Math.abs(m.marginRate)));
   el.innerHTML = months.map(m => {
     const barPct = Math.max(2, Math.abs(m.marginRate) / maxAbs * 100);
@@ -458,58 +592,58 @@ function renderVisual(d) {
     return `<div class="pd-bar-row"><div class="pd-bar-name" title="${name}">${name}</div>
       <div class="pd-bar-track"><div class="pd-bar-fill" style="width:${barPct}%;background:${color};"></div></div>
       <div class="pd-bar-val num" style="color:${color};">${fmtSigned(b.margin)}</div></div>`;
-  }).join('') : '<div class="pd-empty-note">此分類目前沒有批次</div>';
+  }).join('') : `<div class="pd-empty-note">${t('noBatchInCat')}</div>`;
 
   const buckets = [
-    { label: '40% 以上', test: m => m >= 0.40, color: 'var(--color-text)' },
-    { label: '20 – 40%', test: m => m >= 0.20 && m < 0.40, color: 'var(--color-neutral-600)' },
-    { label: '0 – 20%', test: m => m >= 0 && m < 0.20, color: 'var(--color-neutral-400)' },
-    { label: '虧損（0% 以下）', test: m => m < 0, color: 'var(--color-accent)' },
+    { label: t('bucket40'), test: m => m >= 0.40, color: 'var(--color-text)' },
+    { label: t('bucket20_40'), test: m => m >= 0.20 && m < 0.40, color: 'var(--color-neutral-600)' },
+    { label: t('bucket0_20'), test: m => m >= 0 && m < 0.20, color: 'var(--color-neutral-400)' },
+    { label: t('bucketLoss'), test: m => m < 0, color: 'var(--color-accent)' },
   ];
   const denom = Math.max(1, list.length);
   document.getElementById('bucketChart').innerHTML = buckets.map(b => {
     const count = list.filter(x => b.test(x.marginRate)).length;
     const p = count / denom * 100;
-    return `<div class="pd-bucket"><div class="pd-bucket-head"><span>${b.label}</span><span class="cnt num">${count} 批</span></div>
+    return `<div class="pd-bucket"><div class="pd-bucket-head"><span>${b.label}</span><span class="cnt num">${t('countUnit', count)}</span></div>
       <div class="pd-bucket-track"><div class="pd-bucket-fill" style="width:${p}%;background:${b.color};"></div></div></div>`;
   }).join('');
 }
 
 function batchStatusHtml(b) {
   if (b.batchId === '__unlinked__') {
-    let html = '<span class="tag tag-accent">未連結</span>';
-    if (b.missingPriceRows > 0) html += `<span class="plain-note">缺單價${b.missingPriceRows}筆</span>`;
+    let html = `<span class="tag tag-accent">${t('tagUnlinked')}</span>`;
+    if (b.missingPriceRows > 0) html += `<span class="plain-note">${t('missingPriceNote', b.missingPriceRows)}</span>`;
     return html;
   }
   let chip;
   const isDone = b.deliveryStatus === '全數出貨' || (b.shippedBoxes >= b.totalBoxes && b.totalBoxes > 0);
-  if (b.costStatus === 'none') chip = '<span class="tag tag-accent">成本未填</span>';
-  else if (b.costStatus === 'partial') chip = '<span class="tag tag-accent">成本未齊</span>';
-  else if (isDone) chip = '<span class="tag tag-neutral">已完成</span>';
-  else if (b.shippedBoxes <= 0 && b.futureBoxes <= 0) chip = '<span class="tag tag-neutral">未出貨</span>';
-  else chip = '<span class="tag tag-accent">出貨中</span>';
+  if (b.costStatus === 'none') chip = `<span class="tag tag-accent">${t('tagMissingCost')}</span>`;
+  else if (b.costStatus === 'partial') chip = `<span class="tag tag-accent">${t('tagCostPartial')}</span>`;
+  else if (isDone) chip = `<span class="tag tag-neutral">${t('tagDone')}</span>`;
+  else if (b.shippedBoxes <= 0 && b.futureBoxes <= 0) chip = `<span class="tag tag-neutral">${t('tagNotShipped')}</span>`;
+  else chip = `<span class="tag tag-accent">${t('catShipping')}</span>`;
   let html = chip;
-  if (b.missingPriceRows > 0) html += `<span class="plain-note">缺單價${b.missingPriceRows}筆</span>`;
+  if (b.missingPriceRows > 0) html += `<span class="plain-note">${t('missingPriceNote', b.missingPriceRows)}</span>`;
   return html;
 }
 
 function renderBatchTable(d) {
   const list = visibleBatches(d);
   return `<div class="pd-table-wrap">
-    <div class="pd-table-head"><h3>批次明細</h3><span class="meta">顯示 ${list.length} 筆 · 仕入可直接編輯</span></div>
+    <div class="pd-table-head"><h3>${t('tableTitle')}</h3><span class="meta">${t('tableMeta', list.length)}</span></div>
     <div class="pd-scroll"><table class="pd-table">
       <thead><tr>
-        <th style="width:26%">批次 / 商品</th><th class="r" style="width:14%">出貨/庫存</th>
-        <th class="r" style="width:11%">仕入 ¥</th><th class="r" style="width:13%">成本 NT$</th>
-        <th class="r" style="width:13%">營收 NT$</th><th class="r" style="width:13%">毛利 NT$</th>
-        <th class="r" style="width:10%">毛利率</th><th style="width:10%">狀態</th>
+        <th style="width:26%">${t('colBatchProduct')}</th><th class="r" style="width:14%">${t('colShipStock')}</th>
+        <th class="r" style="width:11%">${t('colShiire')}</th><th class="r" style="width:13%">${t('colCost')}</th>
+        <th class="r" style="width:13%">${t('colRevenue')}</th><th class="r" style="width:13%">${t('colMargin')}</th>
+        <th class="r" style="width:10%">${t('colMarginRate')}</th><th style="width:10%">${t('colStatus')}</th>
       </tr></thead>
       <tbody id="batchBody">${list.map((b, idx) => {
         const noData = b.shippedBoxes <= 0;
         const color = noData ? 'var(--color-neutral-600)' : marginColor(b.margin);
         const barPct = b.totalBoxes > 0 ? Math.min(100, Math.round(b.shippedBoxes / b.totalBoxes * 100)) : 0;
         const costInput = b.batchId === '__unlinked__' || b.shiireJpyRaw == null
-          ? '<span class="num" style="color:var(--color-neutral-600);">未填</span>'
+          ? `<span class="num" style="color:var(--color-neutral-600);">${t('notFilled')}</span>`
           : `<span class="num">${fmt(b.shiireJpyRaw)}</span>`;
         return `<tr class="pd-row" data-idx="${idx}">
             <td>
@@ -530,7 +664,7 @@ function renderBatchTable(d) {
           <tr class="pd-detail" data-expand="${idx}" style="display:none;"><td colspan="8"></td></tr>`;
       }).join('')}</tbody>
     </table></div>
-    <div class="pd-note">＊仕入／關稅通關／雜費都在點列展開後才能填，避免手滑誤觸表格直接改掉金額。</div>
+    <div class="pd-note">${t('tableNote')}</div>
   </div>`;
 }
 
@@ -556,7 +690,7 @@ function toggleBatchRow(idx) {
   const subRows = b.rows.map(s => {
     const cls = s.isFuture ? ' class="future"' : '';
     return `<tr${cls}>
-      <td>${esc(s.date || '—')}${s.isFuture ? '（計畫）' : ''}</td><td>${esc(s.store || '—')}</td>
+      <td>${esc(s.date || '—')}${s.isFuture ? t('planned') : ''}</td><td>${esc(s.store || '—')}</td>
       <td class="r num">${fmt(s.boxes)}</td>
       <td class="r num">${s.isFuture ? '—' : fmt(s.revenue)}</td>
       <td class="r num">${s.isFuture ? '—' : fmt(s.allocImport)}</td>
@@ -564,22 +698,22 @@ function toggleBatchRow(idx) {
       <td class="r num">${s.isFuture ? '—' : fmtSigned(s.margin)}</td>
     </tr>`;
   }).join('');
-  const costNote = `整批成本：仕入 ${fmt(b.shiireTwd)}（台幣換算）＋ 關稅通關 ${fmt(b.tariffCustoms)} ＋ 雜費 ${fmt(b.miscFee)} ＝ ${fmt(b.costFull)}，攤到已出 ${fmt(b.shippedBoxes)}／${fmt(b.totalBoxes)} 箱`;
+  const costNote = t('costNoteTpl', fmt(b.shiireTwd), fmt(b.tariffCustoms), fmt(b.miscFee), fmt(b.costFull), fmt(b.shippedBoxes), fmt(b.totalBoxes));
   const costFormHtml = b.batchId === '__unlinked__' ? '' : `
     <div class="pd-costform" data-batch-idx="${idx}">
-      <div class="pd-field"><label>仕入原價（日圓）</label><input class="cf-shiire" inputmode="decimal" placeholder="未填"></div>
-      <div class="pd-field"><label>關稅＋通關費（台幣）</label><input class="cf-tariff" inputmode="decimal" placeholder="未填"></div>
-      <div class="pd-field"><label>雜費（台幣）</label><input class="cf-misc" inputmode="decimal" placeholder="未填"></div>
-      <button class="pd-savebtn cf-save">儲存</button>
+      <div class="pd-field"><label>${t('fieldShiire')}</label><input class="cf-shiire" inputmode="decimal" placeholder="${t('notFilled')}"></div>
+      <div class="pd-field"><label>${t('fieldTariff')}</label><input class="cf-tariff" inputmode="decimal" placeholder="${t('notFilled')}"></div>
+      <div class="pd-field"><label>${t('fieldMisc')}</label><input class="cf-misc" inputmode="decimal" placeholder="${t('notFilled')}"></div>
+      <button class="pd-savebtn cf-save">${t('saveBtn')}</button>
       <div class="pd-toast cf-note">${esc(costNote)}</div>
     </div>`;
   expandRow.querySelector('td').innerHTML = `
     <div class="pd-detail-box">
     <table class="detail-table">
       <thead><tr>
-        <th>出貨日</th><th>門市</th><th class="r">箱數</th><th class="r">營收</th>
-        <th class="r">分攤進貨</th><th class="r">分攤物流</th><th class="r">毛利</th>
-      </tr></thead><tbody>${subRows || '<tr><td colspan="7">尚無出貨紀錄</td></tr>'}</tbody>
+        <th>${t('detailShipDate')}</th><th>${t('detailStore')}</th><th class="r">${t('detailBoxes')}</th><th class="r">${t('detailRevenue')}</th>
+        <th class="r">${t('detailAllocImport')}</th><th class="r">${t('detailAllocLogistics')}</th><th class="r">${t('detailMargin')}</th>
+      </tr></thead><tbody>${subRows || `<tr><td colspan="7">${t('detailNoRecords')}</td></tr>`}</tbody>
     </table>${costFormHtml}
     </div>`;
   expandRow.style.display = 'table-row';
@@ -606,23 +740,23 @@ function bindCostForms() {
       try {
         payload = {
           batchId: b.batchId,
-          shiireJpy: parseInputNum(shiireEl, '仕入原價'),
-          tariffCustoms: parseInputNum(tariffEl, '關稅通關費'),
-          miscFee: parseInputNum(miscEl, '雜費'),
+          shiireJpy: parseInputNum(shiireEl, t('errShiireLabel')),
+          tariffCustoms: parseInputNum(tariffEl, t('errTariffLabel')),
+          miscFee: parseInputNum(miscEl, t('errMiscLabel')),
         };
       } catch (err) { note.textContent = err.message; note.className = 'pd-toast cf-note bad'; return; }
       btn.disabled = true;
-      note.textContent = '存檔中…'; note.className = 'pd-toast cf-note';
+      note.textContent = t('savingMsg'); note.className = 'pd-toast cf-note';
       try {
         const r = await fetch(API_BASE + '/api/profit/costs', {
           method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload),
         });
         const resp = await r.json();
         if (!r.ok) throw new Error(resp.error || '存檔失敗');
-        note.textContent = '已存進 Notion，重新計算中…'; note.className = 'pd-toast cf-note ok';
+        note.textContent = t('savedOkMsg'); note.className = 'pd-toast cf-note ok';
         await loadData();
       } catch (err) {
-        note.textContent = '存檔失敗：' + err.message; note.className = 'pd-toast cf-note bad';
+        note.textContent = t('saveFailedPrefix') + err.message; note.className = 'pd-toast cf-note bad';
         btn.disabled = false;
       }
     });
@@ -653,30 +787,30 @@ function renderMonthTable(d) {
         <div class="month-flex">
           <input class="month-input lg-sanyi" data-m="${i}" inputmode="decimal" placeholder="三義" value="${esc(sanyiVal)}">
           <input class="month-input lg-yuchu" data-m="${i}" inputmode="decimal" placeholder="優儲" value="${esc(yuchuVal)}">
-          <button class="month-save lg-save" data-m="${i}" data-month="${esc(m.month)}">存</button>
+          <button class="month-save lg-save" data-m="${i}" data-month="${esc(m.month)}">${t('saveShort')}</button>
         </div>
-        <div class="row-note lg-note" data-m="${i}">${m.logisticsFilled ? '' : '未填，該月毛利尚未扣物流'}</div>
+        <div class="row-note lg-note" data-m="${i}">${m.logisticsFilled ? '' : t('logisticsUnfilledNote')}</div>
       </td>
       <td class="r num" style="color:${color};font-weight:800;">${m.revenue > 0 ? fmtSigned(m.margin) : '－'}</td>
       <td class="r num" style="color:${color};font-weight:700;">${m.revenue > 0 ? pct(m.marginRate) : '－'}</td>
     </tr>`;
   }).join('');
 
-  return `<h2 class="pd-section">月度彙總<span class="hint"> · 三義／優儲收到月結帳單就填在這裡（台幣），按當月出貨箱數自動攤到各批</span></h2>
+  return `<h2 class="pd-section">${t('monthSectionTitle')}<span class="hint"> ${t('monthSectionHint')}</span></h2>
     <div class="pd-table-wrap"><div class="pd-scroll"><table class="pd-table">
       <thead><tr>
-        <th>月份</th><th class="r">箱數</th><th class="r">營收</th><th class="r">進貨分攤</th>
-        <th>物流（三義／優儲）</th><th class="r">毛利 NT$</th><th class="r">毛利率</th>
+        <th>${t('colMonth')}</th><th class="r">${t('colBoxes')}</th><th class="r">${t('colRevenue2')}</th><th class="r">${t('colImportAlloc')}</th>
+        <th>${t('colLogistics')}</th><th class="r">${t('colMargin')}</th><th class="r">${t('colMarginRate')}</th>
       </tr></thead>
       <tbody>${rows}</tbody>
       <tbody><tr>
         <td colspan="7" style="padding:12px 14px;">
           <div class="month-flex" style="font-size:12px;color:var(--color-neutral-600);">
-            補其他月份：
+            ${t('addOtherMonth')}
             <input class="month-input month" id="newLogMonth" type="month">
             <input class="month-input" id="newLogSanyi" inputmode="decimal" placeholder="三義">
             <input class="month-input" id="newLogYuchu" inputmode="decimal" placeholder="優儲">
-            <button class="month-save" id="newLogSave">存</button>
+            <button class="month-save" id="newLogSave">${t('saveShort')}</button>
             <span class="row-note" id="newLogNote"></span>
           </div>
         </td>
@@ -687,12 +821,12 @@ function renderMonthTable(d) {
 async function saveLogistics(month, sanyiEl, yuchuEl, btn, noteEl) {
   let sanyi, yuchu;
   try {
-    sanyi = parseInputNum(sanyiEl, '三義費用');
-    yuchu = parseInputNum(yuchuEl, '優儲費用');
+    sanyi = parseInputNum(sanyiEl, t('errSanyiLabel'));
+    yuchu = parseInputNum(yuchuEl, t('errYuchuLabel'));
   } catch (err) { noteEl.textContent = err.message; noteEl.classList.add('bad'); return; }
   btn.disabled = true;
   noteEl.className = noteEl.className.replace(/\b(ok|bad)\b/g, '').trim();
-  noteEl.textContent = '存檔中…';
+  noteEl.textContent = t('savingMsg');
   try {
     const r = await fetch(API_BASE + '/api/profit/logistics', {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
@@ -700,10 +834,10 @@ async function saveLogistics(month, sanyiEl, yuchuEl, btn, noteEl) {
     });
     const resp = await r.json();
     if (!r.ok) throw new Error(resp.error || '存檔失敗');
-    noteEl.textContent = '已存，重新計算中…'; noteEl.classList.add('ok');
+    noteEl.textContent = t('savedNote'); noteEl.classList.add('ok');
     await loadData();
   } catch (err) {
-    noteEl.textContent = '存檔失敗：' + err.message; noteEl.classList.add('bad');
+    noteEl.textContent = t('saveFailedPrefix') + err.message; noteEl.classList.add('bad');
     btn.disabled = false;
   }
 }
@@ -725,12 +859,14 @@ function bindLogisticsRows() {
   if (newSave) newSave.addEventListener('click', () => {
     const month = document.getElementById('newLogMonth').value;
     const note = document.getElementById('newLogNote');
-    if (!/^\d{4}-\d{2}$/.test(month)) { note.textContent = '請先選月份'; note.classList.add('bad'); return; }
+    if (!/^\d{4}-\d{2}$/.test(month)) { note.textContent = t('pleaseSelectMonth'); note.classList.add('bad'); return; }
     saveLogistics(month, document.getElementById('newLogSanyi'), document.getElementById('newLogYuchu'), newSave, note);
   });
 }
 
 // ── 啟動 ──────────────────────────────────────────────────────────────────
+applyStaticTranslations();
+bindLangSeg();
 document.getElementById('pwSubmit').addEventListener('click', doLogin);
 document.getElementById('pwInput').addEventListener('keydown', e => { if (e.key === 'Enter') doLogin(); });
 document.getElementById('refreshBtn').addEventListener('click', loadData);
