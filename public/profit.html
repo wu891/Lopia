@@ -488,9 +488,9 @@ function renderBatchTable(d) {
         const noData = b.shippedBoxes <= 0;
         const color = noData ? 'var(--color-neutral-600)' : marginColor(b.margin);
         const barPct = b.totalBoxes > 0 ? Math.min(100, Math.round(b.shippedBoxes / b.totalBoxes * 100)) : 0;
-        const costInput = b.batchId === '__unlinked__'
-          ? '<span class="num">—</span>'
-          : `<input class="pd-cost" type="number" inputmode="decimal" data-id="${idx}" value="${b.shiireJpyRaw != null ? b.shiireJpyRaw : ''}" placeholder="未填">`;
+        const costInput = b.batchId === '__unlinked__' || b.shiireJpyRaw == null
+          ? '<span class="num" style="color:var(--color-neutral-600);">未填</span>'
+          : `<span class="num">${fmt(b.shiireJpyRaw)}</span>`;
         return `<tr class="pd-row" data-idx="${idx}">
             <td>
               <div class="pd-name"><span class="pd-caret">▸</span>${esc(b.productSummary || b.ivName)}</div>
@@ -510,43 +510,15 @@ function renderBatchTable(d) {
           <tr class="pd-detail" data-expand="${idx}" style="display:none;"><td colspan="8"></td></tr>`;
       }).join('')}</tbody>
     </table></div>
-    <div class="pd-note">＊仕入欄位改了會直接寫回 Notion（只更新這一欄，關稅通關／雜費不動）；要填關稅通關與雜費，點列展開。</div>
+    <div class="pd-note">＊仕入／關稅通關／雜費都在點列展開後才能填，避免手滑誤觸表格直接改掉金額。</div>
   </div>`;
 }
 
 function bindBatchRows() {
   document.querySelectorAll('tr.pd-row').forEach(row => {
     row.addEventListener('click', (e) => {
-      if (e.target.closest('.pd-costform') || e.target.closest('.pd-cost')) return;
+      if (e.target.closest('.pd-costform')) return;
       toggleBatchRow(Number(row.dataset.idx));
-    });
-  });
-  bindInlineJpyInputs();
-}
-
-function bindInlineJpyInputs() {
-  document.querySelectorAll('input.pd-cost').forEach(inp => {
-    if (inp.dataset.bound) return;
-    inp.dataset.bound = '1';
-    inp.addEventListener('click', e => e.stopPropagation());
-    inp.addEventListener('change', async () => {
-      const idx = Number(inp.dataset.id);
-      const b = visibleBatches(currentData)[idx];
-      let val;
-      try { val = parseInputNum(inp, '仕入原價'); }
-      catch (err) { inp.title = err.message; inp.style.borderColor = 'var(--color-accent)'; return; }
-      inp.disabled = true;
-      try {
-        const r = await fetch(API_BASE + '/api/profit/costs', {
-          method: 'POST', headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ batchId: b.batchId, shiireJpy: val }),
-        });
-        const resp = await r.json();
-        if (!r.ok) throw new Error(resp.error || '存檔失敗');
-        await loadData();
-      } catch (err) {
-        inp.title = err.message; inp.style.borderColor = 'var(--color-accent)'; inp.disabled = false;
-      }
     });
   });
 }
@@ -575,6 +547,7 @@ function toggleBatchRow(idx) {
   const costNote = `整批成本：仕入 ${fmt(b.shiireTwd)}（台幣換算）＋ 關稅通關 ${fmt(b.tariffCustoms)} ＋ 雜費 ${fmt(b.miscFee)} ＝ ${fmt(b.costFull)}，攤到已出 ${fmt(b.shippedBoxes)}／${fmt(b.totalBoxes)} 箱`;
   const costFormHtml = b.batchId === '__unlinked__' ? '' : `
     <div class="pd-costform" data-batch-idx="${idx}">
+      <div class="pd-field"><label>仕入原價（日圓）</label><input class="cf-shiire" inputmode="decimal" placeholder="未填"></div>
       <div class="pd-field"><label>關稅＋通關費（台幣）</label><input class="cf-tariff" inputmode="decimal" placeholder="未填"></div>
       <div class="pd-field"><label>雜費（台幣）</label><input class="cf-misc" inputmode="decimal" placeholder="未填"></div>
       <button class="pd-savebtn cf-save">儲存</button>
@@ -599,8 +572,10 @@ function bindCostForms() {
     form.dataset.bound = '1';
     const idx = Number(form.dataset.batchIdx);
     const b = visibleBatches(currentData)[idx];
+    const shiireEl = form.querySelector('.cf-shiire');
     const tariffEl = form.querySelector('.cf-tariff');
     const miscEl = form.querySelector('.cf-misc');
+    if (b.shiireJpyRaw != null) shiireEl.value = String(b.shiireJpyRaw);
     if (b.tariffCustomsRaw != null) tariffEl.value = String(b.tariffCustomsRaw);
     if (b.miscFeeRaw != null) miscEl.value = String(b.miscFeeRaw);
     const btn = form.querySelector('.cf-save');
@@ -611,6 +586,7 @@ function bindCostForms() {
       try {
         payload = {
           batchId: b.batchId,
+          shiireJpy: parseInputNum(shiireEl, '仕入原價'),
           tariffCustoms: parseInputNum(tariffEl, '關稅通關費'),
           miscFee: parseInputNum(miscEl, '雜費'),
         };
@@ -661,7 +637,8 @@ function renderMonthTable(d) {
         </div>
         <div class="row-note lg-note" data-m="${i}">${m.logisticsFilled ? '' : '未填，該月毛利尚未扣物流'}</div>
       </td>
-      <td class="r num" style="color:${color};font-weight:700;">${m.revenue > 0 ? fmtSigned(m.margin) + '（' + pct(m.marginRate) + '）' : '－'}</td>
+      <td class="r num" style="color:${color};font-weight:800;">${m.revenue > 0 ? fmtSigned(m.margin) : '－'}</td>
+      <td class="r num" style="color:${color};font-weight:700;">${m.revenue > 0 ? pct(m.marginRate) : '－'}</td>
     </tr>`;
   }).join('');
 
@@ -669,11 +646,11 @@ function renderMonthTable(d) {
     <div class="pd-table-wrap"><div class="pd-scroll"><table class="pd-table">
       <thead><tr>
         <th>月份</th><th class="r">箱數</th><th class="r">營收</th><th class="r">進貨分攤</th>
-        <th>物流（三義／優儲）</th><th class="r">當月毛利（率）</th>
+        <th>物流（三義／優儲）</th><th class="r">毛利 NT$</th><th class="r">毛利率</th>
       </tr></thead>
       <tbody>${rows}</tbody>
       <tbody><tr>
-        <td colspan="6" style="padding:12px 14px;">
+        <td colspan="7" style="padding:12px 14px;">
           <div class="month-flex" style="font-size:12px;color:var(--color-neutral-600);">
             補其他月份：
             <input class="month-input month" id="newLogMonth" type="month">
