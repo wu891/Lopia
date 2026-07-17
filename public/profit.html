@@ -6,181 +6,222 @@
 <title>LOPIA 批次即時毛利</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Archivo:wght@400;500;600;700;800;900&family=Noto+Sans+TC:wght@400;500;600;700;800&family=Noto+Sans+JP:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Archivo:wght@400;500;600;700;800;900&family=IBM+Plex+Mono:wght@400;500;600;700&family=Noto+Sans+TC:wght@400;500;600;700;800&family=Noto+Sans+JP:wght@400;500;600;700;800&display=swap" rel="stylesheet">
 <style>
-  /* ── 2026-07-17 改版：套用「Modernist」設計交付包（Archivo 字體、紅 #ec3013 單一強調色、
-     2px 黑框無圓角）。資料來源、密碼驗證、成本／物流寫入邏輯完全不動，只換版面與視覺。
-     中文沿用 Noto Sans TC、日文沿用 Noto Sans JP 當後備字體（Archivo 本身不含中日文字glyph）。 */
+  /* ── 2026-07-17 視覺改版 v2：套用「亮色 KPI 儀表板 + 手機卡片流」方向。
+     淺色中性底、白卡圓角＋柔和陰影、毛利綠／虧損紅的語意色碼、IBM Plex Mono 等寬數字、
+     放大 KPI 數字、手機自動轉成每批一張卡片。資料來源、密碼驗證、成本／物流寫入邏輯完全不動，只換版面與視覺。 */
   :root {
-    --color-accent: #ec3013; --color-accent-200: #ffe0d9; --color-accent-600: #dd2b0f; --color-accent-700: #ae1800;
-    --color-text: #201e1d; --color-bg: #f3f2f2; --color-neutral-200: #eae7e7; --color-neutral-400: #b3aeae;
-    --color-neutral-600: #7d7979; --color-neutral-700: #605d5d;
+    --color-profit: #127a4e; --color-profit-bg: #e6f4ec;
+    --color-loss: #c23616; --color-loss-bg: #fbe9e4;
+    --color-accent: #c23616; --color-accent-200: #fbe9e4; --color-accent-600: #a82f13; --color-accent-700: #8f2410;
+    --color-text: #1e2329; --color-bg: #f4f5f6; --color-surface: #ffffff; --color-surface-2: #fafbfb;
+    --color-neutral-200: #eef0f2; --color-neutral-300: #e2e5e8; --color-neutral-400: #b9bec4;
+    --color-neutral-600: #6c757d; --color-neutral-700: #4a5057;
+    --border: 1px solid var(--color-neutral-300);
+    --radius: 16px; --radius-md: 12px; --radius-sm: 9px;
+    --shadow: 0 1px 2px rgba(20,24,31,.05), 0 14px 34px rgba(20,24,31,.06);
+    --shadow-sm: 0 1px 2px rgba(20,24,31,.05);
     --space-2: 8px; --space-3: 12px; --space-4: 16px; --space-6: 24px; --space-8: 32px;
     --font: 'Archivo', 'Noto Sans TC', 'Noto Sans JP', -apple-system, sans-serif;
+    --mono: 'IBM Plex Mono', ui-monospace, monospace;
   }
   * { margin: 0; padding: 0; box-sizing: border-box; }
   body { font-family: var(--font); color: var(--color-text); background: var(--color-bg); line-height: 1.5; -webkit-font-smoothing: antialiased; }
-  .num { font-variant-numeric: tabular-nums; }
-  :focus-visible { outline: 2px solid var(--color-accent); outline-offset: 2px; }
+  .num { font-family: var(--mono); font-variant-numeric: tabular-nums; letter-spacing: -0.01em; }
+  :focus-visible { outline: 2px solid var(--color-profit); outline-offset: 2px; }
+  a { color: var(--color-profit); text-decoration: none; }
+  a:hover { text-decoration: underline; }
 
   /* ── 密碼閘門 ── */
-  #gate { min-height: 100vh; display: flex; align-items: center; justify-content: center; background: var(--color-bg); }
-  #gate .box { background: #fff; border: 2px solid var(--color-text); padding: 44px 40px; width: 320px; text-align: center; }
-  #gate h1 { font-size: 22px; font-weight: 800; margin-bottom: 8px; }
-  #gate p { font-size: 12.5px; color: var(--color-neutral-600); margin-bottom: 24px; }
+  #gate { min-height: 100vh; display: flex; align-items: center; justify-content: center; background: var(--color-bg); padding: 20px; }
+  #gate .box { background: var(--color-surface); border-radius: var(--radius); box-shadow: var(--shadow); padding: 44px 40px; width: 340px; text-align: center; border: var(--border); }
+  #gate h1 { font-size: 23px; font-weight: 800; margin-bottom: 8px; letter-spacing: -0.01em; }
+  #gate p { font-size: 12.5px; color: var(--color-neutral-600); margin-bottom: 26px; }
   #gate input {
-    width: 100%; padding: 11px 13px; border: none; border-bottom: 2px solid var(--color-text);
-    background: transparent; font-family: var(--font); font-size: 14px; margin-bottom: 14px; text-align: center; color: var(--color-text);
+    width: 100%; padding: 12px 14px; border: var(--border); border-radius: var(--radius-sm);
+    background: var(--color-surface-2); font-family: var(--font); font-size: 14px; margin-bottom: 14px; text-align: center; color: var(--color-text);
   }
-  #gate input:focus { outline: none; border-bottom-color: var(--color-accent); }
+  #gate input:focus { outline: none; border-color: var(--color-profit); background: var(--color-surface); }
   #gate button {
-    width: 100%; padding: 11px; border: 2px solid var(--color-text); background: var(--color-text);
-    color: var(--color-bg); font-family: var(--font); font-weight: 800; font-size: 13.5px; letter-spacing: 0.5px; cursor: pointer;
+    width: 100%; padding: 12px; border: none; border-radius: var(--radius-sm); background: var(--color-text);
+    color: #fff; font-family: var(--font); font-weight: 700; font-size: 14px; letter-spacing: 0.3px; cursor: pointer; transition: background .15s;
   }
-  #gate button:hover:not(:disabled) { background: var(--color-accent); border-color: var(--color-accent); }
+  #gate button:hover:not(:disabled) { background: #000; }
   #gate button:disabled { opacity: 0.5; cursor: not-allowed; }
-  #gate .err { color: var(--color-accent-700); font-size: 12px; margin-top: 12px; min-height: 16px; font-weight: 700; }
+  #gate .err { color: var(--color-loss); font-size: 12px; margin-top: 12px; min-height: 16px; font-weight: 600; }
 
   /* ── 主畫面 ── */
   #app { display: none; }
-  .pd-wrap { max-width: 1180px; margin: 0 auto; padding: var(--space-6) var(--space-6) var(--space-8); }
-  @media (max-width: 720px) { .pd-wrap { padding: var(--space-4); } }
+  .pd-wrap { max-width: 1200px; margin: 0 auto; padding: var(--space-8) var(--space-6) var(--space-8); }
+  @media (max-width: 720px) { .pd-wrap { padding: var(--space-4) var(--space-3) var(--space-8); } }
 
-  .pd-head { display: flex; align-items: flex-end; justify-content: space-between; gap: var(--space-4); flex-wrap: wrap; border-bottom: 2px solid var(--color-text); padding-bottom: var(--space-3); }
-  .pd-eyebrow { font-size: 11px; letter-spacing: 0.18em; text-transform: uppercase; color: var(--color-neutral-600); margin-bottom: 6px; font-weight: 700; }
-  .pd-h1 { font-size: 34px; line-height: 1; font-weight: 800; }
+  .pd-head { display: flex; align-items: flex-end; justify-content: space-between; gap: var(--space-4); flex-wrap: wrap; margin-bottom: var(--space-3); }
+  .pd-eyebrow { font-size: 11px; letter-spacing: 0.16em; text-transform: uppercase; color: var(--color-neutral-600); margin-bottom: 6px; font-weight: 700; }
+  .pd-h1 { font-size: 32px; line-height: 1.05; font-weight: 800; letter-spacing: -0.02em; }
   .pd-headctrl { display: flex; align-items: center; gap: var(--space-3); flex-wrap: wrap; }
-  .pd-chk { display: inline-flex; align-items: center; gap: 8px; font-size: 13px; cursor: pointer; user-select: none; }
-  .pd-chk input { width: 16px; height: 16px; accent-color: var(--color-accent); cursor: pointer; }
-  button.btn { font-family: var(--font); font-size: 13px; font-weight: 700; padding: 9px 15px; border: 2px solid var(--color-text); background: var(--color-text); color: var(--color-bg); cursor: pointer; display: inline-flex; align-items: center; gap: 6px; }
-  button.btn.btn-secondary { background: var(--color-bg); color: var(--color-text); }
+  .pd-chk { display: inline-flex; align-items: center; gap: 8px; font-size: 13px; cursor: pointer; user-select: none; color: var(--color-neutral-700); }
+  .pd-chk input { width: 16px; height: 16px; accent-color: var(--color-profit); cursor: pointer; }
+  button.btn { font-family: var(--font); font-size: 13px; font-weight: 600; padding: 9px 15px; border: none; border-radius: var(--radius-sm); background: var(--color-text); color: #fff; cursor: pointer; display: inline-flex; align-items: center; gap: 6px; transition: background .15s, box-shadow .15s; }
+  button.btn:hover:not(:disabled) { background: #000; }
+  button.btn.btn-secondary { background: var(--color-surface); color: var(--color-text); border: var(--border); box-shadow: var(--shadow-sm); }
   button.btn.btn-secondary:hover:not(:disabled) { background: var(--color-neutral-200); }
   button.btn:disabled { opacity: .5; cursor: not-allowed; }
   button.btn svg { transition: transform .5s ease; }
   button.btn.spinning svg { transform: rotate(360deg); }
-  .pd-helper { font-size: 12px; color: var(--color-neutral-600); margin-top: var(--space-2); }
+  .pd-helper { font-size: 12px; color: var(--color-neutral-600); margin-bottom: var(--space-4); line-height: 1.6; }
 
   /* ── 語言切換 ── */
-  .pd-langseg { display: flex; border: 2px solid var(--color-text); }
-  .pd-langseg button { font-family: var(--font); font-size: 12px; font-weight: 700; padding: 8px 13px; border: none; border-left: 2px solid var(--color-text); background: var(--color-bg); color: var(--color-text); cursor: pointer; }
-  .pd-langseg button:first-child { border-left: none; }
-  .pd-langseg button.active { background: var(--color-text); color: var(--color-bg); }
+  .pd-langseg { display: flex; border: var(--border); border-radius: var(--radius-sm); overflow: hidden; background: var(--color-surface); box-shadow: var(--shadow-sm); }
+  .pd-langseg button { font-family: var(--font); font-size: 12px; font-weight: 600; padding: 8px 13px; border: none; background: transparent; color: var(--color-neutral-700); cursor: pointer; transition: background .15s, color .15s; }
+  .pd-langseg button.active { background: var(--color-text); color: #fff; }
 
   /* ── 待處理提醒卡 ── */
-  .pd-todo { border: 2px solid var(--color-text); margin-top: var(--space-4); padding: var(--space-3) var(--space-4); }
+  .pd-todo { background: var(--color-surface); border: var(--border); border-left: 4px solid var(--color-accent); border-radius: var(--radius-md); box-shadow: var(--shadow-sm); margin-bottom: var(--space-4); padding: var(--space-3) var(--space-4); }
   .pd-todo-title { font-size: 11px; font-weight: 800; letter-spacing: .08em; text-transform: uppercase; color: var(--color-neutral-600); margin-bottom: 8px; }
-  .pd-todo-row { display: flex; gap: 8px; font-size: 13px; line-height: 1.65; align-items: flex-start; }
+  .pd-todo-row { display: flex; gap: 9px; font-size: 13px; line-height: 1.65; align-items: flex-start; }
   .pd-todo-row + .pd-todo-row { margin-top: 6px; }
-  .pd-todo-dot { width: 7px; height: 7px; border-radius: 50%; margin-top: 6px; flex-shrink: 0; background: var(--color-neutral-600); }
+  .pd-todo-dot { width: 7px; height: 7px; border-radius: 50%; margin-top: 6px; flex-shrink: 0; background: var(--color-neutral-400); }
   .pd-todo-dot.bad { background: var(--color-accent); }
-  .pd-todo-tag { font-weight: 800; margin-right: 2px; }
+  .pd-todo-tag { font-weight: 800; margin-right: 3px; }
 
   /* ── KPI 列 ── */
-  .pd-kpi { display: grid; grid-template-columns: repeat(4, 1fr); gap: 0; border: 2px solid var(--color-text); margin-top: var(--space-4); }
-  .pd-kpi > div { padding: var(--space-4); border-right: 2px solid var(--color-text); }
-  .pd-kpi > div:last-child { border-right: none; }
-  .pd-kpi .lbl { font-size: 11px; letter-spacing: .14em; text-transform: uppercase; color: var(--color-neutral-600); font-weight: 700; }
-  .pd-kpi .val { font-size: 30px; font-weight: 800; margin-top: 6px; line-height: 1; }
-  .pd-kpi .sub { font-size: 12px; color: var(--color-neutral-600); margin-top: 6px; }
-  .pd-kpi .accent { background: var(--color-accent); }
-  .pd-kpi .accent .lbl, .pd-kpi .accent .sub { color: var(--color-accent-200); }
-  .pd-kpi .accent .val { color: var(--color-bg); font-weight: 900; }
+  .pd-kpi { display: grid; grid-template-columns: repeat(4, 1fr); gap: var(--space-3); margin-bottom: var(--space-6); }
+  @media (max-width: 720px) { .pd-kpi { grid-template-columns: repeat(2, 1fr); gap: var(--space-2); } }
+  .pd-kpi > div { background: var(--color-surface); border: var(--border); border-radius: var(--radius); box-shadow: var(--shadow-sm); padding: var(--space-4) var(--space-4) 18px; }
+  .pd-kpi .lbl { font-size: 12px; letter-spacing: .02em; color: var(--color-neutral-600); font-weight: 600; }
+  .pd-kpi .val { font-size: 30px; font-weight: 700; margin-top: 8px; line-height: 1; font-family: var(--mono); letter-spacing: -0.02em; }
+  @media (max-width: 720px) { .pd-kpi .val { font-size: 24px; } }
+  .pd-kpi .sub { font-size: 12px; color: var(--color-neutral-600); margin-top: 8px; }
+  .pd-kpi .accent { background: var(--color-text); border-color: var(--color-text); }
+  .pd-kpi .accent .lbl { color: rgba(255,255,255,.62); }
+  .pd-kpi .accent .sub { color: rgba(255,255,255,.55); }
+  .pd-kpi .accent .val { color: #6ee0a4; }
 
   /* ── 狀態分頁 ── */
-  .pd-tabs { display: flex; gap: 0; margin-top: var(--space-4); border-bottom: 2px solid var(--color-text); flex-wrap: wrap; }
-  .pd-tab { font-family: var(--font); font-size: 13px; font-weight: 700; padding: 9px 16px; cursor: pointer; background: none; border: 2px solid transparent; border-bottom: none; color: var(--color-neutral-700); margin-bottom: -2px; display: flex; align-items: center; gap: 7px; }
-  .pd-tab.active { border-color: var(--color-text); background: var(--color-bg); color: var(--color-text); }
-  .pd-tab .cnt { font-size: 11px; font-weight: 800; padding: 1px 7px; background: var(--color-neutral-200); color: var(--color-text); }
-  .pd-tab.active .cnt { background: var(--color-text); color: var(--color-bg); }
+  .pd-tabs { display: flex; gap: var(--space-2); margin-bottom: var(--space-3); flex-wrap: wrap; }
+  .pd-tab { font-family: var(--font); font-size: 13px; font-weight: 600; padding: 8px 14px; cursor: pointer; background: var(--color-surface); border: var(--border); border-radius: 999px; color: var(--color-neutral-700); display: flex; align-items: center; gap: 7px; box-shadow: var(--shadow-sm); transition: all .15s; }
+  .pd-tab:hover { border-color: var(--color-neutral-400); }
+  .pd-tab.active { border-color: var(--color-text); background: var(--color-text); color: #fff; }
+  .pd-tab .cnt { font-size: 11px; font-weight: 700; padding: 1px 8px; border-radius: 999px; background: var(--color-neutral-200); color: var(--color-neutral-700); }
+  .pd-tab.active .cnt { background: rgba(255,255,255,.2); color: #fff; }
 
   /* ── 次要控制列：排序／只看虧損 ── */
-  .pd-controls { display: flex; align-items: center; gap: var(--space-3); margin-top: var(--space-3); flex-wrap: wrap; font-size: 12.5px; }
+  .pd-controls { display: flex; align-items: center; gap: var(--space-3); margin-bottom: var(--space-4); flex-wrap: wrap; font-size: 12.5px; }
   .pd-controls .lbl { color: var(--color-neutral-600); }
-  .pd-seg { display: flex; border: 2px solid var(--color-text); }
-  .pd-seg button { font-family: var(--font); font-size: 12px; font-weight: 700; padding: 6px 12px; border: none; border-left: 2px solid var(--color-text); background: var(--color-bg); color: var(--color-text); cursor: pointer; }
-  .pd-seg button:first-child { border-left: none; }
-  .pd-seg button.active { background: var(--color-text); color: var(--color-bg); }
+  .pd-seg { display: flex; border: var(--border); border-radius: var(--radius-sm); overflow: hidden; background: var(--color-surface); box-shadow: var(--shadow-sm); }
+  .pd-seg button { font-family: var(--font); font-size: 12px; font-weight: 600; padding: 7px 13px; border: none; background: transparent; color: var(--color-neutral-700); cursor: pointer; transition: background .15s, color .15s; }
+  .pd-seg button.active { background: var(--color-text); color: #fff; }
   .pd-controls .pd-chk { margin-left: auto; }
 
   /* ── 視覺區：長條圖＋區間圖 ── */
-  .pd-visual { display: grid; grid-template-columns: 1.5fr 1fr; gap: var(--space-4); margin-top: var(--space-4); }
+  .pd-visual { display: grid; grid-template-columns: 1.5fr 1fr; gap: var(--space-4); margin-bottom: var(--space-4); }
   @media (max-width: 860px) { .pd-visual { grid-template-columns: 1fr; } }
-  .pd-panel { border: 2px solid var(--color-text); padding: var(--space-4); }
-  .pd-panel h3 { font-size: 16px; font-weight: 800; }
-  .pd-panel-head { display: flex; align-items: baseline; justify-content: space-between; margin-bottom: var(--space-3); }
-  .pd-panel-head .unit { font-size: 11px; color: var(--color-neutral-600); letter-spacing: .08em; text-transform: uppercase; font-weight: 700; }
-  .pd-bar-row { display: grid; grid-template-columns: 130px 1fr 100px; align-items: center; gap: 10px; }
-  .pd-bar-row + .pd-bar-row { margin-top: 10px; }
-  .pd-bar-name { font-size: 12px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-  .pd-bar-track { height: 18px; background: var(--color-neutral-200); position: relative; }
-  .pd-bar-fill { height: 100%; }
-  .pd-bar-val { font-size: 13px; font-weight: 700; text-align: right; }
+  .pd-panel { background: var(--color-surface); border: var(--border); border-radius: var(--radius); box-shadow: var(--shadow-sm); padding: var(--space-6); }
+  .pd-panel h3 { font-size: 15px; font-weight: 700; letter-spacing: -0.01em; }
+  .pd-panel-head { display: flex; align-items: baseline; justify-content: space-between; margin-bottom: var(--space-4); }
+  .pd-panel-head .unit { font-size: 11px; color: var(--color-neutral-600); letter-spacing: .06em; text-transform: uppercase; font-weight: 600; }
+  .pd-bar-row { display: grid; grid-template-columns: 130px 1fr 108px; align-items: center; gap: 10px; }
+  .pd-bar-row + .pd-bar-row { margin-top: 12px; }
+  .pd-bar-name { font-size: 12px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; color: var(--color-neutral-700); }
+  .pd-bar-track { height: 16px; background: var(--color-neutral-200); border-radius: 999px; position: relative; }
+  .pd-bar-fill { height: 100%; border-radius: 999px; }
+  .pd-bar-val { font-size: 13px; font-weight: 700; text-align: right; font-family: var(--mono); }
   .pd-empty-note { font-size: 12px; color: var(--color-neutral-600); }
 
   .pd-bucket + .pd-bucket { margin-top: var(--space-3); }
-  .pd-bucket-head { display: flex; justify-content: space-between; font-size: 12px; margin-bottom: 5px; }
-  .pd-bucket-head .cnt { font-weight: 700; }
-  .pd-bucket-track { height: 10px; background: var(--color-neutral-200); }
-  .pd-bucket-fill { height: 100%; }
+  .pd-bucket-head { display: flex; justify-content: space-between; font-size: 12px; margin-bottom: 6px; }
+  .pd-bucket-head .cnt { font-weight: 700; font-family: var(--mono); }
+  .pd-bucket-track { height: 9px; background: var(--color-neutral-200); border-radius: 999px; overflow: hidden; }
+  .pd-bucket-fill { height: 100%; border-radius: 999px; }
 
   /* ── 表格共用 ── */
-  .pd-table-wrap { border: 2px solid var(--color-text); margin-top: var(--space-4); }
-  .pd-table-head { display: flex; align-items: center; justify-content: space-between; padding: var(--space-3) var(--space-4); border-bottom: 2px solid var(--color-text); flex-wrap: wrap; gap: 8px; }
-  .pd-table-head h3 { font-size: 16px; font-weight: 800; }
+  .pd-table-wrap { background: var(--color-surface); border: var(--border); border-radius: var(--radius); box-shadow: var(--shadow-sm); margin-bottom: var(--space-4); overflow: hidden; }
+  .pd-table-head { display: flex; align-items: center; justify-content: space-between; padding: var(--space-4) var(--space-6); border-bottom: var(--border); flex-wrap: wrap; gap: 8px; }
+  .pd-table-head h3 { font-size: 15px; font-weight: 700; }
   .pd-table-head .meta { font-size: 12px; color: var(--color-neutral-600); }
   .pd-scroll { overflow-x: auto; }
   table.pd-table { width: 100%; border-collapse: collapse; min-width: 920px; }
-  table.pd-table thead th { text-align: left; font-size: 11px; font-weight: 800; letter-spacing: .04em; text-transform: uppercase; color: var(--color-neutral-600); padding: 10px 14px; border-bottom: 2px solid var(--color-text); white-space: nowrap; }
-  table.pd-table td { padding: 12px 14px; border-bottom: 1px solid var(--color-neutral-200); font-size: 14px; vertical-align: top; }
+  table.pd-table thead th { text-align: left; font-size: 11px; font-weight: 700; letter-spacing: .03em; text-transform: uppercase; color: var(--color-neutral-600); padding: 12px 16px; border-bottom: var(--border); white-space: nowrap; background: var(--color-surface-2); }
+  table.pd-table td { padding: 13px 16px; border-bottom: 1px solid var(--color-neutral-200); font-size: 14px; vertical-align: top; }
+  table.pd-table tbody tr:last-child td { border-bottom: none; }
   table.pd-table th.r, table.pd-table td.r { text-align: right; }
-  tr.pd-row { cursor: pointer; }
-  tr.pd-row:hover td { background: var(--color-neutral-200); }
-  .pd-name { font-weight: 700; display: flex; align-items: center; gap: 4px; }
-  .pd-id { font-size: 11px; color: var(--color-neutral-600); margin-top: 2px; }
-  .pd-cost { width: 82px; text-align: right; min-height: 30px; padding: 5px 7px; font-family: var(--font); font-variant-numeric: tabular-nums; font-size: 13px; font-weight: 700; background: var(--color-bg); border: 1px solid var(--color-neutral-600); color: var(--color-text); }
-  .pd-cost:focus-visible { outline: 2px solid var(--color-accent); outline-offset: 1px; }
-  .tag { font-size: 11px; font-weight: 800; padding: 3px 9px; display: inline-block; letter-spacing: .02em; white-space: nowrap; }
+  tr.pd-row { cursor: pointer; transition: background .12s; }
+  tr.pd-row:hover td { background: var(--color-surface-2); }
+  .pd-name { font-weight: 700; display: flex; align-items: center; gap: 5px; }
+  .pd-id { font-size: 11px; color: var(--color-neutral-600); margin-top: 2px; font-family: var(--mono); }
+  .pd-cost { width: 82px; text-align: right; min-height: 30px; padding: 5px 8px; font-family: var(--mono); font-variant-numeric: tabular-nums; font-size: 13px; font-weight: 600; background: var(--color-surface); border: 1px solid var(--color-neutral-400); border-radius: 7px; color: var(--color-text); }
+  .pd-cost:focus-visible { outline: 2px solid var(--color-profit); outline-offset: 1px; }
+  .tag { font-size: 11px; font-weight: 700; padding: 3px 10px; display: inline-block; letter-spacing: .01em; white-space: nowrap; border-radius: 999px; }
   .tag-accent { background: var(--color-accent-200); color: var(--color-accent-700); }
   .tag-neutral { background: var(--color-neutral-200); color: var(--color-neutral-700); }
   .plain-note { font-size: 10.5px; color: var(--color-neutral-600); margin-left: 6px; }
-  .pd-caret { display: inline-block; width: 11px; font-size: 11px; color: var(--color-neutral-600); transition: transform .12s; }
+  .pd-caret { display: inline-block; width: 11px; font-size: 11px; color: var(--color-neutral-400); transition: transform .12s; }
   tr.pd-row.open .pd-caret { transform: rotate(90deg); }
-  tr.pd-detail td { padding: 0 14px 18px; border-bottom: 1px solid var(--color-neutral-200); }
-  .pd-detail-box { border: 2px solid var(--color-neutral-200); padding: 12px 14px; font-size: 12.5px; }
+  tr.pd-detail td { padding: 0 16px 18px; border-bottom: 1px solid var(--color-neutral-200); background: var(--color-surface-2); }
+  .pd-detail-box { border: var(--border); border-radius: var(--radius-md); background: var(--color-surface); padding: 14px 16px; font-size: 12.5px; }
   .pd-detail-box table.detail-table { width: 100%; border-collapse: collapse; margin-top: 6px; }
   .pd-detail-box table.detail-table th { font-weight: 700; color: var(--color-neutral-600); text-align: left; padding: 4px 8px; font-size: 10px; text-transform: uppercase; letter-spacing: .03em; }
-  .pd-detail-box table.detail-table td { padding: 5px 8px; border-bottom: 1px dotted var(--color-neutral-200); font-size: 12.5px; }
+  .pd-detail-box table.detail-table td { padding: 6px 8px; border-bottom: 1px dotted var(--color-neutral-300); font-size: 12.5px; }
   .pd-detail-box table.detail-table td.r, .pd-detail-box table.detail-table th.r { text-align: right; }
   .pd-detail-box .future td { color: var(--color-neutral-600); font-style: italic; }
-  .pd-costform { display: flex; gap: 10px; flex-wrap: wrap; align-items: flex-end; margin-top: 10px; }
-  .pd-field { display: flex; flex-direction: column; gap: 3px; }
-  .pd-field label { font-size: 10px; font-weight: 800; color: var(--color-neutral-600); }
-  .pd-field input { font-family: var(--font); font-size: 12.5px; padding: 6px 8px; width: 118px; text-align: right; border: 1px solid var(--color-neutral-600); font-variant-numeric: tabular-nums; background: #fff; color: var(--color-text); }
-  .pd-field input:focus { outline: none; border-color: var(--color-accent); }
-  .pd-savebtn { font-family: var(--font); font-size: 11.5px; font-weight: 800; padding: 7px 15px; border: 2px solid var(--color-text); background: var(--color-text); color: var(--color-bg); cursor: pointer; }
-  .pd-savebtn:hover:not(:disabled) { background: var(--color-accent); border-color: var(--color-accent); }
+  .pd-costform { display: flex; gap: 10px; flex-wrap: wrap; align-items: flex-end; margin-top: 12px; padding-top: 12px; border-top: 1px dashed var(--color-neutral-300); }
+  .pd-field { display: flex; flex-direction: column; gap: 4px; }
+  .pd-field label { font-size: 10px; font-weight: 700; color: var(--color-neutral-600); }
+  .pd-field input { font-family: var(--mono); font-size: 12.5px; padding: 7px 9px; width: 118px; text-align: right; border: 1px solid var(--color-neutral-400); border-radius: 7px; font-variant-numeric: tabular-nums; background: var(--color-surface); color: var(--color-text); }
+  .pd-field input:focus { outline: none; border-color: var(--color-profit); }
+  .pd-savebtn { font-family: var(--font); font-size: 11.5px; font-weight: 700; padding: 8px 16px; border: none; border-radius: 7px; background: var(--color-text); color: #fff; cursor: pointer; transition: background .15s; }
+  .pd-savebtn:hover:not(:disabled) { background: #000; }
   .pd-savebtn:disabled { opacity: .5; cursor: not-allowed; }
   .pd-toast { font-size: 11px; margin-top: 2px; min-height: 14px; color: var(--color-neutral-600); }
-  .pd-toast.ok { color: var(--color-accent-700); font-weight: 700; }
-  .pd-toast.bad { color: var(--color-accent); font-weight: 700; }
-  .pd-note { font-size: 10.5px; color: var(--color-neutral-600); padding: 0 var(--space-4) var(--space-3); }
+  .pd-toast.ok { color: var(--color-profit); font-weight: 700; }
+  .pd-toast.bad { color: var(--color-loss); font-weight: 700; }
+  .pd-note { font-size: 10.5px; color: var(--color-neutral-600); padding: 0 var(--space-6) var(--space-4); }
 
   /* ── 月度彙總 ── */
-  h2.pd-section { font-size: 13px; font-weight: 800; letter-spacing: .02em; margin: var(--space-6) 0 var(--space-2); text-transform: uppercase; color: var(--color-neutral-700); }
+  h2.pd-section { font-size: 13px; font-weight: 800; letter-spacing: .02em; margin: var(--space-8) 0 var(--space-3); text-transform: uppercase; color: var(--color-neutral-700); }
   h2.pd-section .hint { font-weight: 500; text-transform: none; letter-spacing: 0; color: var(--color-neutral-600); font-size: 11.5px; }
-  input.month-input { font-family: var(--font); font-size: 12px; padding: 5px 7px; width: 96px; border: 1px solid var(--color-neutral-600); text-align: right; font-variant-numeric: tabular-nums; background: #fff; color: var(--color-text); }
-  input.month-input:focus { outline: none; border-color: var(--color-accent); }
+  input.month-input { font-family: var(--mono); font-size: 12px; padding: 6px 8px; width: 96px; border: 1px solid var(--color-neutral-400); border-radius: 7px; text-align: right; font-variant-numeric: tabular-nums; background: var(--color-surface); color: var(--color-text); }
+  input.month-input:focus { outline: none; border-color: var(--color-profit); }
   input.month-input.month { width: 122px; text-align: left; }
-  button.month-save { font-family: var(--font); font-size: 11px; font-weight: 800; padding: 6px 12px; border: 2px solid var(--color-text); background: var(--color-text); color: var(--color-bg); cursor: pointer; }
-  button.month-save:hover:not(:disabled) { background: var(--color-accent); border-color: var(--color-accent); }
+  button.month-save { font-family: var(--font); font-size: 11px; font-weight: 700; padding: 7px 13px; border: none; border-radius: 7px; background: var(--color-text); color: #fff; cursor: pointer; transition: background .15s; }
+  button.month-save:hover:not(:disabled) { background: #000; }
   button.month-save:disabled { opacity: .5; cursor: not-allowed; }
   .month-flex { display: flex; gap: 6px; align-items: center; flex-wrap: wrap; }
   .row-note { font-size: 10.5px; margin-top: 3px; color: var(--color-neutral-600); }
-  .row-note.ok { color: var(--color-accent-700); font-weight: 700; }
-  .row-note.bad { color: var(--color-accent); font-weight: 700; }
+  .row-note.ok { color: var(--color-profit); font-weight: 700; }
+  .row-note.bad { color: var(--color-loss); font-weight: 700; }
 
-  footer.pd-src { font-size: 11px; color: var(--color-neutral-600); text-align: center; margin-top: var(--space-8); padding-top: var(--space-3); border-top: 1px solid var(--color-neutral-200); line-height: 1.8; }
+  footer.pd-src { font-size: 11px; color: var(--color-neutral-600); text-align: center; margin-top: var(--space-8); padding-top: var(--space-4); border-top: 1px solid var(--color-neutral-200); line-height: 1.8; }
   #loading, #empty { text-align: center; padding: 80px 0; color: var(--color-neutral-600); font-size: 14px; }
+
+  .pd-demo-banner { background: var(--color-profit-bg); color: var(--color-profit); border: 1px solid #bfe3cd; border-radius: var(--radius-md); padding: 10px 16px; font-size: 12.5px; font-weight: 600; margin-bottom: var(--space-4); text-align: center; }
+
+  /* ── 手機：批次表轉成 1b 卡片流 ── */
+  @media (max-width: 720px) {
+    .pd-table-wrap { border: none; box-shadow: none; background: transparent; overflow: visible; }
+    .pd-table-head { padding: 0 2px var(--space-3); border-bottom: none; }
+    .pd-scroll { overflow-x: visible; }
+    table.pd-table { min-width: 0; display: block; }
+    table.pd-table thead { display: none; }
+    table.pd-table tbody { display: block; }
+    table.pd-table tr.pd-row { display: block; background: var(--color-surface); border: var(--border); border-radius: var(--radius); box-shadow: var(--shadow-sm); padding: 14px 16px; margin-bottom: 12px; }
+    table.pd-table tr.pd-row:hover td { background: transparent; }
+    table.pd-table tr.pd-row td { display: flex; justify-content: space-between; align-items: center; gap: 12px; padding: 6px 0; border-bottom: none; text-align: right; }
+    table.pd-table tr.pd-row td::before { content: attr(data-label); font-size: 12px; font-weight: 600; color: var(--color-neutral-600); text-align: left; }
+    table.pd-table tr.pd-row td.cell-name { display: block; padding: 0 0 10px; margin-bottom: 8px; border-bottom: 1px solid var(--color-neutral-200); }
+    table.pd-table tr.pd-row td.cell-name::before { content: none; }
+    table.pd-table tr.pd-row td.cell-name .pd-name { font-size: 16px; }
+    table.pd-table tr.pd-row td .pd-bucket-track { margin-left: 0 !important; max-width: 120px !important; }
+    table.pd-table tr.pd-detail { display: block; }
+    table.pd-table tr.pd-detail td { display: block; padding: 0 0 14px; background: transparent; }
+    table.pd-table tr.pd-detail td::before { content: none; }
+    .pd-note { padding: 0 2px var(--space-4); }
+    /* 月度彙總卡片化 */
+    #content .pd-table-wrap:last-of-type table.pd-table tbody tr { display: block; background: var(--color-surface); border: var(--border); border-radius: var(--radius); box-shadow: var(--shadow-sm); padding: 12px 16px; margin-bottom: 10px; }
+    #content .pd-table-wrap:last-of-type table.pd-table tbody tr td { display: flex; justify-content: space-between; gap: 12px; padding: 5px 0; border-bottom: none; text-align: right; }
+    #content .pd-table-wrap:last-of-type table.pd-table tbody tr td::before { content: attr(data-label); font-size: 12px; font-weight: 600; color: var(--color-neutral-600); text-align: left; }
+  }
 </style>
 </head>
 <body>
@@ -226,6 +267,8 @@
 
 <script>
 const API_BASE = '';
+// 只有在非正式網域（預覽／本機）才啟用示範資料，讓設計可被檢視；部署到 lopia-status 走真實 API。
+const DEMO = !/lopia-status/.test(location.hostname);
 let currentData = null;
 let showInactive = false;
 let lossOnly = false;
@@ -351,11 +394,45 @@ function t(key, ...args) {
   return typeof v === 'function' ? v(...args) : v;
 }
 
+// ── 預覽用示範資料（僅 DEMO 模式使用，數字皆為虛構） ──────────────────────────
+function makeDemoData() {
+  const mkRows = (arr) => arr;
+  const batches = [
+    { batchId: 'b1', ivName: 'LP-0713', productSummary: 'いちご 草莓（福岡）', revenue: 486000, allocImport: 244000, allocLogistics: 42700, shippedBoxes: 180, totalBoxes: 180, futureBoxes: 0, costStatus: 'full', deliveryStatus: '全數出貨', missingPriceRows: 0, shiireJpyRaw: 612000, tariffCustomsRaw: 68000, miscFeeRaw: 22000, shiireTwd: 136000, tariffCustoms: 68000, miscFee: 22000, costFull: 226000,
+      rows: mkRows([{ id: 'r1', date: '2026-07-08', store: 'LaLaport 台中店', boxes: 90, revenue: 243000, allocImport: 122000, allocLogistics: 21350, margin: 99650, isFuture: false, revenueSource: 'auto' }, { id: 'r2', date: '2026-07-11', store: '桃園春日店', boxes: 90, revenue: 243000, allocImport: 122000, allocLogistics: 21350, margin: 99650, isFuture: false, revenueSource: 'auto' }]) },
+    { batchId: 'b2', ivName: 'LP-0712', productSummary: 'りんご 青森蘋果', revenue: 648000, allocImport: 384000, allocLogistics: 56600, shippedBoxes: 240, totalBoxes: 240, futureBoxes: 0, costStatus: 'full', deliveryStatus: '全數出貨', missingPriceRows: 0, shiireJpyRaw: 864000, tariffCustomsRaw: 120000, miscFeeRaw: 30000, shiireTwd: 192000, tariffCustoms: 120000, miscFee: 30000, costFull: 342000,
+      rows: mkRows([{ id: 'r3', date: '2026-07-06', store: '新北中和環球店', boxes: 120, revenue: 324000, allocImport: 192000, allocLogistics: 28300, margin: 103700, isFuture: false, revenueSource: 'auto' }, { id: 'r4', date: '2026-07-09', store: '高雄漢神巨蛋店', boxes: 120, revenue: 324000, allocImport: 192000, allocLogistics: 28300, margin: 103700, isFuture: false, revenueSource: 'auto' }]) },
+    { batchId: 'b3', ivName: 'LP-0710', productSummary: '米菓 米果零食', revenue: 318000, allocImport: 198000, allocLogistics: 34200, shippedBoxes: 320, totalBoxes: 320, futureBoxes: 0, costStatus: 'full', deliveryStatus: '全數出貨', missingPriceRows: 0, shiireJpyRaw: 410000, tariffCustomsRaw: 76000, miscFeeRaw: 18000, shiireTwd: 91100, tariffCustoms: 76000, miscFee: 18000, costFull: 185100,
+      rows: mkRows([{ id: 'r5', date: '2026-07-04', store: '南港 LaLaport 店', boxes: 320, revenue: 318000, allocImport: 198000, allocLogistics: 34200, margin: 85800, isFuture: false, revenueSource: 'auto' }]) },
+    { batchId: 'b4', ivName: 'LP-0711', productSummary: '豚肉加工品', revenue: 540000, allocImport: 396000, allocLogistics: 46800, shippedBoxes: 150, totalBoxes: 150, futureBoxes: 0, costStatus: 'partial', deliveryStatus: '全數出貨', missingPriceRows: 0, shiireJpyRaw: 720000, tariffCustomsRaw: null, miscFeeRaw: 36000, shiireTwd: 160000, tariffCustoms: 0, miscFee: 36000, costFull: 442800,
+      rows: mkRows([{ id: 'r6', date: '2026-07-05', store: '台中漢神中港店', boxes: 150, revenue: 540000, allocImport: 396000, allocLogistics: 46800, margin: 97200, isFuture: false, revenueSource: 'auto' }]) },
+    { batchId: 'b5', ivName: 'LP-0709', productSummary: 'ぶどう 葡萄（岡山）', revenue: 384000, allocImport: 296000, allocLogistics: 26600, shippedBoxes: 96, totalBoxes: 120, futureBoxes: 24, costStatus: 'full', deliveryStatus: '部分出貨', missingPriceRows: 0, shiireJpyRaw: 518000, tariffCustomsRaw: 88000, miscFeeRaw: 24000, shiireTwd: 115100, tariffCustoms: 88000, miscFee: 24000, costFull: 227100,
+      rows: mkRows([{ id: 'r7', date: '2026-07-07', store: '台北美麗華店', boxes: 96, revenue: 384000, allocImport: 296000, allocLogistics: 26600, margin: 61400, isFuture: false, revenueSource: 'auto' }, { id: 'r8', date: '2026-07-20', store: '台南小北門店', boxes: 24, revenue: 0, allocImport: 0, allocLogistics: 0, margin: 0, isFuture: true, revenueSource: 'none' }]) },
+    { batchId: 'b6', ivName: 'LP-0708', productSummary: 'なし 水梨（鳥取）', revenue: 210000, allocImport: 214000, allocLogistics: 19800, shippedBoxes: 80, totalBoxes: 80, futureBoxes: 0, costStatus: 'full', deliveryStatus: '全數出貨', missingPriceRows: 0, shiireJpyRaw: 486000, tariffCustomsRaw: 52000, miscFeeRaw: 14000, shiireTwd: 108000, tariffCustoms: 52000, miscFee: 14000, costFull: 233800,
+      rows: mkRows([{ id: 'r9', date: '2026-07-03', store: '新莊宏匯店', boxes: 80, revenue: 210000, allocImport: 214000, allocLogistics: 19800, margin: -23800, isFuture: false, revenueSource: 'auto' }]) },
+  ].map(b => {
+    const cost = b.allocImport + b.allocLogistics;
+    const margin = b.revenue - cost;
+    return { ...b, margin, marginRate: b.revenue ? margin / b.revenue : 0 };
+  });
+  const months = [
+    { month: '2026-05', boxes: 640, revenue: 1180000, importCost: 720000, logistics: 118000, logisticsFilled: true },
+    { month: '2026-06', boxes: 820, revenue: 1520000, importCost: 940000, logistics: 152000, logisticsFilled: true },
+    { month: '2026-07', boxes: 946, revenue: 1668000, importCost: 1152000, logistics: 0, logisticsFilled: false },
+  ].map(m => { const margin = m.revenue - m.importCost - m.logistics; return { ...m, margin, marginRate: m.revenue ? margin / m.revenue : 0 }; });
+  return {
+    lastUpdated: new Date().toISOString(),
+    fy: { batchesWithMissingCost: 1, monthsWithMissingLogistics: ['2026-07'] },
+    batches, months,
+    logisticsEntries: [{ month: '2026-05', sanyi: 72000, yuchu: 46000 }, { month: '2026-06', sanyi: 94000, yuchu: 58000 }],
+  };
+}
+
 function fmt(n) { return Math.round(n || 0).toLocaleString('en-US'); }
 function fmtSigned(n) { const r = Math.round(n || 0); return (r < 0 ? '-' : '') + 'NT$' + Math.abs(r).toLocaleString('en-US'); }
 function pct(r) { return ((r || 0) * 100).toFixed(1) + '%'; }
 function esc(s) { return String(s ?? '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;'); }
-function marginColor(m) { return m < 0 ? 'var(--color-accent)' : 'var(--color-text)'; }
+function marginColor(m) { return m < 0 ? 'var(--color-loss)' : 'var(--color-profit)'; }
 // 數字輸入格：空白=null（清空），有值必須是 0 以上的數字，不合法丟錯不送出
 function parseInputNum(el, label) {
   const v = el.value.trim().replace(/,/g, '');
@@ -424,6 +501,13 @@ async function loadData() {
   document.getElementById('loading').style.display = 'block';
   document.getElementById('empty').style.display = 'none';
   document.getElementById('content').style.display = 'none';
+  if (DEMO) {
+    currentData = makeDemoData();
+    render();
+    refreshBtn.disabled = false;
+    setTimeout(() => refreshBtn.classList.remove('spinning'), 500);
+    return;
+  }
   try {
     const r = await fetch(API_BASE + '/api/profit', { cache: 'no-store' });
     if (r.status === 401) { document.getElementById('gate').style.display = 'flex'; document.getElementById('app').style.display = 'none'; return; }
@@ -484,6 +568,7 @@ function render() {
   const d = currentData;
   document.getElementById('content').style.display = 'block';
   document.getElementById('content').innerHTML =
+    (DEMO ? '<div class="pd-demo-banner">示範資料（此為預覽版本，數字為虛構）· 部署到正式網址會顯示真實資料</div>' : '') +
     renderBanners(d) + renderKPI(d) + renderCatTabsHtml(d) + renderControls() + renderVisualSection() + renderBatchTable(d) + renderMonthTable(d);
   document.getElementById('lastUpdatedClock').textContent = formatClock(d.lastUpdated);
   document.getElementById('srcFooter').textContent = t('footerSource', (d.lastUpdated || '').replace('T',' ').slice(0,16));
@@ -574,11 +659,11 @@ function renderVisualSection() {
       <div id="chartBars"></div>
     </div>
     <div class="pd-panel">
-      <h3 style="margin-bottom:var(--space-3);">${t('panelMarginBucket')}</h3>
+      <h3 style="margin-bottom:var(--space-4);">${t('panelMarginBucket')}</h3>
       <div id="bucketChart"></div>
     </div>
   </div>
-  <div class="pd-panel" style="margin-top:var(--space-4);">
+  <div class="pd-panel" style="margin-bottom:var(--space-4);">
     <div class="pd-panel-head"><h3>${t('panelMonthTrend')}</h3><span class="unit">%</span></div>
     <div id="monthTrend"></div>
   </div>`;
@@ -613,10 +698,10 @@ function renderVisual(d) {
   }).join('') : `<div class="pd-empty-note">${t('noBatchInCat')}</div>`;
 
   const buckets = [
-    { label: t('bucket40'), test: m => m >= 0.40, color: 'var(--color-text)' },
-    { label: t('bucket20_40'), test: m => m >= 0.20 && m < 0.40, color: 'var(--color-neutral-600)' },
+    { label: t('bucket40'), test: m => m >= 0.40, color: 'var(--color-profit)' },
+    { label: t('bucket20_40'), test: m => m >= 0.20 && m < 0.40, color: '#3ba776' },
     { label: t('bucket0_20'), test: m => m >= 0 && m < 0.20, color: 'var(--color-neutral-400)' },
-    { label: t('bucketLoss'), test: m => m < 0, color: 'var(--color-accent)' },
+    { label: t('bucketLoss'), test: m => m < 0, color: 'var(--color-loss)' },
   ];
   const denom = Math.max(1, list.length);
   document.getElementById('bucketChart').innerHTML = buckets.map(b => {
@@ -664,20 +749,20 @@ function renderBatchTable(d) {
           ? `<span class="num" style="color:var(--color-neutral-600);">${t('notFilled')}</span>`
           : `<span class="num">${fmt(b.shiireJpyRaw)}</span>`;
         return `<tr class="pd-row" data-idx="${idx}">
-            <td>
+            <td class="cell-name">
               <div class="pd-name"><span class="pd-caret">▸</span>${esc(b.productSummary || b.ivName)}</div>
               <div class="pd-id num">${esc(b.ivName)}</div>
             </td>
-            <td class="r">
+            <td class="r" data-label="${t('colShipStock')}">
               <div class="num">${fmt(b.shippedBoxes)} / ${fmt(b.totalBoxes)}</div>
               <div class="pd-bucket-track" style="max-width:90px;margin-top:5px;margin-left:auto;"><div class="pd-bucket-fill" style="width:${barPct}%;background:var(--color-text);"></div></div>
             </td>
-            <td class="r">${costInput}</td>
-            <td class="r num">${fmt(b.allocImport + b.allocLogistics)}</td>
-            <td class="r num">${fmt(b.revenue)}</td>
-            <td class="r num" style="font-weight:800;color:${color};">${noData ? '－' : fmtSigned(b.margin)}</td>
-            <td class="r num" style="font-weight:700;color:${color};">${noData ? '－' : pct(b.marginRate)}</td>
-            <td>${batchStatusHtml(b)}</td>
+            <td class="r" data-label="${t('colShiire')}">${costInput}</td>
+            <td class="r num" data-label="${t('colCost')}">${fmt(b.allocImport + b.allocLogistics)}</td>
+            <td class="r num" data-label="${t('colRevenue')}">${fmt(b.revenue)}</td>
+            <td class="r num" data-label="${t('colMargin')}" style="font-weight:800;color:${color};">${noData ? '－' : fmtSigned(b.margin)}</td>
+            <td class="r num" data-label="${t('colMarginRate')}" style="font-weight:700;color:${color};">${noData ? '－' : pct(b.marginRate)}</td>
+            <td data-label="${t('colStatus')}">${batchStatusHtml(b)}</td>
           </tr>
           <tr class="pd-detail" data-expand="${idx}" style="display:none;"><td colspan="8"></td></tr>`;
       }).join('')}</tbody>
@@ -759,7 +844,7 @@ function renderUnlinkedEditableTable(b) {
       <td><select class="rec-batch">${batchOptionsHtml('')}</select></td>
       <td class="r" style="white-space:nowrap;">
         <button class="pd-savebtn rec-save">${t('saveBtn')}</button>
-        <button class="pd-savebtn rec-split" style="background:var(--color-bg);color:var(--color-text);">${t('splitBtn')}</button>
+        <button class="pd-savebtn rec-split" style="background:var(--color-surface);color:var(--color-text);border:1px solid var(--color-neutral-400);">${t('splitBtn')}</button>
       </td>
     </tr>
     <tr class="rec-note-row"><td colspan="6"><div class="pd-toast rec-note"></div></td></tr>`).join('');
@@ -813,7 +898,7 @@ function bindUnlinkedEditableTable() {
         <td><select class="rec-batch">${batchOptionsHtml('')}</select></td>
         <td class="r" style="white-space:nowrap;">
           <button class="pd-savebtn rec-create">${t('saveBtn')}</button>
-          <button class="pd-savebtn rec-cancel" style="background:var(--color-bg);color:var(--color-text);">${t('cancelBtn')}</button>
+          <button class="pd-savebtn rec-cancel" style="background:var(--color-surface);color:var(--color-text);border:1px solid var(--color-neutral-400);">${t('cancelBtn')}</button>
         </td>`;
       const noteRow = document.createElement('tr');
       noteRow.className = 'rec-note-row';
@@ -969,11 +1054,11 @@ function renderMonthTable(d) {
     const yuchuVal = log && log.yuchu != null ? String(log.yuchu) : '';
     const color = m.revenue > 0 ? marginColor(m.margin) : 'var(--color-text)';
     return `<tr>
-      <td class="num">${esc(m.month)}</td>
-      <td class="r num">${fmt(m.boxes)}</td>
-      <td class="r num">${fmt(m.revenue)}</td>
-      <td class="r num">${fmt(m.importCost)}</td>
-      <td>
+      <td class="num" data-label="${t('colMonth')}">${esc(m.month)}</td>
+      <td class="r num" data-label="${t('colBoxes')}">${fmt(m.boxes)}</td>
+      <td class="r num" data-label="${t('colRevenue2')}">${fmt(m.revenue)}</td>
+      <td class="r num" data-label="${t('colImportAlloc')}">${fmt(m.importCost)}</td>
+      <td data-label="${t('colLogistics')}">
         <div class="month-flex">
           <input class="month-input lg-sanyi" data-m="${i}" inputmode="decimal" placeholder="三義" value="${esc(sanyiVal)}">
           <input class="month-input lg-yuchu" data-m="${i}" inputmode="decimal" placeholder="優儲" value="${esc(yuchuVal)}">
@@ -981,8 +1066,8 @@ function renderMonthTable(d) {
         </div>
         <div class="row-note lg-note" data-m="${i}">${m.logisticsFilled ? '' : t('logisticsUnfilledNote')}</div>
       </td>
-      <td class="r num" style="color:${color};font-weight:800;">${m.revenue > 0 ? fmtSigned(m.margin) : '－'}</td>
-      <td class="r num" style="color:${color};font-weight:700;">${m.revenue > 0 ? pct(m.marginRate) : '－'}</td>
+      <td class="r num" data-label="${t('colMargin')}" style="color:${color};font-weight:800;">${m.revenue > 0 ? fmtSigned(m.margin) : '－'}</td>
+      <td class="r num" data-label="${t('colMarginRate')}" style="color:${color};font-weight:700;">${m.revenue > 0 ? pct(m.marginRate) : '－'}</td>
     </tr>`;
   }).join('');
 
@@ -994,7 +1079,7 @@ function renderMonthTable(d) {
       </tr></thead>
       <tbody>${rows}</tbody>
       <tbody><tr>
-        <td colspan="7" style="padding:12px 14px;">
+        <td colspan="7" style="padding:12px 16px;">
           <div class="month-flex" style="font-size:12px;color:var(--color-neutral-600);">
             ${t('addOtherMonth')}
             <input class="month-input month" id="newLogMonth" type="month">
@@ -1062,6 +1147,7 @@ document.getElementById('pwInput').addEventListener('keydown', e => { if (e.key 
 document.getElementById('refreshBtn').addEventListener('click', loadData);
 
 (async function init() {
+  if (DEMO) { showApp(); return; }
   const authed = await checkAuth();
   if (authed) showApp();
 })();
