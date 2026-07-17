@@ -43,6 +43,7 @@ export interface LiveRecordRow {
   allocLogistics: number
   margin: number
   isFuture: boolean
+  logisticsPending: boolean  // 已出貨，但當月三義/優儲月結帳單還沒填 → 成本沒完全知道，不列入毛利計算
 }
 
 export interface LiveBatchMargin {
@@ -73,6 +74,7 @@ export interface LiveBatchMargin {
   margin: number
   marginRate: number
   missingPriceRows: number   // 有箱數卻抓不到營收的列數
+  logisticsPendingBoxes: number // 已出貨但當月物流未結算、沒列入毛利計算的箱數
   rows: LiveRecordRow[]
 }
 
@@ -118,6 +120,15 @@ function costStatusOf(b: Shipment): CostStatus {
   if (filled === 3) return 'complete'
   if (filled === 0) return 'none'
   return 'partial'
+}
+
+// 三義/優儲的月結帳單通常要等月底才收得到，月中還在跑的那個月一定是空的，不是漏填。
+// 該月份物流沒填齊時，這個月出貨的毛利還不完整（成本未知），不列入任何毛利計算，
+// 等實際填了金額才補回去——寧可先不算，也不要用「未填=0元」的假設把毛利算高。
+function isMonthLogisticsFilled(month: string | null, logisticsByMonth: Map<string, MonthlyLogistics>): boolean {
+  if (!month) return false
+  const entry = logisticsByMonth.get(month)
+  return entry != null && (entry.sanyi != null || entry.yuchu != null)
 }
 
 export function computeLiveMargins(
@@ -216,6 +227,7 @@ export function computeLiveMargins(
       const ratio = !p.isFuture && base > 0 ? p.boxes / base : 0
       const allocImport = costFull * ratio
       const allocLogistics = p.isFuture ? 0 : perBoxLogistics(p.month) * p.boxes
+      const logisticsPending = !p.isFuture && !isMonthLogisticsFilled(p.month, logisticsByMonth)
       return {
         id: p.rec.id,
         date: p.rec.date,
@@ -228,14 +240,18 @@ export function computeLiveMargins(
         allocLogistics,
         margin: (p.isFuture ? 0 : p.revenue) - allocImport - allocLogistics,
         isFuture: p.isFuture,
+        logisticsPending,
       }
     }).sort((a, b) => (a.date ?? '').localeCompare(b.date ?? ''))
 
     const shippedRows = rows.filter(r => !r.isFuture)
-    const revenue = shippedRows.reduce((s, r) => s + r.revenue, 0)
-    const allocImport = shippedRows.reduce((s, r) => s + r.allocImport, 0)
-    const allocLogistics = shippedRows.reduce((s, r) => s + r.allocLogistics, 0)
+    // 物流未結算月份的出貨先不列入毛利計算（成本還不完整），等填了帳單自然會補進來
+    const confirmedRows = shippedRows.filter(r => !r.logisticsPending)
+    const revenue = confirmedRows.reduce((s, r) => s + r.revenue, 0)
+    const allocImport = confirmedRows.reduce((s, r) => s + r.allocImport, 0)
+    const allocLogistics = confirmedRows.reduce((s, r) => s + r.allocLogistics, 0)
     const margin = revenue - allocImport - allocLogistics
+    const logisticsPendingBoxes = shippedRows.filter(r => r.logisticsPending).reduce((s, r) => s + r.boxes, 0)
 
     batches.push({
       batchId: batch.id,
@@ -262,6 +278,7 @@ export function computeLiveMargins(
       margin,
       marginRate: revenue > 0 ? margin / revenue : 0,
       missingPriceRows: shippedRows.filter(r => r.revenueSource === 'none' && r.boxes > 0).length,
+      logisticsPendingBoxes,
       rows,
     })
   }
@@ -271,17 +288,21 @@ export function computeLiveMargins(
   if (orphans.length > 0) {
     const rows: LiveRecordRow[] = orphans.map(p => {
       const allocLogistics = p.isFuture ? 0 : perBoxLogistics(p.month) * p.boxes
+      const logisticsPending = !p.isFuture && !isMonthLogisticsFilled(p.month, logisticsByMonth)
       return {
         id: p.rec.id, date: p.rec.date, month: p.month, store: p.rec.store, boxes: p.boxes,
         revenue: p.isFuture ? 0 : p.revenue, revenueSource: p.source,
         allocImport: 0, allocLogistics,
         margin: (p.isFuture ? 0 : p.revenue) - allocLogistics, isFuture: p.isFuture,
+        logisticsPending,
       }
     }).sort((a, b) => (a.date ?? '').localeCompare(b.date ?? ''))
     const shippedRows = rows.filter(r => !r.isFuture)
-    const revenue = shippedRows.reduce((s, r) => s + r.revenue, 0)
-    const allocLogistics = shippedRows.reduce((s, r) => s + r.allocLogistics, 0)
+    const confirmedRows = shippedRows.filter(r => !r.logisticsPending)
+    const revenue = confirmedRows.reduce((s, r) => s + r.revenue, 0)
+    const allocLogistics = confirmedRows.reduce((s, r) => s + r.allocLogistics, 0)
     const shippedBoxes = shippedRows.reduce((s, r) => s + r.boxes, 0)
+    const logisticsPendingBoxes = shippedRows.filter(r => r.logisticsPending).reduce((s, r) => s + r.boxes, 0)
     batches.push({
       batchId: '__unlinked__',
       ivName: '未連結批次',
@@ -295,6 +316,7 @@ export function computeLiveMargins(
       margin: revenue - allocLogistics,
       marginRate: revenue > 0 ? (revenue - allocLogistics) / revenue : 0,
       missingPriceRows: shippedRows.filter(r => r.revenueSource === 'none' && r.boxes > 0).length,
+      logisticsPendingBoxes,
       rows,
     })
   }
@@ -332,9 +354,11 @@ export function computeLiveMargins(
   // ── 本財年總覽 ──
   const currentFy = fiscalYearOf(today.slice(0, 7))
   const fyMonths = months.filter(m => m.fiscalYear === currentFy)
-  const fyRevenue = fyMonths.reduce((s, m) => s + m.revenue, 0)
-  const fyImport = fyMonths.reduce((s, m) => s + m.importCost, 0)
-  const fyLogistics = fyMonths.reduce((s, m) => s + m.logistics, 0)
+  // 物流未結算的月份不列入財年總覽（跟批次層級一致，避免把「未扣物流」的月份算進確定數字）
+  const fyMonthsFilled = fyMonths.filter(m => m.logisticsFilled)
+  const fyRevenue = fyMonthsFilled.reduce((s, m) => s + m.revenue, 0)
+  const fyImport = fyMonthsFilled.reduce((s, m) => s + m.importCost, 0)
+  const fyLogistics = fyMonthsFilled.reduce((s, m) => s + m.logistics, 0)
   const fyMargin = fyRevenue - fyImport - fyLogistics
   const fyBatchIds = new Set<string>()
   for (const b of batches) {
@@ -349,7 +373,7 @@ export function computeLiveMargins(
   for (const b of batches) {
     if (!b.completed || b.costStatus !== 'complete') continue
     for (const r of b.rows) {
-      if (r.isFuture || !r.month || fiscalYearOf(r.month) !== currentFy) continue
+      if (r.isFuture || r.logisticsPending || !r.month || fiscalYearOf(r.month) !== currentFy) continue
       cfRevenue += r.revenue
       cfCost += r.allocImport + r.allocLogistics
       cfBatches.add(b.batchId)

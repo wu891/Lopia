@@ -378,6 +378,9 @@ const T = {
     unlinkedEditHint: '每一筆都能直接改，選好歸屬批次存檔後就會併入該批次重新計算。若一張出貨單其實是兩個批次的貨，用「拆成兩筆」手動拆。',
     missingPriceEditHint: '這筆抓不到營收，直接填金額存檔即可。',
     newRecordTitle: '新記錄（尚未儲存）',
+    monthsPendingNote: months => `${months} 物流月結帳單還沒收到，這些月份不列入趨勢圖與毛利計算，等填了物流費用會自動補回來。`,
+    logisticsPendingNote: boxes => `另有 ${boxes} 箱本月物流還沒結算，先不列入毛利計算`,
+    logisticsPendingRowNote: '本月物流未結算，暫不列入毛利',
   },
   ja: {
     pageH1: 'バッチ別リアルタイム粗利', eyebrow: 'LOPIA TAIWAN・財務',
@@ -432,6 +435,9 @@ const T = {
     unlinkedEditHint: 'すべて直接編集できます。紐付け先ロットを選んで保存すると、そのロットに合算して再計算されます。1件の出荷が実は2ロット分の場合は「分割」で手動で分けてください。',
     missingPriceEditHint: 'この行は売上が算出できません。金額を入力して保存してください。',
     newRecordTitle: '新規記録（未保存）',
+    monthsPendingNote: months => `${months}分の物流月次請求書がまだ届いていません。これらの月はトレンド図と粗利計算に含まれません。費用を入力すると自動的に反映されます。`,
+    logisticsPendingNote: boxes => `他に${boxes}箱、今月分の物流費がまだ確定していないため粗利計算に含まれていません`,
+    logisticsPendingRowNote: '今月分の物流費未確定のため粗利未計上',
   },
 };
 function t(key, ...args) {
@@ -767,7 +773,9 @@ function renderVisualSection() {
 function renderMonthTrend(d) {
   const el = document.getElementById('monthTrend');
   if (!el) return;
-  const months = d.months.filter(m => m.revenue > 0).slice().sort((a, b) => a.month.localeCompare(b.month));
+  // 物流還沒結算的月份（通常是本月）成本還不完整，不畫進趨勢圖，避免看起來毛利偏高
+  const months = d.months.filter(m => m.revenue > 0 && m.logisticsFilled).slice().sort((a, b) => a.month.localeCompare(b.month));
+  const pendingMonths = d.months.filter(m => m.revenue > 0 && !m.logisticsFilled).map(m => m.month).sort();
   if (!months.length) { el.innerHTML = `<div class="pd-empty-note">${t('noMonthData')}</div>`; return; }
   const rates = months.map(m => m.marginRate);
   const maxVal = Math.max(0, TARGET_RATE, ...rates);
@@ -788,13 +796,14 @@ function renderMonthTrend(d) {
     </div>`;
   }).join('');
   const zeroLine = zeroPct > 0.5 && zeroPct < 99.5 ? `<div class="pd-monthtrend-zero" style="bottom:${zeroPct}%;"></div>` : '';
+  const pendingNote = pendingMonths.length ? `<div class="pd-empty-note" style="margin-top:10px;">${esc(t('monthsPendingNote', pendingMonths.join('、')))}</div>` : '';
   el.innerHTML = `<div class="pd-monthtrend-wrap">
     <div class="pd-monthtrend-cols">
       <div class="pd-monthtrend-target" style="bottom:${targetPct}%;"><span>${t('kpiTarget')} ${(TARGET_RATE * 100).toFixed(0)}%</span></div>
       ${zeroLine}
       ${cols}
     </div>
-  </div>`;
+  </div>${pendingNote}`;
 }
 function renderVisual(d) {
   const list = visibleBatches(d).filter(b => b.shippedBoxes > 0); // 尚未出貨的批次沒有意義的毛利可畫
@@ -829,6 +838,7 @@ function batchStatusHtml(b) {
   if (b.batchId === '__unlinked__') {
     let html = `<span class="tag tag-accent">${t('tagUnlinked')}</span>`;
     if (b.missingPriceRows > 0) html += `<span class="plain-note">${t('missingPriceNote', b.missingPriceRows)}</span>`;
+    if (b.logisticsPendingBoxes > 0) html += `<span class="plain-note">${t('logisticsPendingNote', b.logisticsPendingBoxes)}</span>`;
     return html;
   }
   let chip;
@@ -840,6 +850,7 @@ function batchStatusHtml(b) {
   else chip = `<span class="tag tag-accent">${t('catShipping')}</span>`;
   let html = chip;
   if (b.missingPriceRows > 0) html += `<span class="plain-note">${t('missingPriceNote', b.missingPriceRows)}</span>`;
+  if (b.logisticsPendingBoxes > 0) html += `<span class="plain-note">${t('logisticsPendingNote', b.logisticsPendingBoxes)}</span>`;
   return html;
 }
 
@@ -1046,7 +1057,7 @@ function bindUnlinkedEditableTable() {
 // ── 一般批次：逐筆出貨明細唯讀，但「缺單價」那幾筆的營收欄改成可直接填金額 ──
 function renderNormalDetailTable(b) {
   const subRows = b.rows.map(s => {
-    const cls = s.isFuture ? ' class="future"' : '';
+    const cls = (s.isFuture || s.logisticsPending) ? ' class="future"' : '';
     const needsPrice = !s.isFuture && s.revenueSource === 'none' && s.boxes > 0;
     const revenueCell = needsPrice
       ? `<div style="display:flex;gap:5px;justify-content:flex-end;align-items:center;">
@@ -1054,8 +1065,9 @@ function renderNormalDetailTable(b) {
           <button class="pd-savebtn rec-price-save" data-id="${esc(s.id)}" style="padding:5px 9px;font-size:10.5px;">${t('saveBtn')}</button>
         </div>`
       : (s.isFuture ? '—' : fmt(s.revenue));
+    const dateNote = s.isFuture ? t('planned') : (s.logisticsPending ? `（${t('logisticsPendingRowNote')}）` : '');
     return `<tr${cls}${needsPrice ? ' data-price-row="1"' : ''}>
-      <td>${esc(s.date || '—')}${s.isFuture ? t('planned') : ''}</td><td>${esc(s.store || '—')}</td>
+      <td>${esc(s.date || '—')}${dateNote}</td><td>${esc(s.store || '—')}</td>
       <td class="r num">${fmt(s.boxes)}</td>
       <td class="r num">${revenueCell}</td>
       <td class="r num">${s.isFuture ? '—' : fmt(s.allocImport)}</td>
