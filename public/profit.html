@@ -1,0 +1,530 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>LOPIA 批次即時毛利</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Noto+Serif+TC:wght@600;700&family=Noto+Sans+TC:wght@400;500;700&family=JetBrains+Mono:wght@500;700&display=swap" rel="stylesheet">
+<style>
+  /* ── 帳簿風（総勘定）：跟月結報告同一套視覺語言。
+     這頁是 2026-07 重建版「批次即時毛利」——資料全住 Notion，
+     成本在這頁直接填，不再解析任何 Drive 檔案。 */
+  :root {
+    --paper: #f6f4ee; --paper-2: #fffdf9; --ink: #1e1c18; --ink-2: #6b6558;
+    --rule: #d9d2c2; --rule-strong: #b7ae98;
+    --red: #b3122b; --red-bg: #f6e3e1; --green: #2e5d40; --green-bg: #e7efe9;
+    --amber: #8a5a19; --amber-bg: #f3ead4;
+    --serif: 'Noto Serif TC', 'Hiragino Mincho ProN', Georgia, serif;
+    --sans: -apple-system, 'Hiragino Sans', 'Noto Sans TC', sans-serif;
+    --mono: 'JetBrains Mono', ui-monospace, 'Noto Sans TC', monospace;
+  }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { font-family: var(--serif); background: var(--paper); color: var(--ink); line-height: 1.6; -webkit-font-smoothing: antialiased; }
+  .sans { font-family: var(--sans); }
+  .mono { font-family: var(--mono); font-variant-numeric: tabular-nums; }
+
+  #gate { min-height: 100vh; display: flex; align-items: center; justify-content: center; }
+  #gate .box { background: var(--paper-2); border: 1px solid var(--rule); border-radius: 4px; padding: 44px 40px; width: 320px; text-align: center; }
+  #gate .rule { width: 40px; height: 3px; background: var(--red); margin: 0 auto 18px; }
+  #gate h1 { font-size: 19px; font-weight: 700; margin-bottom: 8px; }
+  #gate p { font-family: var(--sans); font-size: 12.5px; color: var(--ink-2); margin-bottom: 24px; }
+  #gate input {
+    width: 100%; padding: 11px 13px; border: none; border-bottom: 1.5px solid var(--rule-strong);
+    background: transparent; font-family: var(--sans); font-size: 14px; margin-bottom: 14px; text-align: center;
+  }
+  #gate input:focus { outline: none; border-bottom-color: var(--red); }
+  #gate button {
+    width: 100%; padding: 11px; border: 1.5px solid var(--ink); border-radius: 2px; background: var(--ink);
+    color: var(--paper-2); font-family: var(--sans); font-weight: 700; font-size: 13.5px; letter-spacing: 0.5px; cursor: pointer;
+  }
+  #gate button:hover:not(:disabled) { background: var(--red); border-color: var(--red); }
+  #gate button:disabled { opacity: 0.5; cursor: not-allowed; }
+  #gate .err { font-family: var(--sans); color: var(--red); font-size: 12px; margin-top: 12px; min-height: 16px; font-weight: 600; }
+
+  #app { display: none; }
+  .wrap { max-width: 980px; margin: 0 auto; padding: 52px 36px 100px; }
+
+  .letterhead { display: flex; justify-content: space-between; align-items: flex-end; padding-bottom: 18px; border-bottom: 3px double var(--rule-strong); flex-wrap: wrap; gap: 12px; }
+  .letterhead h1 { font-size: 25px; font-weight: 700; letter-spacing: 0.5px; }
+  .letterhead .actions { display: flex; gap: 10px; align-items: center; font-family: var(--sans); }
+  button.link {
+    font-family: var(--sans); background: none; border: 1px solid var(--rule-strong); color: var(--ink-2);
+    font-size: 12.5px; font-weight: 600; cursor: pointer; padding: 8px 14px; border-radius: 2px;
+  }
+  button.link:hover { border-color: var(--ink); color: var(--ink); }
+  .subline { font-family: var(--sans); font-size: 12.5px; color: var(--ink-2); margin-top: 10px; }
+
+  .banner { font-family: var(--sans); font-size: 13px; padding: 11px 0; border-bottom: 1px dotted var(--rule-strong); line-height: 1.7; }
+  .banner .tag { font-weight: 700; color: var(--amber); margin-right: 6px; }
+  .banner.bad .tag { color: var(--red); }
+
+  .totals-row { display: flex; margin: 32px 0; border-top: 1px solid var(--rule); border-bottom: 1px solid var(--rule); flex-wrap: wrap; }
+  .totals-row .cell { flex: 1; min-width: 130px; padding: 16px 20px; border-left: 1px solid var(--rule); }
+  .totals-row .cell:first-child { border-left: none; }
+  .totals-row .cell .l { font-family: var(--sans); font-size: 11px; color: var(--ink-2); letter-spacing: 0.3px; }
+  .totals-row .cell .v { font-size: 21px; margin-top: 5px; }
+  .totals-row .cell.hero .v { color: var(--green); font-weight: 700; }
+  .totals-row .cell.hero.loss .v { color: var(--red); }
+
+  h2.section {
+    font-family: var(--sans); font-size: 12.5px; font-weight: 700; letter-spacing: 1.2px; color: var(--ink-2);
+    margin: 38px 0 6px; text-transform: uppercase;
+  }
+  h2.section .hint { font-weight: 400; text-transform: none; letter-spacing: 0; color: var(--ink-2); font-size: 11.5px; }
+
+  table.ledger-table { width: 100%; border-collapse: collapse; margin-top: 8px; }
+  table.ledger-table thead th {
+    font-family: var(--sans); text-align: left; font-size: 10.5px; font-weight: 700; color: var(--ink-2);
+    padding: 8px 10px; border-bottom: 1.5px solid var(--rule-strong); text-transform: uppercase; letter-spacing: 0.4px;
+  }
+  table.ledger-table tbody td { padding: 13px 10px; border-bottom: 1px solid var(--rule); font-size: 14.5px; vertical-align: top; }
+  table.ledger-table td.num, table.ledger-table th.num { text-align: right; }
+  table.ledger-table tr.batch-row { cursor: pointer; }
+  table.ledger-table tr.batch-row:hover { background: rgba(0,0,0,0.02); }
+  table.ledger-table tr.batch-row.muted td { color: var(--ink-2); }
+  table.ledger-table .caret { display: inline-block; width: 12px; font-family: var(--sans); color: var(--ink-2); transition: transform .12s; }
+  table.ledger-table tr.batch-row.open .caret { transform: rotate(90deg); }
+  .status { font-family: var(--sans); font-size: 11px; font-weight: 700; }
+  .status.good { color: var(--green); }
+  .status.bad { color: var(--red); }
+  .status.warn { color: var(--amber); }
+  .margin-figure.good { color: var(--green); font-weight: 700; }
+  .margin-figure.bad { color: var(--red); font-weight: 700; }
+  .badge { font-family: var(--sans); font-size: 10px; font-weight: 700; padding: 1px 6px; border-radius: 2px; margin-left: 6px; white-space: nowrap; }
+  .badge.red { color: var(--red); background: var(--red-bg); }
+  .badge.amber { color: var(--amber); background: var(--amber-bg); }
+  .badge.green { color: var(--green); background: var(--green-bg); }
+
+  tr.expand-row td { background: #efece2; padding: 4px 10px 18px; }
+  tr.expand-row table { width: 100%; font-size: 12.5px; margin-top: 6px; }
+  tr.expand-row table th { font-family: var(--sans); font-weight: 600; color: var(--ink-2); text-align: left; padding: 4px 10px; font-size: 10px; text-transform: uppercase; letter-spacing: 0.3px; border-bottom: none; }
+  tr.expand-row table td { padding: 6px 10px; border-bottom: 1px dotted var(--rule-strong); font-size: 13px; background: transparent; }
+  tr.expand-row table td.num, tr.expand-row table th.num { text-align: right; }
+  tr.expand-row .future td { color: var(--ink-2); font-style: italic; }
+
+  .cost-form { font-family: var(--sans); margin-top: 14px; padding: 12px; background: var(--paper-2); border: 1px solid var(--rule); border-radius: 3px; display: flex; gap: 14px; flex-wrap: wrap; align-items: flex-end; }
+  .cost-form .field { display: flex; flex-direction: column; gap: 3px; }
+  .cost-form label { font-size: 10.5px; font-weight: 700; color: var(--ink-2); letter-spacing: 0.3px; }
+  .cost-form input {
+    font-family: var(--mono); font-size: 13px; padding: 7px 9px; width: 130px;
+    border: 1px solid var(--rule-strong); border-radius: 2px; background: #fff; text-align: right;
+  }
+  .cost-form input:focus { outline: none; border-color: var(--ink); }
+  .cost-form button {
+    font-family: var(--sans); font-size: 12.5px; font-weight: 700; padding: 8px 18px;
+    border: 1.5px solid var(--ink); background: var(--ink); color: var(--paper-2); border-radius: 2px; cursor: pointer;
+  }
+  .cost-form button:hover:not(:disabled) { background: var(--red); border-color: var(--red); }
+  .cost-form button:disabled { opacity: 0.5; cursor: not-allowed; }
+  .cost-form .note { font-size: 11.5px; color: var(--ink-2); min-height: 16px; }
+  .cost-form .note.ok { color: var(--green); font-weight: 600; }
+  .cost-form .note.bad { color: var(--red); font-weight: 600; }
+
+  input.mini {
+    font-family: var(--mono); font-size: 12.5px; padding: 5px 7px; width: 105px;
+    border: 1px solid var(--rule-strong); border-radius: 2px; background: #fff; text-align: right;
+  }
+  input.mini:focus { outline: none; border-color: var(--ink); }
+  input.mini.month { width: 125px; text-align: left; font-family: var(--sans); }
+  button.mini-save {
+    font-family: var(--sans); font-size: 11.5px; font-weight: 700; padding: 6px 12px;
+    border: 1px solid var(--ink); background: var(--ink); color: var(--paper-2); border-radius: 2px; cursor: pointer;
+  }
+  button.mini-save:hover:not(:disabled) { background: var(--red); border-color: var(--red); }
+  button.mini-save:disabled { opacity: 0.5; cursor: not-allowed; }
+  .row-note { font-family: var(--sans); font-size: 11px; color: var(--ink-2); margin-top: 3px; min-height: 14px; }
+  .row-note.ok { color: var(--green); font-weight: 600; }
+  .row-note.bad { color: var(--red); font-weight: 600; }
+
+  footer.src { font-family: var(--sans); font-size: 11px; color: var(--ink-2); margin-top: 40px; padding-top: 16px; border-top: 1px solid var(--rule); text-align: center; line-height: 1.9; }
+  #loading, #empty { font-family: var(--sans); text-align: center; padding: 80px 0; color: var(--ink-2); font-size: 14px; }
+
+  @media (max-width: 640px) {
+    .wrap { padding: 32px 18px 80px; }
+    .cost-form input { width: 100px; }
+  }
+</style>
+</head>
+<body>
+
+<div id="gate">
+  <div class="box">
+    <div class="rule"></div>
+    <h1>批次即時毛利</h1>
+    <p>財務資料，需要密碼才能查看</p>
+    <input id="pwInput" type="password" placeholder="請輸入密碼" autocomplete="current-password">
+    <button id="pwSubmit">進入</button>
+    <div class="err" id="pwErr"></div>
+  </div>
+</div>
+
+<div id="app">
+  <div class="wrap">
+    <div class="letterhead">
+      <h1>批次即時毛利</h1>
+      <div class="actions">
+        <button class="link" id="toggleInactiveBtn">顯示未出貨批次</button>
+        <button class="link" id="refreshBtn">重新整理</button>
+      </div>
+    </div>
+    <div class="subline">出貨隨自動扣庫存即時更新 · 成本在這頁直接填，填了立刻反映毛利 · 仕入填日圓（÷4.5換算），其餘台幣</div>
+
+    <div id="loading">載入中…</div>
+    <div id="empty" style="display:none;"></div>
+    <div id="content" style="display:none;"></div>
+
+    <footer class="src" id="srcFooter"></footer>
+  </div>
+</div>
+
+<script>
+const API_BASE = '';
+let currentData = null;
+let showInactive = false;
+
+function fmt(n) { return Math.round(n || 0).toLocaleString('en-US'); }
+function pct(r) { return ((r || 0) * 100).toFixed(1) + '%'; }
+function esc(s) { return String(s ?? '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;'); }
+// 數字輸入格：空白=null（清空），有值必須是 0 以上的數字，不合法丟錯不送出
+function parseInputNum(el, label) {
+  const v = el.value.trim().replace(/,/g, '');
+  if (v === '') return null;
+  const n = Number(v);
+  if (!isFinite(n) || n < 0) throw new Error(label + ' 必須是 0 以上的數字');
+  return n;
+}
+
+// ── 密碼閘門 ──────────────────────────────────────────────────────────────
+async function checkAuth() {
+  try { const r = await fetch(API_BASE + '/api/auth'); const d = await r.json(); return !!d.ok; }
+  catch { return false; }
+}
+async function doLogin() {
+  const pw = document.getElementById('pwInput').value;
+  const btn = document.getElementById('pwSubmit');
+  const err = document.getElementById('pwErr');
+  btn.disabled = true; err.textContent = '';
+  try {
+    const r = await fetch(API_BASE + '/api/auth', { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify({ password: pw }) });
+    const d = await r.json();
+    if (d.ok) { showApp(); } else { err.textContent = d.error || '密碼錯誤'; }
+  } catch { err.textContent = '連線失敗，請重試'; }
+  finally { btn.disabled = false; }
+}
+function showApp() {
+  document.getElementById('gate').style.display = 'none';
+  document.getElementById('app').style.display = 'block';
+  loadData();
+}
+
+// ── 抓資料 ────────────────────────────────────────────────────────────────
+async function loadData() {
+  document.getElementById('loading').style.display = 'block';
+  document.getElementById('empty').style.display = 'none';
+  document.getElementById('content').style.display = 'none';
+  try {
+    const r = await fetch(API_BASE + '/api/profit', { cache: 'no-store' });
+    if (r.status === 401) { document.getElementById('gate').style.display = 'flex'; document.getElementById('app').style.display = 'none'; return; }
+    const d = await r.json();
+    if (!r.ok) throw new Error(d.error || '讀取失敗');
+    currentData = d;
+    render();
+  } catch (e) {
+    document.getElementById('loading').style.display = 'none';
+    document.getElementById('empty').style.display = 'block';
+    document.getElementById('empty').textContent = '載入失敗：' + e.message;
+  }
+}
+
+// ── 渲染 ──────────────────────────────────────────────────────────────────
+function render() {
+  document.getElementById('loading').style.display = 'none';
+  const d = currentData;
+  document.getElementById('content').style.display = 'block';
+  document.getElementById('content').innerHTML =
+    renderBanners(d) + renderFyTotals(d) + renderBatchTable(d) + renderMonthTable(d);
+  document.getElementById('srcFooter').textContent =
+    '資料來源：Notion（進口批次成本欄＋出貨紀錄＋月度物流費用） ｜ 最後更新 ' + (d.lastUpdated || '').replace('T',' ').slice(0,16);
+  bindBatchRows();
+  bindCostForms();
+  bindLogisticsRows();
+}
+
+function renderBanners(d) {
+  let html = '';
+  if (d.fy.batchesWithMissingCost > 0) {
+    html += `<div class="banner"><span class="tag">成本未填</span>本財年有 ${d.fy.batchesWithMissingCost} 個出貨中批次的成本還沒填齊，這些批次毛利會偏高。點批次列展開就能填。</div>`;
+  }
+  if (d.fy.monthsWithMissingLogistics.length > 0) {
+    html += `<div class="banner"><span class="tag">物流未填</span>${d.fy.monthsWithMissingLogistics.map(esc).join('、')} 的三義／優儲月度總額還沒填，這幾個月的毛利尚未扣物流。到最下方「月度彙總」填。</div>`;
+  }
+  return html;
+}
+
+function renderFyTotals(d) {
+  const f = d.fy;
+  const heroCls = 'cell hero' + (f.margin < 0 ? ' loss' : '');
+  return `<div class="totals-row">
+    <div class="cell"><div class="l">FY${f.fiscalYear} 營收（未稅）</div><div class="v mono">${fmt(f.revenue)}</div></div>
+    <div class="cell"><div class="l">進貨成本分攤</div><div class="v mono">${fmt(f.importCost)}</div></div>
+    <div class="cell"><div class="l">物流（三義＋優儲）</div><div class="v mono">${fmt(f.logistics)}</div></div>
+    <div class="${heroCls}"><div class="l">本財年毛利（率）</div><div class="v mono">${f.margin >= 0 ? '+' : ''}${fmt(f.margin)}（${pct(f.marginRate)}）</div></div>
+  </div>`;
+}
+
+function batchStatusHtml(b) {
+  let ship;
+  if (b.shippedBoxes <= 0 && b.futureBoxes <= 0) ship = '<span class="status">未出貨</span>';
+  else if (b.shippedBoxes >= b.totalBoxes && b.totalBoxes > 0) ship = '<span class="status good">已出完</span>';
+  else ship = '<span class="status warn">出貨中</span>';
+  let badges = '';
+  if (b.costStatus === 'none') badges += '<span class="badge red">成本未填</span>';
+  else if (b.costStatus === 'partial') badges += '<span class="badge amber">成本未齊</span>';
+  if (b.missingPriceRows > 0) badges += `<span class="badge amber">缺單價${b.missingPriceRows}筆</span>`;
+  return ship + badges;
+}
+
+function visibleBatches(d) {
+  return d.batches.filter(b => showInactive || b.shippedBoxes > 0 || b.futureBoxes > 0);
+}
+
+function renderBatchTable(d) {
+  const list = visibleBatches(d);
+  const hidden = d.batches.length - list.length;
+  const rows = list.map((b, idx) => {
+    const loss = b.margin < 0;
+    const noData = b.shippedBoxes <= 0;
+    return `<tr class="batch-row${noData ? ' muted' : ''}" data-idx="${idx}">
+        <td><span class="caret">▸</span>${esc(b.ivName)}${b.productSummary ? ' · ' + esc(b.productSummary) : ''}</td>
+        <td>${batchStatusHtml(b)}</td>
+        <td class="num mono">${fmt(b.shippedBoxes)}／${fmt(b.totalBoxes)}</td>
+        <td class="num mono">${fmt(b.revenue)}</td>
+        <td class="num mono">${fmt(b.allocImport + b.allocLogistics)}</td>
+        <td class="num mono margin-figure ${noData ? '' : (loss ? 'bad' : 'good')}">${noData ? '－' : (b.margin >= 0 ? '+' : '') + fmt(b.margin) + '（' + pct(b.marginRate) + '）'}</td>
+      </tr>
+      <tr class="expand-row" data-expand="${idx}" style="display:none;"><td colspan="6"></td></tr>`;
+  }).join('');
+  const hint = hidden > 0 ? ` · 另有 ${hidden} 個未出貨批次已隱藏（右上角可顯示）` : '';
+  return `<h2 class="section">批次即時毛利<span class="hint"> · 點列展開明細與成本輸入${hint}</span></h2>
+    <table class="ledger-table">
+      <thead><tr>
+        <th>批次 / 商品</th><th>狀態</th><th class="num">已出/總箱</th>
+        <th class="num">營收</th><th class="num">成本分攤</th><th class="num">目前毛利（率）</th>
+      </tr></thead>
+      <tbody>${rows}</tbody>
+    </table>`;
+}
+
+function bindBatchRows() {
+  document.querySelectorAll('tr.batch-row').forEach(row => {
+    row.addEventListener('click', (e) => {
+      if (e.target.closest('.cost-form')) return; // 點成本表單不要收合
+      toggleBatchRow(Number(row.dataset.idx));
+    });
+  });
+}
+
+function toggleBatchRow(idx) {
+  const row = document.querySelector(`tr.batch-row[data-idx="${idx}"]`);
+  const expandRow = document.querySelector(`tr.expand-row[data-expand="${idx}"]`);
+  const isOpen = row.classList.contains('open');
+  document.querySelectorAll('tr.batch-row.open').forEach(r => r.classList.remove('open'));
+  document.querySelectorAll('tr.expand-row').forEach(r => { r.style.display = 'none'; r.querySelector('td').innerHTML = ''; });
+  if (isOpen) return;
+
+  row.classList.add('open');
+  const b = visibleBatches(currentData)[idx];
+  const subRows = b.rows.map(s => {
+    const cls = s.isFuture ? ' class="future"' : '';
+    return `<tr${cls}>
+      <td>${esc(s.date || '—')}${s.isFuture ? '（計畫）' : ''}</td><td>${esc(s.store || '—')}</td>
+      <td class="num">${fmt(s.boxes)}</td>
+      <td class="num">${s.isFuture ? '—' : fmt(s.revenue)}</td>
+      <td class="num">${s.isFuture ? '—' : fmt(s.allocImport)}</td>
+      <td class="num">${s.isFuture ? '—' : fmt(s.allocLogistics)}</td>
+      <td class="num">${s.isFuture ? '—' : (s.margin >= 0 ? '+' : '') + fmt(s.margin)}</td>
+    </tr>`;
+  }).join('');
+  const costNote = `整批成本：仕入 ${fmt(b.shiireTwd)}（台幣換算）＋ 關稅通關 ${fmt(b.tariffCustoms)} ＋ 雜費 ${fmt(b.miscFee)} ＝ ${fmt(b.costFull)}，攤到已出 ${fmt(b.shippedBoxes)}／${fmt(b.totalBoxes)} 箱`;
+  expandRow.querySelector('td').innerHTML = `
+    <table class="mono">
+      <thead><tr>
+        <th class="sans">出貨日</th><th class="sans">門市</th><th class="num sans">箱數</th><th class="num sans">營收</th>
+        <th class="num sans">分攤進貨</th><th class="num sans">分攤物流</th><th class="num sans">毛利</th>
+      </tr></thead><tbody>${subRows || '<tr><td colspan="7" class="sans">尚無出貨紀錄</td></tr>'}</tbody>
+    </table>
+    <div class="cost-form" data-batch-idx="${idx}">
+      <div class="field"><label>仕入原價（日圓）</label><input class="cf-shiire" inputmode="decimal" placeholder="未填"></div>
+      <div class="field"><label>關稅＋通關費（台幣）</label><input class="cf-tariff" inputmode="decimal" placeholder="未填"></div>
+      <div class="field"><label>雜費（台幣）</label><input class="cf-misc" inputmode="decimal" placeholder="未填"></div>
+      <button class="cf-save">儲存成本</button>
+      <div class="note cf-note">${esc(costNote)}</div>
+    </div>`;
+  expandRow.style.display = 'table-row';
+  bindCostForms();
+}
+
+function bindCostForms() {
+  document.querySelectorAll('.cost-form').forEach(form => {
+    if (form.dataset.bound) return;
+    form.dataset.bound = '1';
+    const idx = Number(form.dataset.batchIdx);
+    const b = visibleBatches(currentData)[idx];
+    // 預帶目前 Notion 裡的原始值（null=沒填就留空白，0 也要顯示）
+    const shiireEl = form.querySelector('.cf-shiire');
+    const tariffEl = form.querySelector('.cf-tariff');
+    const miscEl = form.querySelector('.cf-misc');
+    if (b.shiireJpyRaw != null) shiireEl.value = String(b.shiireJpyRaw);
+    if (b.tariffCustomsRaw != null) tariffEl.value = String(b.tariffCustomsRaw);
+    if (b.miscFeeRaw != null) miscEl.value = String(b.miscFeeRaw);
+    const btn = form.querySelector('.cf-save');
+    const note = form.querySelector('.cf-note');
+    btn.addEventListener('click', async (e) => {
+      e.stopPropagation();
+      let payload;
+      try {
+        payload = {
+          batchId: b.batchId,
+          shiireJpy: parseInputNum(shiireEl, '仕入原價'),
+          tariffCustoms: parseInputNum(tariffEl, '關稅通關費'),
+          miscFee: parseInputNum(miscEl, '雜費'),
+        };
+      } catch (err) { note.textContent = err.message; note.className = 'note cf-note bad'; return; }
+      btn.disabled = true;
+      note.textContent = '存檔中…'; note.className = 'note cf-note';
+      try {
+        const r = await fetch(API_BASE + '/api/profit/costs', {
+          method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload),
+        });
+        const resp = await r.json();
+        if (!r.ok) throw new Error(resp.error || '存檔失敗');
+        note.textContent = '已存進 Notion，重新計算中…'; note.className = 'note cf-note ok';
+        await loadData();
+      } catch (err) {
+        note.textContent = '存檔失敗：' + err.message; note.className = 'note cf-note bad';
+        btn.disabled = false;
+      }
+    });
+  });
+}
+
+// ── 月度彙總＋物流輸入 ────────────────────────────────────────────────────
+function renderMonthTable(d) {
+  // 月份集合 = 有出貨的月份 ∪ 已填物流的月份
+  const byMonth = new Map();
+  for (const m of d.months) byMonth.set(m.month, { ...m });
+  for (const l of d.logisticsEntries) {
+    if (!byMonth.has(l.month)) byMonth.set(l.month, { month: l.month, boxes: 0, revenue: 0, importCost: 0, logistics: (l.sanyi||0)+(l.yuchu||0), logisticsFilled: true, margin: 0, marginRate: 0 });
+  }
+  const logByMonth = new Map(d.logisticsEntries.map(l => [l.month, l]));
+  const months = [...byMonth.values()].sort((a, b) => b.month.localeCompare(a.month));
+
+  const rows = months.map((m, i) => {
+    const log = logByMonth.get(m.month);
+    const sanyiVal = log && log.sanyi != null ? String(log.sanyi) : '';
+    const yuchuVal = log && log.yuchu != null ? String(log.yuchu) : '';
+    const loss = m.margin < 0;
+    return `<tr>
+      <td class="mono">${esc(m.month)}</td>
+      <td class="num mono">${fmt(m.boxes)}</td>
+      <td class="num mono">${fmt(m.revenue)}</td>
+      <td class="num mono">${fmt(m.importCost)}</td>
+      <td>
+        <div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap;">
+          <input class="mini lg-sanyi" data-m="${i}" inputmode="decimal" placeholder="三義" value="${esc(sanyiVal)}">
+          <input class="mini lg-yuchu" data-m="${i}" inputmode="decimal" placeholder="優儲" value="${esc(yuchuVal)}">
+          <button class="mini-save lg-save" data-m="${i}" data-month="${esc(m.month)}">存</button>
+        </div>
+        <div class="row-note lg-note" data-m="${i}">${m.logisticsFilled ? '' : '未填，該月毛利尚未扣物流'}</div>
+      </td>
+      <td class="num mono margin-figure ${m.revenue > 0 ? (loss ? 'bad' : 'good') : ''}">${m.revenue > 0 ? (m.margin >= 0 ? '+' : '') + fmt(m.margin) + '（' + pct(m.marginRate) + '）' : '－'}</td>
+    </tr>`;
+  }).join('');
+
+  return `<h2 class="section">月度彙總<span class="hint"> · 三義／優儲收到月結帳單就填在這裡（台幣），按當月出貨箱數自動攤到各批</span></h2>
+    <table class="ledger-table">
+      <thead><tr>
+        <th>月份</th><th class="num">箱數</th><th class="num">營收</th><th class="num">進貨分攤</th>
+        <th>物流（三義／優儲）</th><th class="num">當月毛利（率）</th>
+      </tr></thead>
+      <tbody>${rows}</tbody>
+      <tbody><tr>
+        <td colspan="6">
+          <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;font-family:var(--sans);font-size:12px;color:var(--ink-2);">
+            補其他月份：
+            <input class="mini month" id="newLogMonth" type="month">
+            <input class="mini" id="newLogSanyi" inputmode="decimal" placeholder="三義">
+            <input class="mini" id="newLogYuchu" inputmode="decimal" placeholder="優儲">
+            <button class="mini-save" id="newLogSave">存</button>
+            <span class="row-note" id="newLogNote"></span>
+          </div>
+        </td>
+      </tr></tbody>
+    </table>`;
+}
+
+async function saveLogistics(month, sanyiEl, yuchuEl, btn, noteEl) {
+  let sanyi, yuchu;
+  try {
+    sanyi = parseInputNum(sanyiEl, '三義費用');
+    yuchu = parseInputNum(yuchuEl, '優儲費用');
+  } catch (err) { noteEl.textContent = err.message; noteEl.classList.add('bad'); return; }
+  btn.disabled = true;
+  noteEl.className = noteEl.className.replace(/\b(ok|bad)\b/g, '').trim();
+  noteEl.textContent = '存檔中…';
+  try {
+    const r = await fetch(API_BASE + '/api/profit/logistics', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ month, sanyi, yuchu }),
+    });
+    const resp = await r.json();
+    if (!r.ok) throw new Error(resp.error || '存檔失敗');
+    noteEl.textContent = '已存，重新計算中…'; noteEl.classList.add('ok');
+    await loadData();
+  } catch (err) {
+    noteEl.textContent = '存檔失敗：' + err.message; noteEl.classList.add('bad');
+    btn.disabled = false;
+  }
+}
+
+function bindLogisticsRows() {
+  document.querySelectorAll('button.lg-save').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const i = btn.dataset.m;
+      saveLogistics(
+        btn.dataset.month,
+        document.querySelector(`input.lg-sanyi[data-m="${i}"]`),
+        document.querySelector(`input.lg-yuchu[data-m="${i}"]`),
+        btn,
+        document.querySelector(`.lg-note[data-m="${i}"]`),
+      );
+    });
+  });
+  const newSave = document.getElementById('newLogSave');
+  if (newSave) newSave.addEventListener('click', () => {
+    const month = document.getElementById('newLogMonth').value;
+    const note = document.getElementById('newLogNote');
+    if (!/^\d{4}-\d{2}$/.test(month)) { note.textContent = '請先選月份'; note.classList.add('bad'); return; }
+    saveLogistics(month, document.getElementById('newLogSanyi'), document.getElementById('newLogYuchu'), newSave, note);
+  });
+}
+
+// ── 啟動 ──────────────────────────────────────────────────────────────────
+document.getElementById('pwSubmit').addEventListener('click', doLogin);
+document.getElementById('pwInput').addEventListener('keydown', e => { if (e.key === 'Enter') doLogin(); });
+document.getElementById('refreshBtn').addEventListener('click', loadData);
+document.getElementById('toggleInactiveBtn').addEventListener('click', () => {
+  showInactive = !showInactive;
+  document.getElementById('toggleInactiveBtn').textContent = showInactive ? '隱藏未出貨批次' : '顯示未出貨批次';
+  if (currentData) render();
+});
+
+(async function init() {
+  const authed = await checkAuth();
+  if (authed) showApp();
+})();
+</script>
+</body>
+</html>

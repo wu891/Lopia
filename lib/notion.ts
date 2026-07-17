@@ -47,11 +47,15 @@ export interface Shipment {
   // Supplier Excel
   supplierExcelId: string | null
   // Cost (毛利系統) — 批次成本
-  importCost: number | null      // 進貨成本（未稅，原幣別）
-  freightCost: number | null     // 運費
-  storageCost: number | null     // 倉儲費
-  costCurrency: string | null    // 成本幣別：TWD | JPY
+  importCost: number | null      // 進貨成本（未稅，原幣別）※舊 /margin 用，新頁不用
+  freightCost: number | null     // 運費 ※舊
+  storageCost: number | null     // 倉儲費 ※舊
+  costCurrency: string | null    // 成本幣別：TWD | JPY ※舊
   taxMode: string | null         // 課稅別：免稅 | 5%
+  // Cost (批次即時毛利 /profit) — 2026-07 新三欄制：仕入填日圓其餘台幣，物流走「月度物流費用」DB按箱分攤
+  shiireJpy: number | null       // 仕入原價（日圓，供應商發票）
+  tariffCustoms: number | null   // 關稅＋通關費（台幣，報關單據）
+  miscFee: number | null         // 雜費（台幣，燻蒸/檢驗等）
   // Computed
   shippedBoxes?: number
   remainingBoxes?: number | null
@@ -146,6 +150,9 @@ function pageToShipment(page: any): Shipment {
     storageCost: getNumber(p['倉儲費']),
     costCurrency: getSelect(p['成本幣別']),
     taxMode: getSelect(p['課稅別']),
+    shiireJpy: getNumber(p['仕入原價JPY']),
+    tariffCustoms: getNumber(p['關稅通關費']),
+    miscFee: getNumber(p['雜費']),
   }
 }
 
@@ -494,6 +501,80 @@ export async function updateShipmentCost(id: string, data: {
   if (data.taxMode      !== undefined && data.taxMode)      props['課稅別']   = { select: { name: data.taxMode } }
   if (Object.keys(props).length === 0) return
   await notion.pages.update({ page_id: id, properties: props })
+}
+
+// ── 批次即時毛利（/profit）：新三欄成本＋月度物流 ─────────────────────────────
+
+// 寫入批次的新三欄成本（仕入日圓、關稅通關台幣、雜費台幣）。
+// 傳 null 代表把該欄清空；沒傳（undefined）的欄不動。
+export async function updateShipmentCostV2(id: string, data: {
+  shiireJpy?: number | null
+  tariffCustoms?: number | null
+  miscFee?: number | null
+}) {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const props: any = {}
+  if (data.shiireJpy     !== undefined) props['仕入原價JPY'] = { number: data.shiireJpy }
+  if (data.tariffCustoms !== undefined) props['關稅通關費']   = { number: data.tariffCustoms }
+  if (data.miscFee       !== undefined) props['雜費']         = { number: data.miscFee }
+  if (Object.keys(props).length === 0) return
+  await notion.pages.update({ page_id: id, properties: props })
+}
+
+export interface MonthlyLogistics {
+  month: string          // 'YYYY-MM'
+  sanyi: number | null   // 三義當月配送總額（台幣）
+  yuchu: number | null   // 優儲當月倉儲總額（台幣）
+  note: string | null
+}
+
+export async function getMonthlyLogistics(): Promise<MonthlyLogistics[]> {
+  const DB = process.env.NOTION_MONTHLY_LOGISTICS_DB?.trim()
+  if (!DB) return []
+  const out: MonthlyLogistics[] = []
+  let cursor: string | undefined
+  do {
+    const res = await notion.databases.query({
+      database_id: DB,
+      page_size: 100,
+      ...(cursor ? { start_cursor: cursor } : {}),
+    })
+    for (const page of res.results) {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const p = (page as any).properties
+      const month = getText(p['月份'])
+      if (!month) continue
+      out.push({
+        month: month.trim(),
+        sanyi: getNumber(p['三義費用']),
+        yuchu: getNumber(p['優儲費用']),
+        note: getText(p['備註']),
+      })
+    }
+    cursor = res.has_more ? (res.next_cursor ?? undefined) : undefined
+  } while (cursor)
+  return out
+}
+
+// 同一個月份已有紀錄就更新（避免重複列），沒有就新增
+export async function saveMonthlyLogistics(month: string, data: { sanyi?: number | null; yuchu?: number | null; note?: string }): Promise<void> {
+  const DB = process.env.NOTION_MONTHLY_LOGISTICS_DB?.trim()
+  if (!DB) throw new Error('Missing NOTION_MONTHLY_LOGISTICS_DB env var')
+  const existing = await notion.databases.query({
+    database_id: DB,
+    filter: { property: '月份', title: { equals: month } },
+    page_size: 1,
+  })
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const props: any = { '月份': { title: [{ text: { content: month } }] } }
+  if (data.sanyi !== undefined) props['三義費用'] = { number: data.sanyi }
+  if (data.yuchu !== undefined) props['優儲費用'] = { number: data.yuchu }
+  if (data.note  !== undefined) props['備註']     = { rich_text: [{ text: { content: data.note } }] }
+  if (existing.results.length > 0) {
+    await notion.pages.update({ page_id: existing.results[0].id, properties: props })
+  } else {
+    await notion.pages.create({ parent: { database_id: DB }, properties: props })
+  }
 }
 
 // ── Furikomi (振込明細) ────────────────────────────────────────────────────────
