@@ -55,7 +55,9 @@ export function furikomiCostForBatch(batchId: string, furikomi: FurikomiRecord[]
 // 對帳明細裡的一張出貨單群組（同一單號在同店同日的箱數與含稅金額合計）
 interface ExcelGroup { sno: string; qty: number; amount: number }
 export interface ExcelRevenueIndex {
-  bySno: Map<string, number>                    // 出貨單號 → 含稅金額（少數紀錄有正確 S 單號時直接對）
+  bySno: Map<string, number>                    // 出貨單號 → 整張單含稅金額（全部門市合計）
+  bySnoQty: Map<string, number>                 // 出貨單號 → 整張單總箱數（bySno 按箱數分攤時的分母）
+  bySnoStore: Map<string, number>               // 「單號|門市」→ 該店含稅金額（單號能對上時的首選：一張單多家店，整張金額不能發給每家店）
   byStoreDate: Map<string, ExcelGroup[]>        // 「門市|日期」→ 該店該日的各張出貨單（用於門市+日期+箱數消歧）
 }
 
@@ -63,11 +65,18 @@ export interface ExcelRevenueIndex {
 // 因此主要靠「門市+日期」配對；同店同日跨多批時，再用箱數消除歧義。
 export function buildExcelRevenueIndex(excelRows: ExcelRow[]): ExcelRevenueIndex {
   const bySno = new Map<string, number>()
+  const bySnoQty = new Map<string, number>()
+  const bySnoStore = new Map<string, number>()
   const sd = new Map<string, Map<string, ExcelGroup>>() // storeDateKey → sno → group
   for (const r of excelRows) {
     const amt = num(r.quantity) * num(r.unitPrice)
     const sno = (r.shipmentNo || '').trim()
-    if (sno) bySno.set(sno, (bySno.get(sno) ?? 0) + amt)
+    if (sno) {
+      bySno.set(sno, (bySno.get(sno) ?? 0) + amt)
+      bySnoQty.set(sno, (bySnoQty.get(sno) ?? 0) + num(r.quantity))
+      const st = (r.store || '').trim()
+      if (st) bySnoStore.set(`${sno}|${st}`, (bySnoStore.get(`${sno}|${st}`) ?? 0) + amt)
+    }
 
     const store = (r.store || '').trim()
     const date = (r.date || '').slice(0, 10)
@@ -83,7 +92,7 @@ export function buildExcelRevenueIndex(excelRows: ExcelRow[]): ExcelRevenueIndex
   }
   const byStoreDate = new Map<string, ExcelGroup[]>()
   for (const [k, m] of sd) byStoreDate.set(k, [...m.values()])
-  return { bySno, byStoreDate }
+  return { bySno, bySnoQty, bySnoStore, byStoreDate }
 }
 
 // 推算單筆出貨的營收（含稅），與來源。優先序：
@@ -100,15 +109,24 @@ export function deriveRevenue(
 ): { amount: number | null; source: RevenueSource } {
   if (rec.amount != null) return { amount: rec.amount, source: 'manual' }
 
-  const sno = (rec.shipmentNo || '').trim()
-  if (sno) {
-    const v = excelIndex.bySno.get(sno)
-    if (v != null && v > 0) return { amount: v, source: 'excel' }
-  }
-
   const boxes = num(rec.boxes)
   const store = (rec.store || '').trim()
   const date = (rec.date || '').slice(0, 10)
+
+  const sno = (rec.shipmentNo || '').trim()
+  if (sno) {
+    // 首選「單號＋門市」：一張出貨單有很多家店，整張金額不能發給每家店的紀錄
+    if (store) {
+      const vs = excelIndex.bySnoStore.get(`${sno}|${store}`)
+      if (vs != null && vs > 0) return { amount: vs, source: 'excel' }
+    }
+    // 對帳明細有這張單但門市對不上（店名寫法不同等）：按箱數比例分攤整張單金額
+    const v = excelIndex.bySno.get(sno)
+    if (v != null && v > 0) {
+      const qty = excelIndex.bySnoQty.get(sno) ?? 0
+      if (qty > 0 && boxes > 0) return { amount: v * Math.min(boxes, qty) / qty, source: 'excel' }
+    }
+  }
   if (store && date) {
     const groups = excelIndex.byStoreDate.get(`${store}|${date}`)
     if (groups && groups.length > 0) {
@@ -136,7 +154,7 @@ export function computeBatchMargin(
   batch: Shipment,
   allRecords: ShipmentRecord[],
   furikomi: FurikomiRecord[],
-  excelIndex: ExcelRevenueIndex = { bySno: new Map(), byStoreDate: new Map() },
+  excelIndex: ExcelRevenueIndex = { bySno: new Map(), bySnoQty: new Map(), bySnoStore: new Map(), byStoreDate: new Map() },
   batchPrices: Record<string, BatchPriceEntry[]> = {},
   today: string = new Date().toISOString().slice(0, 10),
 ): BatchMargin {
