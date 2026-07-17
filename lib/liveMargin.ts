@@ -121,22 +121,56 @@ export function computeLiveMargins(
   const logisticsByMonth = new Map<string, MonthlyLogistics>()
   for (const l of logistics) logisticsByMonth.set(l.month, l)
 
-  // ── 第一輪：把每筆出貨紀錄算出營收、歸月，先不算物流（要等全月箱數才知道分攤率）──
-  interface Prep { rec: ShipmentRecord; batch: Shipment; boxes: number; revenue: number; source: RevenueSource; month: string | null; isFuture: boolean }
-  const prepped: Prep[] = []
+  // ── 前處理：把紀錄分成「有連批次」跟「沒連批次」兩堆 ─────────────────────
+  // 沒連批次的主要是 3~4 月對帳時代手動建的紀錄（有金額、沒關聯批次），不能直接丟掉
+  // （3月整個月、4月大半營收都在這裡），也不能直接全加（其中一部分跟批次計畫紀錄
+  // 是同一趟出貨記兩次，會重複計算）。
   const batchById = new Map(shipments.map(s => [s.id, s]))
+  const linkedRecs: { rec: ShipmentRecord; batch: Shipment }[] = []
+  const unlinkedRecs: ShipmentRecord[] = []
   for (const r of records) {
-    if (r.planStatus === '已取消' || !r.batchId) continue
-    const batch = batchById.get(r.batchId)
-    if (!batch) continue
+    if (r.planStatus === '已取消') continue
+    const batch = r.batchId ? batchById.get(r.batchId) : undefined
+    if (batch) linkedRecs.push({ rec: r, batch })
+    else unlinkedRecs.push(r)
+  }
+
+  // 合體去重：同店＋同日＋同箱數，一邊有批次沒金額、一邊有金額沒批次 → 同一趟出貨，
+  // 把金額補給有批次的那筆，未連結那筆丟掉。（2026-04 實測 43 筆計畫紀錄有 32 筆這樣配上）
+  const dupKey = (r: ShipmentRecord) => `${(r.store ?? '').trim()}|${(r.date ?? '').slice(0, 10)}|${num(r.boxes)}`
+  const linkedNoAmount = new Map<string, { rec: ShipmentRecord; batch: Shipment }[]>()
+  for (const l of linkedRecs) {
+    if (l.rec.amount != null) continue
+    const k = dupKey(l.rec)
+    const arr = linkedNoAmount.get(k) ?? []
+    arr.push(l)
+    linkedNoAmount.set(k, arr)
+  }
+  const mergedAmounts = new Map<string, number>() // 連結紀錄 id → 從未連結雙胞胎接收的金額
+  const remainingUnlinked: ShipmentRecord[] = []
+  for (const u of unlinkedRecs) {
+    const twin = u.amount != null ? linkedNoAmount.get(dupKey(u))?.shift() : undefined
+    if (twin) mergedAmounts.set(twin.rec.id, u.amount!)
+    else remainingUnlinked.push(u)
+  }
+
+  // ── 第一輪：把每筆出貨紀錄算出營收、歸月，先不算物流（要等全月箱數才知道分攤率）──
+  interface Prep { rec: ShipmentRecord; batch: Shipment | null; boxes: number; revenue: number; source: RevenueSource; month: string | null; isFuture: boolean }
+  const prepped: Prep[] = []
+  const prepOne = (r: ShipmentRecord, batch: Shipment | null) => {
     const boxes = num(r.boxes)
-    const { amount, source } = deriveRevenue(r, batch.id, excelIndex, batchPrices)
+    const merged = mergedAmounts.get(r.id)
+    const recForRevenue = merged != null && r.amount == null ? { ...r, amount: merged } : r
+    const { amount, source } = deriveRevenue(recForRevenue, batch?.id ?? '', excelIndex, batchPrices)
     const gross = num(amount)
-    const revenue = batch.taxMode === '5%' ? gross / 1.05 : gross
+    // 未連結批次不知道課稅別，當免稅處理（大宗是蔬果；加工品會略高估5%）
+    const revenue = batch?.taxMode === '5%' ? gross / 1.05 : gross
     const month = r.date ? r.date.slice(0, 7) : null
     const isFuture = !!(r.date && r.date > today)
     prepped.push({ rec: r, batch, boxes, revenue, source, month, isFuture })
   }
+  for (const l of linkedRecs) prepOne(l.rec, l.batch)
+  for (const u of remainingUnlinked) prepOne(u, null)
 
   // 每月已出貨總箱數（所有批次合計）＝物流分攤的分母
   const monthBoxes = new Map<string, number>()
@@ -155,7 +189,7 @@ export function computeLiveMargins(
   // ── 第二輪：組每批的即時毛利 ──
   const batches: LiveBatchMargin[] = []
   for (const batch of shipments) {
-    const mine = prepped.filter(p => p.batch.id === batch.id)
+    const mine = prepped.filter(p => p.batch?.id === batch.id)
     const shipped = mine.filter(p => !p.isFuture)
     const shippedBoxes = shipped.reduce((s, p) => s + p.boxes, 0)
     const futureBoxes = mine.filter(p => p.isFuture).reduce((s, p) => s + p.boxes, 0)
@@ -219,6 +253,39 @@ export function computeLiveMargins(
     })
   }
 
+  // ── 未連結批次（虛擬一列）：去重後仍沒有批次的紀錄，營收照算、進貨成本攤不了 ──
+  const orphans = prepped.filter(p => !p.batch)
+  if (orphans.length > 0) {
+    const rows: LiveRecordRow[] = orphans.map(p => {
+      const allocLogistics = p.isFuture ? 0 : perBoxLogistics(p.month) * p.boxes
+      return {
+        id: p.rec.id, date: p.rec.date, month: p.month, store: p.rec.store, boxes: p.boxes,
+        revenue: p.isFuture ? 0 : p.revenue, revenueSource: p.source,
+        allocImport: 0, allocLogistics,
+        margin: (p.isFuture ? 0 : p.revenue) - allocLogistics, isFuture: p.isFuture,
+      }
+    }).sort((a, b) => (a.date ?? '').localeCompare(b.date ?? ''))
+    const shippedRows = rows.filter(r => !r.isFuture)
+    const revenue = shippedRows.reduce((s, r) => s + r.revenue, 0)
+    const allocLogistics = shippedRows.reduce((s, r) => s + r.allocLogistics, 0)
+    const shippedBoxes = shippedRows.reduce((s, r) => s + r.boxes, 0)
+    batches.push({
+      batchId: '__unlinked__',
+      ivName: '未連結批次',
+      productSummary: '出貨紀錄沒填「關聯批次」（多為3–4月對帳時代資料），營收計入月度，進貨成本無法分攤',
+      supplier: null, arrivalTW: null,
+      totalBoxes: shippedBoxes, shippedBoxes,
+      futureBoxes: rows.filter(r => r.isFuture).reduce((s, r) => s + r.boxes, 0),
+      shiireTwd: 0, tariffCustoms: 0, miscFee: 0, costFull: 0, costStatus: 'none',
+      shiireJpyRaw: null, tariffCustomsRaw: null, miscFeeRaw: null,
+      revenue, allocImport: 0, allocLogistics,
+      margin: revenue - allocLogistics,
+      marginRate: revenue > 0 ? (revenue - allocLogistics) / revenue : 0,
+      missingPriceRows: shippedRows.filter(r => r.revenueSource === 'none' && r.boxes > 0).length,
+      rows,
+    })
+  }
+
   // ── 月度彙總（只算已出貨）──
   const monthMap = new Map<string, LiveMonthSummary>()
   for (const b of batches) {
@@ -260,7 +327,8 @@ export function computeLiveMargins(
   for (const b of batches) {
     if (b.rows.some(r => !r.isFuture && r.month && fiscalYearOf(r.month) === currentFy)) fyBatchIds.add(b.batchId)
   }
-  const batchesWithMissingCost = batches.filter(b => fyBatchIds.has(b.batchId) && b.costStatus !== 'complete').length
+  // 「未連結批次」那列本來就沒有成本可填，不算進成本未填齊的警告
+  const batchesWithMissingCost = batches.filter(b => b.batchId !== '__unlinked__' && fyBatchIds.has(b.batchId) && b.costStatus !== 'complete').length
 
   return {
     // 排序：有出貨的批次照抵台日新到舊排前面，完全沒出貨的排最後

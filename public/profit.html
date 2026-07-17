@@ -260,6 +260,10 @@ function renderBanners(d) {
   if (d.fy.monthsWithMissingLogistics.length > 0) {
     html += `<div class="banner"><span class="tag">物流未填</span>${d.fy.monthsWithMissingLogistics.map(esc).join('、')} 的三義／優儲月度總額還沒填，這幾個月的毛利尚未扣物流。到最下方「月度彙總」填。</div>`;
   }
+  const orphan = d.batches.find(b => b.batchId === '__unlinked__');
+  if (orphan) {
+    html += `<div class="banner"><span class="tag">未連結</span>有 ${orphan.rows.length} 筆出貨紀錄沒填「關聯批次」（多為3–4月對帳時代的資料）。營收已計入月度彙總，但進貨成本無法分攤到這些筆，明細見批次表最後的「未連結批次」列。</div>`;
+  }
   return html;
 }
 
@@ -275,6 +279,11 @@ function renderFyTotals(d) {
 }
 
 function batchStatusHtml(b) {
+  if (b.batchId === '__unlinked__') {
+    let badges = '<span class="badge amber">沒填關聯批次</span>';
+    if (b.missingPriceRows > 0) badges += `<span class="badge amber">缺單價${b.missingPriceRows}筆</span>`;
+    return badges;
+  }
   let ship;
   if (b.shippedBoxes <= 0 && b.futureBoxes <= 0) ship = '<span class="status">未出貨</span>';
   else if (b.shippedBoxes >= b.totalBoxes && b.totalBoxes > 0) ship = '<span class="status good">已出完</span>';
@@ -348,13 +357,8 @@ function toggleBatchRow(idx) {
     </tr>`;
   }).join('');
   const costNote = `整批成本：仕入 ${fmt(b.shiireTwd)}（台幣換算）＋ 關稅通關 ${fmt(b.tariffCustoms)} ＋ 雜費 ${fmt(b.miscFee)} ＝ ${fmt(b.costFull)}，攤到已出 ${fmt(b.shippedBoxes)}／${fmt(b.totalBoxes)} 箱`;
-  expandRow.querySelector('td').innerHTML = `
-    <table class="mono">
-      <thead><tr>
-        <th class="sans">出貨日</th><th class="sans">門市</th><th class="num sans">箱數</th><th class="num sans">營收</th>
-        <th class="num sans">分攤進貨</th><th class="num sans">分攤物流</th><th class="num sans">毛利</th>
-      </tr></thead><tbody>${subRows || '<tr><td colspan="7" class="sans">尚無出貨紀錄</td></tr>'}</tbody>
-    </table>
+  // 「未連結批次」是虛擬列，沒有批次可以寫成本，不顯示成本表單
+  const costFormHtml = b.batchId === '__unlinked__' ? '' : `
     <div class="cost-form" data-batch-idx="${idx}">
       <div class="field"><label>仕入原價（日圓）</label><input class="cf-shiire" inputmode="decimal" placeholder="未填"></div>
       <div class="field"><label>關稅＋通關費（台幣）</label><input class="cf-tariff" inputmode="decimal" placeholder="未填"></div>
@@ -362,6 +366,13 @@ function toggleBatchRow(idx) {
       <button class="cf-save">儲存成本</button>
       <div class="note cf-note">${esc(costNote)}</div>
     </div>`;
+  expandRow.querySelector('td').innerHTML = `
+    <table class="mono">
+      <thead><tr>
+        <th class="sans">出貨日</th><th class="sans">門市</th><th class="num sans">箱數</th><th class="num sans">營收</th>
+        <th class="num sans">分攤進貨</th><th class="num sans">分攤物流</th><th class="num sans">毛利</th>
+      </tr></thead><tbody>${subRows || '<tr><td colspan="7" class="sans">尚無出貨紀錄</td></tr>'}</tbody>
+    </table>${costFormHtml}`;
   expandRow.style.display = 'table-row';
   bindCostForms();
 }
