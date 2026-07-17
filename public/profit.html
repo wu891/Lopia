@@ -233,6 +233,14 @@ let sortMode = 'margin'; // 'margin' | 'profit' | 'batch'
 let currentCat = 'all'; // 'all' | 'shipping' | 'done' | 'missing' | 'unlinked'
 let lang = localStorage.getItem('profitLang') === 'ja' ? 'ja' : 'zh';
 
+// 門市清單（對應 lib/stores.ts 營業中門市，避免手動輸入打錯字在 Notion 建出奇怪的新選項）
+const STORES = [
+  'LaLaport 台中店', '桃園春日店', '新北中和環球店', '新莊宏匯店', '高雄漢神巨蛋店',
+  '南港 LaLaport 店', 'IKEA 台中南屯店', '高雄夢時代店', '台南小北門店', '台南三井 Outlet 店',
+  '台中漢神中港店', '台北美麗華店',
+];
+let draftSeq = 0; // 「拆成兩筆」新增列用的暫時 id
+
 // ── 中日文字串（UI 介面用；批次/商品名稱等 Notion 原始資料不翻譯） ──────────────
 const T = {
   zh: {
@@ -280,6 +288,11 @@ const T = {
     pleaseSelectMonth: '請先選月份', errSanyiLabel: '三義費用', errYuchuLabel: '優儲費用',
     savedNote: '已存，重新計算中…',
     footerSource: dateStr => `資料來源：Notion（進口批次成本欄＋出貨紀錄＋月度物流費用） ｜ 最後更新 ${dateStr}`,
+    fieldAmount: '金額', assignBatchLabel: '歸屬批次', selectBatchPlaceholder: '請選擇批次',
+    splitBtn: '拆成兩筆', cancelBtn: '取消', pleaseEnterAmount: '請填金額',
+    unlinkedEditHint: '每一筆都能直接改，選好歸屬批次存檔後就會併入該批次重新計算。若一張出貨單其實是兩個批次的貨，用「拆成兩筆」手動拆。',
+    missingPriceEditHint: '這筆抓不到營收，直接填金額存檔即可。',
+    newRecordTitle: '新記錄（尚未儲存）',
   },
   ja: {
     pageH1: 'バッチ別リアルタイム粗利', eyebrow: 'LOPIA TAIWAN・財務',
@@ -326,6 +339,11 @@ const T = {
     pleaseSelectMonth: '先に年月を選択してください', errSanyiLabel: '三義費用', errYuchuLabel: '優儲費用',
     savedNote: '保存しました。再計算中…',
     footerSource: dateStr => `データソース：Notion（輸入ロット原価欄＋出荷記録＋月次物流費用）｜最終更新 ${dateStr}`,
+    fieldAmount: '金額', assignBatchLabel: '紐付け先ロット', selectBatchPlaceholder: 'ロットを選択',
+    splitBtn: '分割', cancelBtn: 'キャンセル', pleaseEnterAmount: '金額を入力してください',
+    unlinkedEditHint: 'すべて直接編集できます。紐付け先ロットを選んで保存すると、そのロットに合算して再計算されます。1件の出荷が実は2ロット分の場合は「分割」で手動で分けてください。',
+    missingPriceEditHint: 'この行は売上が算出できません。金額を入力して保存してください。',
+    newRecordTitle: '新規記録（未保存）',
   },
 };
 function t(key, ...args) {
@@ -677,6 +695,204 @@ function bindBatchRows() {
   });
 }
 
+function storeOptionsHtml(selected) {
+  const list = STORES.includes(selected) || !selected ? STORES : [selected, ...STORES];
+  return list.map(s => `<option value="${esc(s)}"${s===selected?' selected':''}>${esc(s)}</option>`).join('');
+}
+function batchOptionsHtml(selected) {
+  const real = (currentData.batches || []).filter(bat => bat.batchId !== '__unlinked__');
+  const opts = real.map(bat => {
+    const label = esc(bat.ivName) + (bat.productSummary ? '－' + esc(bat.productSummary) : '');
+    return `<option value="${esc(bat.batchId)}"${bat.batchId===selected?' selected':''}>${label}</option>`;
+  }).join('');
+  return `<option value="">${esc(t('selectBatchPlaceholder'))}</option>${opts}`;
+}
+
+// 通用：更新既有出貨紀錄（PUT /api/records/:id），也用在「缺單價」補金額
+async function saveRecordFields(id, payload, btn, noteEl) {
+  btn.disabled = true;
+  noteEl.textContent = t('savingMsg'); noteEl.className = 'pd-toast';
+  try {
+    const r = await fetch(API_BASE + '/api/records/' + id, {
+      method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload),
+    });
+    if (!r.ok) { const resp = await r.json().catch(() => ({})); throw new Error(resp.error || '存檔失敗'); }
+    noteEl.textContent = t('savedNote'); noteEl.className = 'pd-toast ok';
+    await loadData();
+  } catch (err) {
+    noteEl.textContent = t('saveFailedPrefix') + err.message; noteEl.className = 'pd-toast bad'; btn.disabled = false;
+  }
+}
+// 通用：「拆成兩筆」存成全新記錄（POST /api/records）
+async function createRecordFields(payload, btn, noteEl) {
+  btn.disabled = true;
+  noteEl.textContent = t('savingMsg'); noteEl.className = 'pd-toast';
+  try {
+    const r = await fetch(API_BASE + '/api/records', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload),
+    });
+    if (!r.ok) { const resp = await r.json().catch(() => ({})); throw new Error(resp.error || '存檔失敗'); }
+    noteEl.textContent = t('savedNote'); noteEl.className = 'pd-toast ok';
+    await loadData();
+  } catch (err) {
+    noteEl.textContent = t('saveFailedPrefix') + err.message; noteEl.className = 'pd-toast bad'; btn.disabled = false;
+  }
+}
+
+function readEditableRow(tr) {
+  return {
+    date: tr.querySelector('.rec-date').value || null,
+    store: tr.querySelector('.rec-store').value,
+    boxes: tr.querySelector('.rec-boxes').value,
+    amount: tr.querySelector('.rec-amount').value,
+    batchId: tr.querySelector('.rec-batch') ? tr.querySelector('.rec-batch').value : undefined,
+  };
+}
+
+// ── 未連結批次：逐筆改成可編輯（門市/日期/箱數/金額/歸屬批次），存檔後併入正確批次 ──
+function renderUnlinkedEditableTable(b) {
+  const bodyRows = b.rows.map(s => `<tr data-rec-id="${esc(s.id)}">
+      <td><input class="rec-date" type="date" value="${esc(s.date || '')}"></td>
+      <td><select class="rec-store">${storeOptionsHtml(s.store)}</select></td>
+      <td class="r"><input class="rec-boxes num" type="number" inputmode="numeric" value="${s.boxes}" style="width:70px;text-align:right;"></td>
+      <td class="r"><input class="rec-amount num" type="number" inputmode="decimal" value="${s.revenue ? Math.round(s.revenue) : ''}" style="width:96px;text-align:right;"></td>
+      <td><select class="rec-batch">${batchOptionsHtml('')}</select></td>
+      <td class="r" style="white-space:nowrap;">
+        <button class="pd-savebtn rec-save">${t('saveBtn')}</button>
+        <button class="pd-savebtn rec-split" style="background:var(--color-bg);color:var(--color-text);">${t('splitBtn')}</button>
+      </td>
+    </tr>
+    <tr class="rec-note-row"><td colspan="6"><div class="pd-toast rec-note"></div></td></tr>`).join('');
+  return `<div class="pd-detail-box">
+    <div class="pd-note" style="padding:0 0 8px;">${esc(t('unlinkedEditHint'))}</div>
+    <table class="detail-table" id="unlinkedEditTable">
+      <thead><tr>
+        <th>${t('detailShipDate')}</th><th>${t('detailStore')}</th><th class="r">${t('detailBoxes')}</th>
+        <th class="r">${t('fieldAmount')}</th><th>${t('assignBatchLabel')}</th><th></th>
+      </tr></thead>
+      <tbody>${bodyRows || `<tr><td colspan="6">${t('detailNoRecords')}</td></tr>`}</tbody>
+    </table>
+  </div>`;
+}
+
+function bindUnlinkedEditableTable() {
+  const table = document.getElementById('unlinkedEditTable');
+  if (!table) return;
+  table.querySelectorAll('.rec-save').forEach(btn => {
+    if (btn.dataset.bound) return;
+    btn.dataset.bound = '1';
+    btn.addEventListener('click', async (e) => {
+      e.stopPropagation();
+      const tr = btn.closest('tr');
+      const recId = tr.dataset.recId;
+      const noteEl = tr.nextElementSibling.querySelector('.rec-note');
+      const vals = readEditableRow(tr);
+      let payload;
+      try {
+        payload = { store: vals.store, date: vals.date, boxes: parseInputNum({ value: vals.boxes }, t('detailBoxes')), amount: parseInputNum({ value: vals.amount }, t('fieldAmount')) };
+        if (vals.batchId) payload.batchId = vals.batchId;
+      } catch (err) { noteEl.textContent = err.message; noteEl.className = 'pd-toast bad'; return; }
+      await saveRecordFields(recId, payload, btn, noteEl);
+    });
+  });
+  table.querySelectorAll('.rec-split').forEach(btn => {
+    if (btn.dataset.bound) return;
+    btn.dataset.bound = '1';
+    btn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      const tr = btn.closest('tr');
+      const vals = readEditableRow(tr);
+      const draftId = 'draft-' + (draftSeq++);
+      const draftRow = document.createElement('tr');
+      draftRow.dataset.draftId = draftId;
+      draftRow.innerHTML = `
+        <td><input class="rec-date" type="date" value="${esc(vals.date || '')}"></td>
+        <td><select class="rec-store">${storeOptionsHtml(vals.store)}</select></td>
+        <td class="r"><input class="rec-boxes num" type="number" inputmode="numeric" placeholder="0" style="width:70px;text-align:right;"></td>
+        <td class="r"><input class="rec-amount num" type="number" inputmode="decimal" placeholder="0" style="width:96px;text-align:right;"></td>
+        <td><select class="rec-batch">${batchOptionsHtml('')}</select></td>
+        <td class="r" style="white-space:nowrap;">
+          <button class="pd-savebtn rec-create">${t('saveBtn')}</button>
+          <button class="pd-savebtn rec-cancel" style="background:var(--color-bg);color:var(--color-text);">${t('cancelBtn')}</button>
+        </td>`;
+      const noteRow = document.createElement('tr');
+      noteRow.className = 'rec-note-row';
+      noteRow.innerHTML = `<td colspan="6"><div class="pd-toast rec-note">${esc(t('newRecordTitle'))}</div></td>`;
+      tr.nextElementSibling.after(draftRow, noteRow);
+      draftRow.querySelector('.rec-cancel').addEventListener('click', (ev) => { ev.stopPropagation(); draftRow.remove(); noteRow.remove(); });
+      draftRow.querySelector('.rec-create').addEventListener('click', async (ev) => {
+        ev.stopPropagation();
+        const dv = readEditableRow(draftRow);
+        const noteEl = noteRow.querySelector('.rec-note');
+        if (!dv.batchId) { noteEl.textContent = t('selectBatchPlaceholder'); noteEl.className = 'pd-toast bad'; return; }
+        let payload;
+        try {
+          payload = { batchId: dv.batchId, store: dv.store, date: dv.date, boxes: parseInputNum({ value: dv.boxes }, t('detailBoxes')), amount: parseInputNum({ value: dv.amount }, t('fieldAmount')) };
+        } catch (err) { noteEl.textContent = err.message; noteEl.className = 'pd-toast bad'; return; }
+        await createRecordFields(payload, ev.currentTarget, noteEl);
+      });
+    });
+  });
+}
+
+// ── 一般批次：逐筆出貨明細唯讀，但「缺單價」那幾筆的營收欄改成可直接填金額 ──
+function renderNormalDetailTable(b) {
+  const subRows = b.rows.map(s => {
+    const cls = s.isFuture ? ' class="future"' : '';
+    const needsPrice = !s.isFuture && s.revenueSource === 'none' && s.boxes > 0;
+    const revenueCell = needsPrice
+      ? `<div style="display:flex;gap:5px;justify-content:flex-end;align-items:center;">
+          <input class="rec-amount num" type="number" inputmode="decimal" placeholder="${esc(t('pleaseEnterAmount'))}" data-id="${esc(s.id)}" style="width:88px;text-align:right;border-color:var(--color-accent);">
+          <button class="pd-savebtn rec-price-save" data-id="${esc(s.id)}" style="padding:5px 9px;font-size:10.5px;">${t('saveBtn')}</button>
+        </div>`
+      : (s.isFuture ? '—' : fmt(s.revenue));
+    return `<tr${cls}${needsPrice ? ' data-price-row="1"' : ''}>
+      <td>${esc(s.date || '—')}${s.isFuture ? t('planned') : ''}</td><td>${esc(s.store || '—')}</td>
+      <td class="r num">${fmt(s.boxes)}</td>
+      <td class="r num">${revenueCell}</td>
+      <td class="r num">${s.isFuture ? '—' : fmt(s.allocImport)}</td>
+      <td class="r num">${s.isFuture ? '—' : fmt(s.allocLogistics)}</td>
+      <td class="r num">${s.isFuture ? '—' : fmtSigned(s.margin)}</td>
+    </tr>${needsPrice ? `<tr class="rec-note-row"><td colspan="7"><div class="pd-toast rec-note" data-note-for="${esc(s.id)}"></div></td></tr>` : ''}`;
+  }).join('');
+  const hasMissingPrice = b.rows.some(s => !s.isFuture && s.revenueSource === 'none' && s.boxes > 0);
+  const costNote = t('costNoteTpl', fmt(b.shiireTwd), fmt(b.tariffCustoms), fmt(b.miscFee), fmt(b.costFull), fmt(b.shippedBoxes), fmt(b.totalBoxes));
+  const costFormHtml = `
+    <div class="pd-costform" data-batch-idx="__idx__">
+      <div class="pd-field"><label>${t('fieldShiire')}</label><input class="cf-shiire" inputmode="decimal" placeholder="${t('notFilled')}"></div>
+      <div class="pd-field"><label>${t('fieldTariff')}</label><input class="cf-tariff" inputmode="decimal" placeholder="${t('notFilled')}"></div>
+      <div class="pd-field"><label>${t('fieldMisc')}</label><input class="cf-misc" inputmode="decimal" placeholder="${t('notFilled')}"></div>
+      <button class="pd-savebtn cf-save">${t('saveBtn')}</button>
+      <div class="pd-toast cf-note">${esc(costNote)}</div>
+    </div>`;
+  return `<div class="pd-detail-box">
+    ${hasMissingPrice ? `<div class="pd-note" style="padding:0 0 8px;">${esc(t('missingPriceEditHint'))}</div>` : ''}
+    <table class="detail-table">
+      <thead><tr>
+        <th>${t('detailShipDate')}</th><th>${t('detailStore')}</th><th class="r">${t('detailBoxes')}</th><th class="r">${t('detailRevenue')}</th>
+        <th class="r">${t('detailAllocImport')}</th><th class="r">${t('detailAllocLogistics')}</th><th class="r">${t('detailMargin')}</th>
+      </tr></thead><tbody>${subRows || `<tr><td colspan="7">${t('detailNoRecords')}</td></tr>`}</tbody>
+    </table>${costFormHtml}
+    </div>`;
+}
+function bindMissingPriceInputs() {
+  document.querySelectorAll('.rec-price-save').forEach(btn => {
+    if (btn.dataset.bound) return;
+    btn.dataset.bound = '1';
+    btn.addEventListener('click', async (e) => {
+      e.stopPropagation();
+      const id = btn.dataset.id;
+      const input = document.querySelector(`.rec-amount[data-id="${id}"]`);
+      const noteEl = document.querySelector(`.rec-note[data-note-for="${id}"]`);
+      let amount;
+      try { amount = parseInputNum(input, t('fieldAmount')); }
+      catch (err) { noteEl.textContent = err.message; noteEl.className = 'pd-toast bad'; return; }
+      if (amount == null) { noteEl.textContent = t('pleaseEnterAmount'); noteEl.className = 'pd-toast bad'; return; }
+      await saveRecordFields(id, { amount }, btn, noteEl);
+    });
+  });
+}
+
 function toggleBatchRow(idx) {
   const row = document.querySelector(`tr.pd-row[data-idx="${idx}"]`);
   const expandRow = document.querySelector(`tr.pd-detail[data-expand="${idx}"]`);
@@ -687,37 +903,11 @@ function toggleBatchRow(idx) {
 
   row.classList.add('open');
   const b = visibleBatches(currentData)[idx];
-  const subRows = b.rows.map(s => {
-    const cls = s.isFuture ? ' class="future"' : '';
-    return `<tr${cls}>
-      <td>${esc(s.date || '—')}${s.isFuture ? t('planned') : ''}</td><td>${esc(s.store || '—')}</td>
-      <td class="r num">${fmt(s.boxes)}</td>
-      <td class="r num">${s.isFuture ? '—' : fmt(s.revenue)}</td>
-      <td class="r num">${s.isFuture ? '—' : fmt(s.allocImport)}</td>
-      <td class="r num">${s.isFuture ? '—' : fmt(s.allocLogistics)}</td>
-      <td class="r num">${s.isFuture ? '—' : fmtSigned(s.margin)}</td>
-    </tr>`;
-  }).join('');
-  const costNote = t('costNoteTpl', fmt(b.shiireTwd), fmt(b.tariffCustoms), fmt(b.miscFee), fmt(b.costFull), fmt(b.shippedBoxes), fmt(b.totalBoxes));
-  const costFormHtml = b.batchId === '__unlinked__' ? '' : `
-    <div class="pd-costform" data-batch-idx="${idx}">
-      <div class="pd-field"><label>${t('fieldShiire')}</label><input class="cf-shiire" inputmode="decimal" placeholder="${t('notFilled')}"></div>
-      <div class="pd-field"><label>${t('fieldTariff')}</label><input class="cf-tariff" inputmode="decimal" placeholder="${t('notFilled')}"></div>
-      <div class="pd-field"><label>${t('fieldMisc')}</label><input class="cf-misc" inputmode="decimal" placeholder="${t('notFilled')}"></div>
-      <button class="pd-savebtn cf-save">${t('saveBtn')}</button>
-      <div class="pd-toast cf-note">${esc(costNote)}</div>
-    </div>`;
-  expandRow.querySelector('td').innerHTML = `
-    <div class="pd-detail-box">
-    <table class="detail-table">
-      <thead><tr>
-        <th>${t('detailShipDate')}</th><th>${t('detailStore')}</th><th class="r">${t('detailBoxes')}</th><th class="r">${t('detailRevenue')}</th>
-        <th class="r">${t('detailAllocImport')}</th><th class="r">${t('detailAllocLogistics')}</th><th class="r">${t('detailMargin')}</th>
-      </tr></thead><tbody>${subRows || `<tr><td colspan="7">${t('detailNoRecords')}</td></tr>`}</tbody>
-    </table>${costFormHtml}
-    </div>`;
+  const isUnlinked = b.batchId === '__unlinked__';
+  expandRow.querySelector('td').innerHTML = isUnlinked ? renderUnlinkedEditableTable(b) : renderNormalDetailTable(b).replace('__idx__', idx);
   expandRow.style.display = 'table-row';
-  bindCostForms();
+  if (isUnlinked) bindUnlinkedEditableTable();
+  else { bindMissingPriceInputs(); bindCostForms(); }
 }
 
 function bindCostForms() {

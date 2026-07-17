@@ -261,6 +261,7 @@ export async function updateShipmentRecord(id: string, data: Partial<{
   remarks: string
   shipmentNo: string
   locked: boolean
+  batchId: string
 }>) {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const props: any = {}
@@ -273,6 +274,8 @@ export async function updateShipmentRecord(id: string, data: Partial<{
   if (data.planStatus) props['計畫狀態'] = { select: { name: data.planStatus } }
   if (data.remarks != null) props['備註'] = { rich_text: [{ text: { content: data.remarks } }] }
   if (data.locked != null) props['已鎖定'] = { checkbox: data.locked }
+  // 補「關聯批次」：讓未連結的出貨紀錄可以事後指定它其實屬於哪一批
+  if (data.batchId) props['關聯批次'] = { relation: [{ id: data.batchId }] }
 
   const page = await notion.pages.update({ page_id: id, properties: props })
   return pageToRecord(page)
