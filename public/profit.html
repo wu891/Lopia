@@ -269,12 +269,15 @@ function renderBanners(d) {
 
 function renderFyTotals(d) {
   const f = d.fy;
-  const heroCls = 'cell hero' + (f.margin < 0 ? ' loss' : '');
+  const c = f.confirmed;
+  const heroCls = 'cell hero' + (c.margin < 0 ? ' loss' : '');
+  // 主數字＝確定毛利（已出完＋成本填齊的批次）；出貨中批次成本只攤了已出比例、
+  // 耗損報廢都在後面，混進主數字會虛高，「含出貨中」只當暫估參考
   return `<div class="totals-row">
-    <div class="cell"><div class="l">FY${f.fiscalYear} 營收（未稅）</div><div class="v mono">${fmt(f.revenue)}</div></div>
-    <div class="cell"><div class="l">進貨成本分攤</div><div class="v mono">${fmt(f.importCost)}</div></div>
-    <div class="cell"><div class="l">物流（三義＋優儲）</div><div class="v mono">${fmt(f.logistics)}</div></div>
-    <div class="${heroCls}"><div class="l">本財年毛利（率）</div><div class="v mono">${f.margin >= 0 ? '+' : ''}${fmt(f.margin)}（${pct(f.marginRate)}）</div></div>
+    <div class="cell"><div class="l">FY${f.fiscalYear} 確定營收（${c.batches} 個已出完批次）</div><div class="v mono">${fmt(c.revenue)}</div></div>
+    <div class="cell"><div class="l">確定成本（進貨＋物流分攤）</div><div class="v mono">${fmt(c.cost)}</div></div>
+    <div class="${heroCls}"><div class="l">本財年確定毛利（率）</div><div class="v mono">${c.margin >= 0 ? '+' : ''}${fmt(c.margin)}（${pct(c.marginRate)}）</div></div>
+    <div class="cell"><div class="l">含出貨中（暫估，僅供參考）</div><div class="v mono" style="color:var(--ink-2);">${f.margin >= 0 ? '+' : ''}${fmt(f.margin)}（${pct(f.marginRate)}）</div></div>
   </div>`;
 }
 

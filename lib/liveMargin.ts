@@ -52,6 +52,7 @@ export interface LiveBatchMargin {
   supplier: string | null
   arrivalTW: string | null
   deliveryStatus: string | null // Notion「配送狀態」：全數出貨=人工認定已出完（歷史批次的紀錄可能不完整，以這欄為準）
+  completed: boolean         // 已出完（配送狀態=全數出貨，或已出箱數≥總箱數）＝成本全部落地、毛利不會再變
   totalBoxes: number         // 分攤基準（入倉箱數優先，沒填退回已出箱數）
   shippedBoxes: number       // 已出貨（≤今天）
   futureBoxes: number        // 未來計畫中
@@ -99,6 +100,15 @@ export interface LiveMarginResult {
     marginRate: number
     batchesWithMissingCost: number     // 本財年有出貨但成本沒填齊的批次數
     monthsWithMissingLogistics: string[] // 本財年有出貨但月度物流沒填的月份
+    // 確定毛利：只算「已出完＋成本填齊」的批次（成本全部落地、不會再變）。
+    // 出貨中的批次成本只攤了已出比例、耗損報廢都在後面，混進來會虛高，只當暫估參考。
+    confirmed: {
+      batches: number                  // 計入的批次數
+      revenue: number
+      cost: number                     // 進貨分攤＋物流分攤
+      margin: number
+      marginRate: number
+    }
   }
   logisticsEntries: MonthlyLogistics[] // 已填的月度物流（給前端表單顯示）
 }
@@ -234,6 +244,7 @@ export function computeLiveMargins(
       supplier: batch.supplier,
       arrivalTW: batch.arrivalTW,
       deliveryStatus: batch.deliveryStatus,
+      completed: batch.deliveryStatus === '全數出貨' || (base > 0 && shippedBoxes >= base && shippedBoxes > 0),
       totalBoxes: base,
       shippedBoxes,
       futureBoxes,
@@ -275,7 +286,7 @@ export function computeLiveMargins(
       batchId: '__unlinked__',
       ivName: '未連結批次',
       productSummary: '出貨紀錄沒填「關聯批次」（多為3–4月對帳時代資料），營收計入月度，進貨成本無法分攤',
-      supplier: null, arrivalTW: null, deliveryStatus: null,
+      supplier: null, arrivalTW: null, deliveryStatus: null, completed: false,
       totalBoxes: shippedBoxes, shippedBoxes,
       futureBoxes: rows.filter(r => r.isFuture).reduce((s, r) => s + r.boxes, 0),
       shiireTwd: 0, tariffCustoms: 0, miscFee: 0, costFull: 0, costStatus: 'none',
@@ -332,6 +343,20 @@ export function computeLiveMargins(
   // 「未連結批次」那列本來就沒有成本可填，不算進成本未填齊的警告
   const batchesWithMissingCost = batches.filter(b => b.batchId !== '__unlinked__' && fyBatchIds.has(b.batchId) && b.costStatus !== 'complete').length
 
+  // 確定毛利：已出完＋成本填齊的批次，只取其本財年出貨的部分
+  let cfRevenue = 0, cfCost = 0
+  const cfBatches = new Set<string>()
+  for (const b of batches) {
+    if (!b.completed || b.costStatus !== 'complete') continue
+    for (const r of b.rows) {
+      if (r.isFuture || !r.month || fiscalYearOf(r.month) !== currentFy) continue
+      cfRevenue += r.revenue
+      cfCost += r.allocImport + r.allocLogistics
+      cfBatches.add(b.batchId)
+    }
+  }
+  const cfMargin = cfRevenue - cfCost
+
   return {
     // 排序：有出貨的批次照抵台日新到舊排前面，完全沒出貨的排最後
     batches: batches.sort((a, b) => {
@@ -350,6 +375,13 @@ export function computeLiveMargins(
       marginRate: fyRevenue > 0 ? fyMargin / fyRevenue : 0,
       batchesWithMissingCost,
       monthsWithMissingLogistics: fyMonths.filter(m => !m.logisticsFilled).map(m => m.month),
+      confirmed: {
+        batches: cfBatches.size,
+        revenue: cfRevenue,
+        cost: cfCost,
+        margin: cfMargin,
+        marginRate: cfRevenue > 0 ? cfMargin / cfRevenue : 0,
+      },
     },
     logisticsEntries: [...logistics].sort((a, b) => b.month.localeCompare(a.month)),
   }
