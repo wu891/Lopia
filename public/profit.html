@@ -337,6 +337,7 @@ function render() {
     '資料來源：Notion（進口批次成本欄＋出貨紀錄＋月度物流費用） ｜ 最後更新 ' + (d.lastUpdated || '').replace('T',' ').slice(0,16);
   bindCatTabs();
   renderVisual(currentData);
+  renderMonthTrend(currentData);
   bindControls();
   bindBatchRows();
   bindCostForms();
@@ -424,7 +425,26 @@ function renderVisualSection() {
       <h3 style="margin-bottom:var(--space-3);">毛利率區間</h3>
       <div id="bucketChart"></div>
     </div>
+  </div>
+  <div class="pd-panel" style="margin-top:var(--space-4);">
+    <div class="pd-panel-head"><h3>月度毛利率趨勢</h3><span class="unit">%</span></div>
+    <div id="monthTrend"></div>
   </div>`;
+}
+// 月度毛利率趨勢：由舊到新排列，方便看走勢；沒出貨（營收為0）的月份不畫
+function renderMonthTrend(d) {
+  const el = document.getElementById('monthTrend');
+  if (!el) return;
+  const months = d.months.filter(m => m.revenue > 0).slice().sort((a, b) => a.month.localeCompare(b.month));
+  if (!months.length) { el.innerHTML = '<div class="pd-empty-note">尚無月度資料</div>'; return; }
+  const maxAbs = Math.max(1, ...months.map(m => Math.abs(m.marginRate)));
+  el.innerHTML = months.map(m => {
+    const barPct = Math.max(2, Math.abs(m.marginRate) / maxAbs * 100);
+    const color = marginColor(m.margin);
+    return `<div class="pd-bar-row"><div class="pd-bar-name">${esc(m.month)}</div>
+      <div class="pd-bar-track"><div class="pd-bar-fill" style="width:${barPct}%;background:${color};"></div></div>
+      <div class="pd-bar-val num" style="color:${color};">${pct(m.marginRate)}</div></div>`;
+  }).join('');
 }
 function renderVisual(d) {
   const list = visibleBatches(d).filter(b => b.shippedBoxes > 0); // 尚未出貨的批次沒有意義的毛利可畫
