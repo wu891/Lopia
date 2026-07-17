@@ -129,6 +129,18 @@
   .pd-bar-val { font-size: 13px; font-weight: 700; text-align: right; font-family: var(--mono); }
   .pd-empty-note { font-size: 12px; color: var(--color-neutral-600); }
 
+  /* ── 月度毛利率趨勢：直立長條，比橫向更容易看出消長 ── */
+  .pd-monthtrend-wrap { position: relative; }
+  .pd-monthtrend-cols { display: flex; align-items: flex-end; gap: 14px; height: 170px; position: relative; }
+  .pd-monthcol { flex: 1; min-width: 0; display: flex; flex-direction: column; align-items: center; height: 100%; justify-content: flex-end; }
+  .pd-monthcol-val { font-size: 12px; font-weight: 700; margin-bottom: 6px; font-family: var(--mono); white-space: nowrap; }
+  .pd-monthcol-track { position: relative; width: 100%; max-width: 64px; flex: 1; background: var(--color-neutral-200); border-radius: 8px; overflow: hidden; }
+  .pd-monthcol-fill { position: absolute; left: 0; right: 0; border-radius: 3px; min-height: 3px; }
+  .pd-monthcol-name { font-size: 11px; color: var(--color-neutral-600); margin-top: 8px; white-space: nowrap; }
+  .pd-monthtrend-target { position: absolute; left: 0; right: 0; height: 0; border-top: 2px dashed var(--color-profit); z-index: 2; pointer-events: none; }
+  .pd-monthtrend-target span { position: absolute; right: 0; top: -18px; font-size: 11px; color: var(--color-profit); font-weight: 600; }
+  .pd-monthtrend-zero { position: absolute; left: 0; right: 0; height: 0; border-top: 1px solid var(--color-neutral-400); z-index: 1; pointer-events: none; }
+
   .pd-bucket + .pd-bucket { margin-top: var(--space-3); }
   .pd-bucket-head { display: flex; justify-content: space-between; font-size: 12px; margin-bottom: 6px; }
   .pd-bucket-head .cnt { font-weight: 700; font-family: var(--mono); }
@@ -750,22 +762,39 @@ function renderVisualSection() {
     <div id="monthTrend"></div>
   </div>`;
 }
-// 月度毛利率趨勢：由舊到新排列，方便看走勢；沒出貨（營收為0）的月份不畫
+// 月度毛利率趨勢：直立長條，由舊到新從左到右排列，正毛利往上長、虧損往下長（0 為基準線），
+// 比橫向長條更容易一眼看出消長走勢；沒出貨（營收為0）的月份不畫
 function renderMonthTrend(d) {
   const el = document.getElementById('monthTrend');
   if (!el) return;
   const months = d.months.filter(m => m.revenue > 0).slice().sort((a, b) => a.month.localeCompare(b.month));
   if (!months.length) { el.innerHTML = `<div class="pd-empty-note">${t('noMonthData')}</div>`; return; }
-  const maxAbs = Math.max(1, ...months.map(m => Math.abs(m.marginRate)));
-  const targetLeft = Math.min(100, TARGET_RATE / maxAbs * 100);
-  const bars = months.map(m => {
-    const barPct = Math.max(2, Math.abs(m.marginRate) / maxAbs * 100);
+  const rates = months.map(m => m.marginRate);
+  const maxVal = Math.max(0, TARGET_RATE, ...rates);
+  const minVal = Math.min(0, ...rates);
+  const range = (maxVal - minVal) || 1;
+  const zeroPct = (0 - minVal) / range * 100;
+  const targetPct = Math.min(100, Math.max(0, (TARGET_RATE - minVal) / range * 100));
+  const cols = months.map(m => {
+    const v = m.marginRate;
+    const valuePct = (v - minVal) / range * 100;
+    const bottom = v >= 0 ? zeroPct : valuePct;
+    const height = Math.max(v === 0 ? 0.5 : 1.5, Math.abs(valuePct - zeroPct));
     const color = marginColor(m.margin);
-    return `<div class="pd-bar-row"><div class="pd-bar-name">${esc(m.month)}</div>
-      <div class="pd-bar-track"><div class="pd-bar-fill" style="width:${barPct}%;background:${color};"></div><div style="position:absolute;top:-3px;bottom:-3px;left:${targetLeft}%;width:0;border-left:2px dashed var(--color-profit);"></div></div>
-      <div class="pd-bar-val num" style="color:${color};">${pct(m.marginRate)}</div></div>`;
+    return `<div class="pd-monthcol">
+      <div class="pd-monthcol-val" style="color:${color};">${pct(m.marginRate)}</div>
+      <div class="pd-monthcol-track"><div class="pd-monthcol-fill" style="bottom:${bottom}%;height:${height}%;background:${color};"></div></div>
+      <div class="pd-monthcol-name">${esc(m.month)}</div>
+    </div>`;
   }).join('');
-  el.innerHTML = `<div style="font-size:11px;color:var(--color-profit);font-weight:600;margin-bottom:12px;">- - ${t('kpiTarget')} ${(TARGET_RATE * 100).toFixed(0)}%</div>` + bars;
+  const zeroLine = zeroPct > 0.5 && zeroPct < 99.5 ? `<div class="pd-monthtrend-zero" style="bottom:${zeroPct}%;"></div>` : '';
+  el.innerHTML = `<div class="pd-monthtrend-wrap">
+    <div class="pd-monthtrend-cols">
+      <div class="pd-monthtrend-target" style="bottom:${targetPct}%;"><span>${t('kpiTarget')} ${(TARGET_RATE * 100).toFixed(0)}%</span></div>
+      ${zeroLine}
+      ${cols}
+    </div>
+  </div>`;
 }
 function renderVisual(d) {
   const list = visibleBatches(d).filter(b => b.shippedBoxes > 0); // 尚未出貨的批次沒有意義的毛利可畫
