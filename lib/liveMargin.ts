@@ -51,6 +51,7 @@ export interface LiveBatchMargin {
   productSummary: string | null
   supplier: string | null
   arrivalTW: string | null
+  deliveryStatus: string | null // Notion「配送狀態」：全數出貨=人工認定已出完（歷史批次的紀錄可能不完整，以這欄為準）
   totalBoxes: number         // 分攤基準（入倉箱數優先，沒填退回已出箱數）
   shippedBoxes: number       // 已出貨（≤今天）
   futureBoxes: number        // 未來計畫中
@@ -232,6 +233,7 @@ export function computeLiveMargins(
       productSummary: batch.productSummary,
       supplier: batch.supplier,
       arrivalTW: batch.arrivalTW,
+      deliveryStatus: batch.deliveryStatus,
       totalBoxes: base,
       shippedBoxes,
       futureBoxes,
@@ -273,7 +275,7 @@ export function computeLiveMargins(
       batchId: '__unlinked__',
       ivName: '未連結批次',
       productSummary: '出貨紀錄沒填「關聯批次」（多為3–4月對帳時代資料），營收計入月度，進貨成本無法分攤',
-      supplier: null, arrivalTW: null,
+      supplier: null, arrivalTW: null, deliveryStatus: null,
       totalBoxes: shippedBoxes, shippedBoxes,
       futureBoxes: rows.filter(r => r.isFuture).reduce((s, r) => s + r.boxes, 0),
       shiireTwd: 0, tariffCustoms: 0, miscFee: 0, costFull: 0, costStatus: 'none',

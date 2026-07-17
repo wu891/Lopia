@@ -285,7 +285,9 @@ function batchStatusHtml(b) {
     return badges;
   }
   let ship;
-  if (b.shippedBoxes <= 0 && b.futureBoxes <= 0) ship = '<span class="status">未出貨</span>';
+  // 歷史批次的出貨紀錄可能不完整（Notion紀錄3月才開始），Notion「配送狀態」標了全數出貨就以人工認定為準
+  if (b.deliveryStatus === '全數出貨') ship = '<span class="status good">已出完</span>';
+  else if (b.shippedBoxes <= 0 && b.futureBoxes <= 0) ship = '<span class="status">未出貨</span>';
   else if (b.shippedBoxes >= b.totalBoxes && b.totalBoxes > 0) ship = '<span class="status good">已出完</span>';
   else ship = '<span class="status warn">出貨中</span>';
   let badges = '';
