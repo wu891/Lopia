@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { getChecklists, createChecklist, isChecklistConfigured } from '@/lib/checklist'
+import { getChecklists, createChecklist, isChecklistConfigured, WAREHOUSES } from '@/lib/checklist'
 import { requireWho } from '@/lib/checklistAuth'
 import { clampLen } from '@/lib/auth'
 
@@ -32,7 +32,11 @@ export async function POST(req: NextRequest) {
     }
     const deliveryDate = typeof data.deliveryDate === 'string' && data.deliveryDate ? data.deliveryDate : null
     const content = clampLen(data.content ?? '', 500).trim() || null
-    const item = await createChecklist({ shipmentNo, deliveryDate, content })
+    const warehouse = typeof data.warehouse === 'string' ? data.warehouse.trim() : ''
+    if (!WAREHOUSES.includes(warehouse as typeof WAREHOUSES[number])) {
+      return NextResponse.json({ error: '請選擇倉儲（優儲／美福／三義）' }, { status: 400 })
+    }
+    const item = await createChecklist({ shipmentNo, deliveryDate, content, warehouse })
     return NextResponse.json({ item })
   } catch (err) {
     const msg = err instanceof Error ? err.message : 'Failed to create checklist'

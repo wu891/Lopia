@@ -8,7 +8,7 @@
  */
 import { useState, useEffect, useCallback, type ReactNode } from 'react'
 import {
-  PEOPLE, LAYERS, LAST_LAYER_ID, personName,
+  PEOPLE, LAYERS, LAST_LAYER_ID, personName, WAREHOUSES,
   currentLayerId, isCompleted, isLayerUnlocked, isLayerComplete, canCheck, stageLabel,
   canEditWeekly,
   type PersonId, type ChecklistState,
@@ -19,6 +19,7 @@ interface Checklist {
   shipmentNo: string
   deliveryDate: string | null
   content: string | null
+  warehouse: string | null
   stage: string
   completed: boolean
   state: ChecklistState
@@ -379,20 +380,28 @@ function CreateForm({ onCreated, flash }: {
   const [date, setDate] = useState('')
   const [tbd, setTbd] = useState(false)
   const [content, setContent] = useState('')
+  const [warehouse, setWarehouse] = useState('')
   const [busy, setBusy] = useState(false)
 
   async function submit() {
-    if (!shipmentNo.trim()) return
+    if (!shipmentNo.trim() || !warehouse) return
     setBusy(true)
     try {
       const res = await fetch('/api/checklist', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ shipmentNo: shipmentNo.trim(), deliveryDate: tbd ? null : (date || null), content: content.trim() || null }),
+        body: JSON.stringify({
+          shipmentNo: shipmentNo.trim(),
+          deliveryDate: tbd ? null : (date || null),
+          content: content.trim() || null,
+          warehouse,
+        }),
       })
       const d = await res.json()
-      if (res.ok) { flash('ok', `已建立 ${shipmentNo.trim()}`); setShipmentNo(''); setDate(''); setTbd(false); setContent(''); setOpen(false); onCreated() }
-      else flash('err', d.error ?? '建立失敗')
+      if (res.ok) {
+        flash('ok', `已建立 ${shipmentNo.trim()}`)
+        setShipmentNo(''); setDate(''); setTbd(false); setContent(''); setWarehouse(''); setOpen(false); onCreated()
+      } else flash('err', d.error ?? '建立失敗')
     } catch {
       flash('err', '建立失敗')
     } finally {
@@ -428,13 +437,20 @@ function CreateForm({ onCreated, flash }: {
           onChange={e => { const v = e.target.checked; setTbd(v); if (v) setDate('') }} />
         出貨日期待訂（之後再補配送日）
       </label>
+      <select
+        value={warehouse} onChange={e => setWarehouse(e.target.value)}
+        className="w-full border border-slate-300 rounded-lg px-3 py-2.5 text-base mt-2 bg-white text-slate-800"
+      >
+        <option value="" disabled>倉儲（必選）</option>
+        {WAREHOUSES.map(w => <option key={w} value={w}>{w}</option>)}
+      </select>
       <input
         placeholder="這批出什麼（選填，如：蘋果11｜全12店）"
         value={content} onChange={e => setContent(e.target.value)}
         className="w-full border border-slate-300 rounded-lg px-3 py-2.5 text-base mt-2"
       />
       <div className="flex gap-2 mt-2">
-        <button disabled={busy || !shipmentNo.trim()} onClick={submit}
+        <button disabled={busy || !shipmentNo.trim() || !warehouse} onClick={submit}
           className="flex-1 py-2.5 rounded-lg bg-[#36454f] text-white font-bold disabled:opacity-40">
           {busy ? '建立中…' : '建立'}
         </button>
@@ -550,7 +566,10 @@ function ChecklistCard({ item, who, expanded, onToggle, onChanged, onDeleted, fl
             <span className="font-mono font-bold text-slate-800 truncate">{item.shipmentNo}</span>
             {myTurn && <span className="text-[10px] bg-[#36454f] text-white px-1.5 py-0.5 rounded-full animate-pulse whitespace-nowrap">輪到你</span>}
           </div>
-          <div className="text-xs text-slate-500 mt-0.5">{fmtDate(item.deliveryDate)}</div>
+          <div className="text-xs text-slate-500 mt-0.5">
+            {fmtDate(item.deliveryDate)}
+            {item.warehouse && <span className="ml-1.5 text-slate-400">｜倉儲：{item.warehouse}</span>}
+          </div>
           {item.content && <div className="text-[11px] text-slate-400 mt-0.5 truncate">{item.content}</div>}
         </div>
         {/* 已完結的單不顯示逾期/倒數燈號，免得誤會成還沒處理 */}
@@ -683,6 +702,7 @@ function EditInfoForm({ item, onSaved, onCancel, flash }: {
   const [date, setDate] = useState(item.deliveryDate ?? '')
   const [tbd, setTbd] = useState(!item.deliveryDate)
   const [content, setContent] = useState(item.content ?? '')
+  const [warehouse, setWarehouse] = useState(item.warehouse ?? '')
   const [busy, setBusy] = useState(false)
 
   async function submit() {
@@ -697,6 +717,7 @@ function EditInfoForm({ item, onSaved, onCancel, flash }: {
           shipmentNo: shipmentNo.trim(),
           deliveryDate: tbd ? null : (date || null),
           content: content.trim() || null,
+          warehouse: warehouse || null,
           baseLastEdited: item.lastEdited,   // 樂觀鎖：中途被別人改過就會擋下
         }),
       })
@@ -732,6 +753,13 @@ function EditInfoForm({ item, onSaved, onCancel, flash }: {
           onChange={e => { const v = e.target.checked; setTbd(v); if (v) setDate('') }} />
         出貨日期待訂（之後再補配送日）
       </label>
+      <select
+        value={warehouse} onChange={e => setWarehouse(e.target.value)}
+        className="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm bg-white mt-2"
+      >
+        <option value="">倉儲（未選）</option>
+        {WAREHOUSES.map(w => <option key={w} value={w}>{w}</option>)}
+      </select>
       <input
         placeholder="這批出什麼（選填，如：蘋果11｜全12店）"
         value={content} onChange={e => setContent(e.target.value)}

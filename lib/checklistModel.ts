@@ -101,6 +101,10 @@ export const LAYERS: Layer[] = [
 
 export const LAST_LAYER_ID = LAYERS[LAYERS.length - 1].id
 
+// 倉儲選項：新增檢查單時要選這批貨放在哪個倉儲（優儲／美福／三義）
+export const WAREHOUSES = ['優儲', '美福', '三義'] as const
+export type Warehouse = typeof WAREHOUSES[number]
+
 // ── 狀態結構 ──────────────────────────────────────────────────────────────
 
 export interface CheckMark {
@@ -123,6 +127,7 @@ export interface ChecklistState {
   rejections: Rejection[]
   completedAt?: string
   content?: string    // 這批要出什麼（品項／店鋪），建立時帶入，純顯示用，不影響勾選邏輯
+  warehouse?: string  // 這批貨放哪個倉儲（優儲／美福／三義），純顯示用，不影響勾選邏輯
 }
 
 export function emptyState(): ChecklistState {
@@ -141,6 +146,7 @@ export function parseState(raw: string | null | undefined): ChecklistState {
       rejections: Array.isArray(obj.rejections) ? obj.rejections : [],
       completedAt: typeof obj.completedAt === 'string' ? obj.completedAt : undefined,
       content: typeof obj.content === 'string' ? obj.content : undefined,
+      warehouse: typeof obj.warehouse === 'string' ? obj.warehouse : undefined,
     }
   } catch {
     return emptyState()

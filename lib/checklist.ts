@@ -31,6 +31,7 @@ export interface Checklist {
   shipmentNo: string
   deliveryDate: string | null
   content: string | null   // 這批要出什麼（品項／店鋪），從週清單帶入；沒有則 null
+  warehouse: string | null // 倉儲（優儲／美福／三義），沒有則 null
   stage: string
   completed: boolean
   state: ChecklistState
@@ -61,6 +62,7 @@ function pageToChecklist(page: any): Checklist {
     shipmentNo: getTitle(p['出貨單號']),
     deliveryDate: getDateStart(p['配送日期']),
     content: state.content ?? null,
+    warehouse: state.warehouse ?? null,
     stage: stageLabel(state),
     completed: isCompleted(state),
     state,
@@ -129,6 +131,7 @@ export async function createChecklist(data: {
   shipmentNo: string
   deliveryDate?: string | null
   content?: string | null    // 這批要出什麼（從週清單帶入），存進 state.content
+  warehouse?: string | null  // 倉儲（優儲／美福／三義），存進 state.warehouse
 }): Promise<Checklist> {
   const DB = checklistDb()
   if (!DB) throw new Error('尚未設定 NOTION_CHECKLIST_DB')
@@ -137,7 +140,12 @@ export async function createChecklist(data: {
   if (existing) throw new Error(`${data.shipmentNo} 已經有檢查清單了`)
 
   const content = data.content?.trim() || undefined
-  const state: ChecklistState = { version: 1, checks: {}, rejections: [], ...(content ? { content } : {}) }
+  const warehouse = data.warehouse?.trim() || undefined
+  const state: ChecklistState = {
+    version: 1, checks: {}, rejections: [],
+    ...(content ? { content } : {}),
+    ...(warehouse ? { warehouse } : {}),
+  }
   const page = await notion.pages.create({
     parent: { database_id: DB },
     properties: {
@@ -160,8 +168,13 @@ export async function updateChecklistInfo(id: string, state: ChecklistState, dat
   shipmentNo: string
   deliveryDate: string | null
   content: string | null
+  warehouse: string | null
 }): Promise<Checklist> {
-  const next: ChecklistState = { ...state, content: data.content ?? undefined }
+  const next: ChecklistState = {
+    ...state,
+    content: data.content ?? undefined,
+    warehouse: data.warehouse ?? undefined,
+  }
   const page = await notion.pages.update({
     page_id: id,
     properties: {

@@ -3,7 +3,7 @@ import {
   getChecklistById, saveChecklistState, deleteChecklist,
   updateChecklistInfo, getChecklistByShipmentNo,
   applyCheck, applyReject, canCheck,
-  currentLayerId, personName, LAST_LAYER_ID,
+  currentLayerId, personName, LAST_LAYER_ID, WAREHOUSES,
 } from '@/lib/checklist'
 import { requireWho } from '@/lib/checklistAuth'
 import { clampLen } from '@/lib/auth'
@@ -122,6 +122,8 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
       if (!shipmentNo) return NextResponse.json({ error: '出貨單號不能空白' }, { status: 400 })
       const deliveryDate = typeof body.deliveryDate === 'string' && body.deliveryDate ? body.deliveryDate : null
       const content = clampLen(String(body.content ?? ''), 300).trim() || null
+      const warehouseRaw = typeof body.warehouse === 'string' ? body.warehouse.trim() : ''
+      const warehouse = WAREHOUSES.includes(warehouseRaw as typeof WAREHOUSES[number]) ? warehouseRaw : null
 
       // 如果改了單號，先確認沒有跟別張單撞號
       if (shipmentNo !== current.shipmentNo) {
@@ -131,7 +133,7 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
         }
       }
 
-      const saved = await updateChecklistInfo(id, current.state, { shipmentNo, deliveryDate, content })
+      const saved = await updateChecklistInfo(id, current.state, { shipmentNo, deliveryDate, content, warehouse })
       return NextResponse.json({ item: saved })
     }
 
