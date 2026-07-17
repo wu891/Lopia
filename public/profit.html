@@ -130,9 +130,9 @@
   .pd-empty-note { font-size: 12px; color: var(--color-neutral-600); }
 
   /* ── 月度毛利率趨勢：直立長條，比橫向更容易看出消長 ── */
-  .pd-monthtrend-wrap { position: relative; }
-  .pd-monthtrend-cols { display: flex; align-items: flex-end; gap: 14px; height: 170px; position: relative; }
-  .pd-monthcol { flex: 1; min-width: 0; display: flex; flex-direction: column; align-items: center; height: 100%; justify-content: flex-end; }
+  .pd-monthtrend-wrap { position: relative; overflow-x: auto; padding-bottom: 2px; }
+  .pd-monthtrend-cols { display: flex; align-items: flex-end; justify-content: flex-start; gap: 22px; height: 170px; position: relative; }
+  .pd-monthcol { flex: 0 0 76px; width: 76px; display: flex; flex-direction: column; align-items: center; height: 100%; justify-content: flex-end; }
   .pd-monthcol-val { font-size: 12px; font-weight: 700; margin-bottom: 6px; font-family: var(--mono); white-space: nowrap; }
   .pd-monthcol-track { position: relative; width: 100%; max-width: 64px; flex: 1; background: var(--color-neutral-200); border-radius: 8px; overflow: hidden; }
   .pd-monthcol-fill { position: absolute; left: 0; right: 0; border-radius: 3px; min-height: 3px; }
