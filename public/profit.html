@@ -132,6 +132,7 @@
   /* ── 月度毛利率趨勢：直立長條，比橫向更容易看出消長 ── */
   .pd-monthtrend-wrap { position: relative; overflow-x: auto; padding-bottom: 2px; }
   .pd-monthtrend-cols { display: flex; align-items: flex-end; justify-content: flex-start; gap: 22px; height: 170px; position: relative; }
+  .pd-monthtrend-cols.is-centered { justify-content: center; }
   .pd-monthcol { flex: 0 0 76px; width: 76px; display: flex; flex-direction: column; align-items: center; height: 100%; justify-content: flex-end; }
   .pd-monthcol-val { font-size: 12px; font-weight: 700; margin-bottom: 6px; font-family: var(--mono); white-space: nowrap; }
   .pd-monthcol-track { position: relative; width: 100%; max-width: 64px; flex: 1; background: var(--color-neutral-200); border-radius: 8px; overflow: hidden; }
@@ -307,7 +308,7 @@
 const API_BASE = '';
 // 只有在非正式網域（預覽／本機）才啟用示範資料，讓設計可被檢視；部署到 lopia-status 走真實 API。
 const DEMO = !/lopia-status/.test(location.hostname);
-const TARGET_RATE = 0.28; // 毛利率目標線（可自行調整）
+const TARGET_RATE = 0.15; // 毛利率目標線（可自行調整）
 let currentData = null;
 let showInactive = false;
 let lossOnly = false;
@@ -804,6 +805,9 @@ function renderMonthTrend(d) {
       ${cols}
     </div>
   </div>${pendingNote}`;
+  // 月份少、長條沒佔滿寬度時置中排列；月份多到需要橫向捲動時維持靠左，避免捲動起點跑掉
+  const colsEl = el.querySelector('.pd-monthtrend-cols');
+  if (colsEl && colsEl.scrollWidth <= colsEl.clientWidth) colsEl.classList.add('is-centered');
 }
 function renderVisual(d) {
   const list = visibleBatches(d).filter(b => b.shippedBoxes > 0); // 尚未出貨的批次沒有意義的毛利可畫
