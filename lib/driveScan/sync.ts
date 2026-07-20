@@ -28,7 +28,7 @@ import { createHash } from 'crypto'
 import { pushToGroup, pushToReconGroup } from '../lineNotify'
 import { listShipmentFiles, downloadAsXlsx, type DriveFileInfo } from './drive'
 import { parseStoreOrderWorkbook, type ParsedWorkbook } from './parseStoreOrder'
-import { fetchBatchesLite, allocateFifo, type BatchLite, type AllocationLine } from './match'
+import { fetchBatchesLite, allocateFifo, isActiveBatch, type BatchLite, type AllocationLine } from './match'
 import { getLedgerEntries, upsertLedgerEntry, ensureRecordsSchema, type LedgerEntry } from './ledger'
 import { syncReconciliation, type ReconSyncResult } from './reconciliation'
 
@@ -483,9 +483,14 @@ async function processOneFile(
     }
   }
   // 本檔本單號裡已不存在的（店被拿掉／箱數歸零）→ 封存
+  // 注意：批次「全數出貨/未到貨」而整批沒被本輪分配到，不算「已不存在」——
+  //   那是批次本身這輪沒被列入候選，不代表出貨單把這幾行刪掉了，舊紀錄要留著，不能砍。
+  //   只有「批次仍可扣、但這個(批次,店)組合本輪確實沒再出現」才是真的要封存。
   for (const r of own.slice()) {
     if (!r.batchId || !r.store) continue
     if (r.id.startsWith('dry-')) continue
+    const rBatch = batches.find(b => b.id === r.batchId)
+    if (rBatch && !isActiveBatch(rBatch)) continue
     if (!desiredByKey.has(`${r.batchId}|${r.store}`)) {
       archives.push({ store: r.store, boxes: r.boxes })
       if (!dry) await archiveRecord(r.id)
