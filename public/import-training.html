@@ -676,34 +676,34 @@ code {
     <div class="nav-item" onclick="showSection('stores')">
       <span class="num">3</span> 門市資訊
     </div>
+    <div class="nav-item" onclick="showSection('systems')">
+      <span class="num">4</span> 系統與工具
+    </div>
   </div>
 
   <div class="nav-section">
     <div class="nav-section-label">作業流程</div>
     <div class="nav-item" onclick="showSection('import')">
-      <span class="num">4</span> 進口通關
+      <span class="num">5</span> 進口通關
     </div>
     <div class="nav-item" onclick="showSection('warehouse')">
-      <span class="num">5</span> 提貨 & 倉儲
+      <span class="num">6</span> 提貨 & 倉儲
     </div>
     <div class="nav-item" onclick="showSection('delivery')">
-      <span class="num">6</span> 出貨到門市
+      <span class="num">7</span> 出貨到門市
     </div>
     <div class="nav-item" onclick="showSection('invoice')">
-      <span class="num">7</span> 月底請款
+      <span class="num">8</span> 月底請款
     </div>
   </div>
 
   <div class="nav-section">
     <div class="nav-section-label">參考資料</div>
     <div class="nav-item" onclick="showSection('pitfalls')">
-      <span class="num">8</span> 常見地雷
+      <span class="num">9</span> 常見地雷
     </div>
     <div class="nav-item" onclick="showSection('quickref')">
-      <span class="num">9</span> 快速查找
-    </div>
-    <div class="nav-item" onclick="showSection('tasks')">
-      <span class="num">10</span> 進行中任務
+      <span class="num">10</span> 快速查找
     </div>
   </div>
 
@@ -740,7 +740,7 @@ code {
           <div style="color:var(--blue);font-size:20px;font-weight:700;">→</div>
           <div style="background:var(--blue);color:#fff;padding:10px 18px;border-radius:8px;font-size:13px;font-weight:700;box-shadow:0 4px 14px rgba(37,99,168,.3);">🏢 TMJ 台灣分公司<br><small style="font-weight:400;opacity:.8;">進口・倉儲・配送管理</small></div>
           <div style="color:var(--blue);font-size:20px;font-weight:700;">→</div>
-          <div style="background:var(--navy);color:#fff;padding:10px 18px;border-radius:8px;font-size:13px;font-weight:700;">🛒 LOPIA 台灣各門市<br><small style="font-weight:400;opacity:.6;">13 間門市（持續展店中）</small></div>
+          <div style="background:var(--navy);color:#fff;padding:10px 18px;border-radius:8px;font-size:13px;font-weight:700;">🛒 LOPIA 台灣各門市<br><small style="font-weight:400;opacity:.6;">12 間門市（持續展店中）</small></div>
           <div style="color:var(--blue);font-size:20px;font-weight:700;">→</div>
           <div style="background:#f4f6f9;border:1px solid var(--border);padding:10px 18px;border-radius:8px;font-size:13px;color:var(--muted);">👤 消費者</div>
         </div>
@@ -963,105 +963,129 @@ code {
       <div class="section-header">
         <div class="section-num">Section 03</div>
         <div class="section-title">門市資訊</div>
-        <div class="section-desc">目前共 13 間門市，2026 年目標擴展至 18～20 間。點擊門市可查看代碼。</div>
+        <div class="section-desc">目前共 12 間門市營業中，另有 3 間規劃中（開幕時間未定）。點擊門市可查看代碼。</div>
       </div>
 
       <div class="card">
-        <div class="card-title"><span class="icon">🗺</span>北部門市</div>
+        <div class="card-title"><span class="icon">🗺</span>北部門市（5）</div>
         <div class="store-grid">
-          <div class="store-card" onclick="showStoreInfo(this)" data-code="桃園" data-name="桃園" data-region="北部">
+          <div class="store-card" onclick="showStoreInfo(this)" data-code="桃園" data-name="桃園春日" data-region="北部">
             <div class="store-code">桃園</div>
-            <div class="store-name">桃園</div>
-            <div class="store-region">新北/桃園</div>
+            <div class="store-name">桃園春日</div>
+            <div class="store-region">桃園</div>
           </div>
-          <div class="store-card" onclick="showStoreInfo(this)" data-code="中和" data-name="中和" data-region="北部">
+          <div class="store-card" onclick="showStoreInfo(this)" data-code="中和" data-name="新北中和環球" data-region="北部">
             <div class="store-code">中和</div>
-            <div class="store-name">中和</div>
+            <div class="store-name">新北中和環球</div>
             <div class="store-region">新北</div>
           </div>
-          <div class="store-card" onclick="showStoreInfo(this)" data-code="新荘" data-name="新荘" data-region="北部">
+          <div class="store-card" onclick="showStoreInfo(this)" data-code="新荘" data-name="新莊宏匯" data-region="北部">
             <div class="store-code">新荘</div>
-            <div class="store-name">新荘</div>
+            <div class="store-name">新莊宏匯</div>
             <div class="store-region">新北</div>
           </div>
-          <div class="store-card" onclick="showStoreInfo(this)" data-code="南港" data-name="南港" data-region="北部">
+          <div class="store-card" onclick="showStoreInfo(this)" data-code="南港" data-name="南港 LaLaport" data-region="北部">
             <div class="store-code">南港</div>
-            <div class="store-name">南港</div>
+            <div class="store-name">南港 LaLaport</div>
             <div class="store-region">台北</div>
           </div>
+          <div class="store-card" onclick="showStoreInfo(this)" data-code="美麗" data-name="台北美麗華（大直）" data-region="北部">
+            <div class="store-code">美麗</div>
+            <div class="store-name">台北美麗華（大直）</div>
+            <div class="store-region">台北・2026/7/9 開幕</div>
+          </div>
         </div>
       </div>
 
       <div class="card">
-        <div class="card-title"><span class="icon">🏙</span>中部門市</div>
+        <div class="card-title"><span class="icon">🏙</span>中部門市（3）</div>
         <div class="store-grid">
-          <div class="store-card" onclick="showStoreInfo(this)" data-code="台中" data-name="台中" data-region="中部">
+          <div class="store-card" onclick="showStoreInfo(this)" data-code="台中" data-name="LaLaport 台中" data-region="中部">
             <div class="store-code">台中</div>
-            <div class="store-name">台中</div>
+            <div class="store-name">LaLaport 台中</div>
             <div class="store-region">台中</div>
           </div>
-          <div class="store-card" onclick="showStoreInfo(this)" data-code="IKEA" data-name="IKEA" data-region="中部">
+          <div class="store-card" onclick="showStoreInfo(this)" data-code="IKEA" data-name="IKEA 台中南屯" data-region="中部">
             <div class="store-code">IKEA</div>
-            <div class="store-name">IKEA</div>
+            <div class="store-name">IKEA 台中南屯</div>
             <div class="store-region">台中</div>
           </div>
-          <div class="store-card" onclick="showStoreInfo(this)" data-code="漢神" data-name="台中漢神" data-region="中部">
-            <div class="store-code">漢神</div>
-            <div class="store-name">台中漢神</div>
-            <div class="store-region">台中（新店）</div>
-          </div>
-          <div class="store-card" onclick="showStoreInfo(this)" data-code="らら台中" data-name="らら台中" data-region="中部">
-            <div class="store-code">らら台中</div>
-            <div class="store-name">らら台中</div>
-            <div class="store-region">台中 Lalaport</div>
+          <div class="store-card" onclick="showStoreInfo(this)" data-code="中漢" data-name="台中漢神中港" data-region="中部">
+            <div class="store-code">中漢</div>
+            <div class="store-name">台中漢神中港</div>
+            <div class="store-region">台中</div>
           </div>
         </div>
       </div>
 
       <div class="card">
-        <div class="card-title"><span class="icon">🌴</span>南部門市</div>
+        <div class="card-title"><span class="icon">🌴</span>南部門市（4）</div>
         <div class="store-grid">
-          <div class="store-card" onclick="showStoreInfo(this)" data-code="台南" data-name="台南" data-region="南部">
-            <div class="store-code">台南</div>
-            <div class="store-name">台南</div>
-            <div class="store-region">台南</div>
-          </div>
-          <div class="store-card" onclick="showStoreInfo(this)" data-code="MOP" data-name="MOP" data-region="南部">
-            <div class="store-code">MOP</div>
-            <div class="store-name">MOP</div>
-            <div class="store-region">台南</div>
-          </div>
-          <div class="store-card" onclick="showStoreInfo(this)" data-code="北門" data-name="北門" data-region="南部">
+          <div class="store-card" onclick="showStoreInfo(this)" data-code="北門" data-name="台南小北門" data-region="南部">
             <div class="store-code">北門</div>
-            <div class="store-name">北門</div>
-            <div class="store-region">台南北門</div>
+            <div class="store-name">台南小北門</div>
+            <div class="store-region">台南</div>
           </div>
-          <div class="store-card" onclick="showStoreInfo(this)" data-code="巨蛋" data-name="巨蛋" data-region="高雄">
+          <div class="store-card" onclick="showStoreInfo(this)" data-code="MOP" data-name="台南三井 Outlet" data-region="南部">
+            <div class="store-code">MOP</div>
+            <div class="store-name">台南三井 Outlet</div>
+            <div class="store-region">台南</div>
+          </div>
+          <div class="store-card" onclick="showStoreInfo(this)" data-code="巨蛋" data-name="高雄漢神巨蛋" data-region="高雄">
             <div class="store-code">巨蛋</div>
-            <div class="store-name">巨蛋</div>
+            <div class="store-name">高雄漢神巨蛋</div>
             <div class="store-region">高雄</div>
           </div>
-          <div class="store-card" onclick="showStoreInfo(this)" data-code="夢時" data-name="夢時代" data-region="高雄">
+          <div class="store-card" onclick="showStoreInfo(this)" data-code="夢時" data-name="高雄夢時代" data-region="高雄">
             <div class="store-code">夢時</div>
-            <div class="store-name">夢時代</div>
+            <div class="store-name">高雄夢時代</div>
             <div class="store-region">高雄</div>
           </div>
         </div>
       </div>
 
-      <div class="callout info">
-        <span class="callout-icon">📢</span>
-        <div class="callout-text">
-          <strong>2026 年展店計畫</strong>
-          台北 5/15、大直（美麗華）7/6、西門 7/31、高雄阪神 9 月、天母 10 月。新門市開業時需更新店鋪主檔並確認出貨單代碼。
+      <div class="card" style="background:#fafbfd;">
+        <div class="card-title"><span class="icon">🔜</span>規劃中新門市（開幕時間未定）</div>
+        <div style="display:flex;gap:10px;flex-wrap:wrap;">
+          <div style="border:1px dashed var(--border);border-radius:8px;padding:10px 16px;color:var(--muted);font-size:13px;font-weight:600;">台北大巨蛋</div>
+          <div style="border:1px dashed var(--border);border-radius:8px;padding:10px 16px;color:var(--muted);font-size:13px;font-weight:600;">台南 SOGO 新天</div>
+          <div style="border:1px dashed var(--border);border-radius:8px;padding:10px 16px;color:var(--muted);font-size:13px;font-weight:600;">高雄漢神百貨</div>
         </div>
+        <div style="margin-top:10px;font-size:12px;color:var(--muted);">☝ 以上開幕時間都還沒確定，等平山／總部進一步通知再更新。門市正式開業前記得先確認新店代碼已經建好，再排出貨。</div>
       </div>
     </div>
 
-    <!-- ══ 4. 進口通關 ═════════════════════════════════════ -->
-    <div class="section" id="sec-import">
+    <!-- ══ 4. 系統與工具 ═══════════════════════════════════ -->
+    <div class="section" id="sec-systems">
       <div class="section-header">
         <div class="section-num">Section 04</div>
+        <div class="section-title">系統與工具</div>
+        <div class="section-desc">這幾個月已經把部分人工流程做成系統了，以下工具都能直接用，不用再土法煉鋼。全部都能在網站右上角的「工具」選單找到。</div>
+      </div>
+
+      <div class="card">
+        <div class="card-title"><span class="icon">🔧</span>現在有的系統</div>
+        <table>
+          <tr><th>工具</th><th>網址</th><th>用途</th><th>取代了哪個手動步驟</th></tr>
+          <tr><td><strong>出貨單產生</strong></td><td><code>/shipment-generator</code></td><td>依店鋪貨單、入庫總單自動產生格式化出貨單 Excel</td><td>「7. 出貨到門市」手動做出貨單 Excel</td></tr>
+          <tr><td><strong>出貨檢查清單</strong></td><td><code>/checklist</code></td><td>三重檢查體制線上化，逐項勾選、留紀錄</td><td>「7. 出貨到門市」三重檢查靠 LINE／口頭報告</td></tr>
+          <tr><td><strong>對帳單系統</strong></td><td><code>/reconciliation-dashboard.html</code></td><td>月結請款對帳，Drive 出貨單會自動同步進來</td><td>「8. 月底請款」手動彙整當月出貨明細</td></tr>
+          <tr><td><strong>批次即時毛利</strong></td><td><code>/profit.html</code></td><td>每張出貨單即時看毛利，不用等月底才算</td><td>（新功能，之前沒有這一步）</td></tr>
+          <tr><td><strong>進口進度追蹤</strong></td><td>lopia-status 首頁</td><td>5 關進度：出貨→海運→到港→通關→入庫配送</td><td>「5. 進口通關」靠人工追問、記憶進度</td></tr>
+          <tr><td><strong>出貨日程總表</strong></td><td><code>/schedule-board</code></td><td>店 × 日期的出貨日程樞紐表，一眼看全部門市排程</td><td>（新功能，之前要逐批次翻）</td></tr>
+        </table>
+      </div>
+
+      <div class="callout info">
+        <span class="callout-icon">💡</span>
+        <div class="callout-text">這些工具都還在持續加東西，用起來怪怪的或發現資料跟實際對不上，直接跟 Colin 講，不要自己土法煉鋼繞過去。</div>
+      </div>
+    </div>
+
+    <!-- ══ 5. 進口通關 ═════════════════════════════════════ -->
+    <div class="section" id="sec-import">
+      <div class="section-header">
+        <div class="section-num">Section 05</div>
         <div class="section-title">進口通關流程</div>
         <div class="section-desc">每批日本空運進口的完整作業流程，包含文件時間點、通關類型、煙燻與輻射檢驗。</div>
       </div>
@@ -1221,10 +1245,10 @@ code {
       </div>
     </div>
 
-    <!-- ══ 5. 倉儲 ════════════════════════════════════════ -->
+    <!-- ══ 6. 倉儲 ════════════════════════════════════════ -->
     <div class="section" id="sec-warehouse">
       <div class="section-header">
-        <div class="section-num">Section 05</div>
+        <div class="section-num">Section 06</div>
         <div class="section-title">提貨 & 倉儲管理</div>
       </div>
 
@@ -1266,10 +1290,10 @@ code {
       </div>
     </div>
 
-    <!-- ══ 6. 出貨 ════════════════════════════════════════ -->
+    <!-- ══ 7. 出貨 ════════════════════════════════════════ -->
     <div class="section" id="sec-delivery">
       <div class="section-header">
-        <div class="section-num">Section 06</div>
+        <div class="section-num">Section 07</div>
         <div class="section-title">出貨到 LOPIA 門市</div>
         <div class="section-desc">出貨作業採「三重檢查體制（3重チェック体制）」：每個人都有固定負責的工作，每一層都要檢查上一層，確認沒問題才往上報。</div>
       </div>
@@ -1363,7 +1387,7 @@ code {
           <tr><td>日期填寫</td><td style="color:var(--red);font-weight:700;">填配送日，不是製作日！</td></tr>
           <tr><td>單價</td><td>直接使用供應商 Excel 的原価（JPY），不換算</td></tr>
           <tr><td>0 箱商品</td><td>仍需列出，讓店家確認本批貨源</td></tr>
-          <tr><td>「全店」</td><td>自動展開所有 13 間門市</td></tr>
+          <tr><td>「全店」</td><td>自動展開所有 12 間門市</td></tr>
         </table>
         <div class="callout danger" style="margin-top:12px;">
           <span class="callout-icon">❌</span>
@@ -1394,10 +1418,10 @@ code {
       </div>
     </div>
 
-    <!-- ══ 7. 請款 ════════════════════════════════════════ -->
+    <!-- ══ 8. 請款 ════════════════════════════════════════ -->
     <div class="section" id="sec-invoice">
       <div class="section-header">
-        <div class="section-num">Section 07</div>
+        <div class="section-num">Section 08</div>
         <div class="section-title">月底請款作業</div>
       </div>
 
@@ -1430,10 +1454,10 @@ code {
       </div>
     </div>
 
-    <!-- ══ 8. 地雷 ════════════════════════════════════════ -->
+    <!-- ══ 9. 地雷 ════════════════════════════════════════ -->
     <div class="section" id="sec-pitfalls">
       <div class="section-header">
-        <div class="section-num">Section 08</div>
+        <div class="section-num">Section 09</div>
         <div class="section-title">常見地雷 & 注意事項</div>
         <div class="section-desc">從對話紀錄中整理出的實際發生過的錯誤，新人必讀。</div>
       </div>
@@ -1539,10 +1563,10 @@ code {
       </div>
     </div>
 
-    <!-- ══ 9. 快速查找 ══════════════════════════════════════ -->
+    <!-- ══ 10. 快速查找 ══════════════════════════════════════ -->
     <div class="section" id="sec-quickref">
       <div class="section-header">
-        <div class="section-num">Section 09</div>
+        <div class="section-num">Section 10</div>
         <div class="section-title">緊急快速查找</div>
         <div class="section-desc">遇到突發狀況時，找對人最重要。</div>
       </div>
@@ -1606,65 +1630,6 @@ code {
       </div>
     </div>
 
-    <!-- ══ 10. 進行中任務 ═════════════════════════════════ -->
-    <div class="section" id="sec-tasks">
-      <div class="section-header">
-        <div class="section-num">Section 10</div>
-        <div class="section-title">進行中重點任務</div>
-        <div class="section-desc">交接參考。點擊項目可標記進度。</div>
-      </div>
-
-      <div class="checklist" id="taskList">
-        <div class="check-item" onclick="toggleCheck(this)">
-          <div class="check-box">✓</div>
-          <div class="check-text">
-            <strong>🏭 台灣加工業者開拓（リパック用）</strong><br>
-            <span style="font-size:12px;color:var(--muted);">目標：2026/8 前完成（葡萄旺季前）。現有合作：福和生鮮、翔田。需找常溫作業也可的業者。</span>
-          </div>
-        </div>
-        <div class="check-item" onclick="toggleCheck(this)">
-          <div class="check-box">✓</div>
-          <div class="check-text">
-            <strong>🍠 冷凍大學芋（20ft 貨櫃）進口</strong><br>
-            <span style="font-size:12px;color:var(--muted);">ETA 5/17，店鋪納品目標 5/20～23。672 箱（1箱5kg）。</span>
-          </div>
-        </div>
-        <div class="check-item" onclick="toggleCheck(this)">
-          <div class="check-box">✓</div>
-          <div class="check-text">
-            <strong>🍓 冷凍草莓中文標籤 & 農藥檢驗</strong><br>
-            <span style="font-size:12px;color:var(--muted);">已啟動農藥檢驗。標籤完成後即可開始進口（850元/包估算，含運）。</span>
-          </div>
-        </div>
-        <div class="check-item" onclick="toggleCheck(this)">
-          <div class="check-box">✓</div>
-          <div class="check-text">
-            <strong>🥔 加工甘藷商品中文裏面標示確認</strong><br>
-            <span style="font-size:12px;color:var(--muted);">⚡ 已逾 1～2 個月！宮山與平山持續催促。涉及商品：やきいもスイートポテト、大學芋等。</span>
-          </div>
-        </div>
-        <div class="check-item" onclick="toggleCheck(this)">
-          <div class="check-box">✓</div>
-          <div class="check-text">
-            <strong>🏪 新門市展店配合</strong><br>
-            <span style="font-size:12px;color:var(--muted);">台北 5/15 → 大直（美麗華）7/6 → 西門 7/31 → 高雄阪神 9月 → 天母 10月。各店開業前需更新店鋪主檔。</span>
-          </div>
-        </div>
-        <div class="check-item" onclick="toggleCheck(this)">
-          <div class="check-box">✓</div>
-          <div class="check-text">
-            <strong>🍓 草莓年間輸入量擴大</strong><br>
-            <span style="font-size:12px;color:var(--muted);">平山要求明年最少週 20 棧板準備。今年已是去年 2 倍。需提前與供應商確認產季準備。</span>
-          </div>
-        </div>
-      </div>
-
-      <div class="callout info" style="margin-top:16px;">
-        <span class="callout-icon">💡</span>
-        <div class="callout-text">點擊上方任務可標記完成。頁面重新整理後狀態會重置，建議截圖記錄。</div>
-      </div>
-    </div>
-
   </div><!-- /content -->
 </div><!-- /main -->
 
@@ -1681,13 +1646,13 @@ const sections = {
   overview: { title: '業務概覽' },
   contacts: { title: '關係人清單' },
   stores:   { title: '門市資訊' },
+  systems:  { title: '系統與工具' },
   import:   { title: '進口通關' },
   warehouse:{ title: '提貨 & 倉儲' },
   delivery: { title: '出貨到門市' },
   invoice:  { title: '月底請款' },
   pitfalls: { title: '常見地雷' },
   quickref: { title: '快速查找' },
-  tasks:    { title: '進行中任務' },
 };
 
 function showSection(id) {
