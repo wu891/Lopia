@@ -16,7 +16,7 @@
  * 避免「還沒發生的營收」美化數字。
  */
 import type { Shipment, ShipmentRecord, ExcelRow, BatchPriceEntry, MonthlyLogistics } from './notion'
-import { buildExcelRevenueIndex, deriveRevenue, JPY_PER_NTD, type RevenueSource } from './margin'
+import { buildExcelRevenueIndexes, deriveRevenueWithFallback, JPY_PER_NTD, type RevenueSource } from './margin'
 
 function num(n: number | null | undefined): number {
   return typeof n === 'number' && isFinite(n) ? n : 0
@@ -139,7 +139,8 @@ export function computeLiveMargins(
   batchPrices: Record<string, BatchPriceEntry[]> = {},
   today: string = new Date().toISOString().slice(0, 10),
 ): LiveMarginResult {
-  const excelIndex = buildExcelRevenueIndex(excelRows)
+  // 按批次商品關鍵字歸屬的索引：混搭單（地瓜＋大學芋）金額不會被兩個批次各吸一次
+  const excelIndexes = buildExcelRevenueIndexes(excelRows, shipments)
   const logisticsByMonth = new Map<string, MonthlyLogistics>()
   for (const l of logistics) logisticsByMonth.set(l.month, l)
 
@@ -183,7 +184,7 @@ export function computeLiveMargins(
     const boxes = num(r.boxes)
     const merged = mergedAmounts.get(r.id)
     const recForRevenue = merged != null && r.amount == null ? { ...r, amount: merged } : r
-    const { amount, source } = deriveRevenue(recForRevenue, batch?.id ?? '', excelIndex, batchPrices)
+    const { amount, source } = deriveRevenueWithFallback(recForRevenue, batch?.id ?? '', excelIndexes, batchPrices)
     const gross = num(amount)
     // 未連結批次不知道課稅別，當免稅處理（大宗是蔬果；加工品會略高估5%）
     const revenue = batch?.taxMode === '5%' ? gross / 1.05 : gross

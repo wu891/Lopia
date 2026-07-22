@@ -528,6 +528,16 @@ async function processOneFile(
   // 待到貨(hasWaiting)不算：那是之後會自動補扣的正常狀態。
   const hasProducts = wb.activeTabs.some(t => !!t.store && t.rows.length > 0)
   const bookedNothing = hasProducts && lines.length === 0 && !alloc.hasWaiting
+  // 逐商品版：整張單有入帳，但「某個商品」的所有列都被規則①跳過（已收完／日期不符）且不會補扣。
+  // 混搭單（地瓜＋大學芋）裡單一商品全漏時，整張單不是 0 箱、上面那個旗標抓不到——
+  // 2026-05 大學芋批 336 箱漏登就是這樣默默發生的。按商品名彙總箱數，大聲警告。
+  const skippedByProduct = new Map<string, { boxes: number; reason: string }>()
+  for (const s of alloc.skipped) {
+    const cur = skippedByProduct.get(s.name) ?? { boxes: 0, reason: s.reason }
+    cur.boxes += s.boxes
+    skippedByProduct.set(s.name, cur)
+  }
+  const productSkips = bookedNothing ? [] : [...skippedByProduct.entries()]
 
   // ── 組 LINE 訊息 ─────────────────────────────────────────────────────────────
   // 本檔動到的每個批次，用「所有動作做完後的記憶體帳」算真實剩餘（含超領＝負數）
@@ -556,6 +566,10 @@ async function processOneFile(
       ? `🚨 自動扣帳０箱入帳｜${sNo}（配送 ${date}）\n這張單的商品全屬「已關帳」或「日期不符」的批次，出貨紀錄完全沒有這張單（營收會漏算）→ 請確認是否手動補記`
       : `✅ 自動扣帳｜${sNo}（配送 ${date}）`,
     `檔案：${f.name}`, ...batchLines,
+    ...(productSkips.length ? [
+      `🚨 部分商品０箱入帳（營收會漏算）→ 請確認是否手動補記：`,
+      ...productSkips.map(([name, v]) => `・「${name}」${v.boxes}箱（${v.reason}）`),
+    ] : []),
     ...(updates.length ? [`鏡像更新 ${updates.length} 筆：${updates.map(u => `${u.store} ${u.from}→${u.boxes}`).join('、')}`] : []),
     ...(archives.length ? [`已移除 ${archives.length} 筆（檔案裡已刪）：${archives.map(a => a.store).join('、')}`] : []),
     ...(conflicts.length ? [`⚠️ 提醒：`, ...conflicts.map(c => `・${c}`)] : []),
@@ -580,7 +594,7 @@ async function processOneFile(
     const notifyHash = `ok:${sha1(message)}`
     // 例行「✅ 扣帳成功」已停發（見檔頭說明）；但 🚨０箱入帳／核對不符／衝突提醒
     // 這類要人工介入的（6月營收漏記事件的教訓），改發「LOPIA對帳」群組，不能消音
-    if (!verify.ok || conflicts.length > 0 || bookedNothing) {
+    if (!verify.ok || conflicts.length > 0 || bookedNothing || productSkips.length > 0) {
       if (entry?.notifiedHash !== notifyHash) await maybePushRecon(message)
     }
     if (reconChanged || !recon.verify.ok || recon.skippedNoPrice.length > 0 || recon.manualDupes > 0) {

@@ -46,6 +46,9 @@ export interface Shipment {
   fclLcl: string | null          // FCL | LCL
   // Supplier Excel
   supplierExcelId: string | null
+  // 商品關鍵字（逗號分隔拆成陣列）：Drive 自動扣帳用來判斷商品屬哪個批次，
+  // 毛利系統也用它把「混搭單」的對帳明細列先按商品歸屬到批次，避免整張單金額被每個批次重複吸走
+  productKeywords: string[]
   // Cost (毛利系統) — 批次成本
   importCost: number | null      // 進貨成本（未稅，原幣別）※舊 /margin 用，新頁不用
   freightCost: number | null     // 運費 ※舊
@@ -145,6 +148,7 @@ function pageToShipment(page: any): Shipment {
     transportMode: getSelect(p['運輸方式']),
     fclLcl: getSelect(p['FCL/LCL']),
     supplierExcelId: getText(p['供應商配送Excel']),
+    productKeywords: (getText(p['商品關鍵字']) ?? '').split(/[,，、;；\n]/).map(s => s.trim()).filter(Boolean),
     importCost: getNumber(p['進貨成本']),
     freightCost: getNumber(p['運費']),
     storageCost: getNumber(p['倉儲費']),

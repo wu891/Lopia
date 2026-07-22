@@ -58,6 +58,7 @@ export interface ExcelRevenueIndex {
   bySno: Map<string, number>                    // 出貨單號 → 整張單含稅金額（全部門市合計）
   bySnoQty: Map<string, number>                 // 出貨單號 → 整張單總箱數（bySno 按箱數分攤時的分母）
   bySnoStore: Map<string, number>               // 「單號|門市」→ 該店含稅金額（單號能對上時的首選：一張單多家店，整張金額不能發給每家店）
+  bySnoStoreQty: Map<string, number>            // 「單號|門市」→ 該店箱數（一店拆到多批次時按箱數比例分攤的分母）
   byStoreDate: Map<string, ExcelGroup[]>        // 「門市|日期」→ 該店該日的各張出貨單（用於門市+日期+箱數消歧）
 }
 
@@ -67,6 +68,7 @@ export function buildExcelRevenueIndex(excelRows: ExcelRow[]): ExcelRevenueIndex
   const bySno = new Map<string, number>()
   const bySnoQty = new Map<string, number>()
   const bySnoStore = new Map<string, number>()
+  const bySnoStoreQty = new Map<string, number>()
   const sd = new Map<string, Map<string, ExcelGroup>>() // storeDateKey → sno → group
   for (const r of excelRows) {
     const amt = num(r.quantity) * num(r.unitPrice)
@@ -75,7 +77,10 @@ export function buildExcelRevenueIndex(excelRows: ExcelRow[]): ExcelRevenueIndex
       bySno.set(sno, (bySno.get(sno) ?? 0) + amt)
       bySnoQty.set(sno, (bySnoQty.get(sno) ?? 0) + num(r.quantity))
       const st = (r.store || '').trim()
-      if (st) bySnoStore.set(`${sno}|${st}`, (bySnoStore.get(`${sno}|${st}`) ?? 0) + amt)
+      if (st) {
+        bySnoStore.set(`${sno}|${st}`, (bySnoStore.get(`${sno}|${st}`) ?? 0) + amt)
+        bySnoStoreQty.set(`${sno}|${st}`, (bySnoStoreQty.get(`${sno}|${st}`) ?? 0) + num(r.quantity))
+      }
     }
 
     const store = (r.store || '').trim()
@@ -92,7 +97,62 @@ export function buildExcelRevenueIndex(excelRows: ExcelRow[]): ExcelRevenueIndex
   }
   const byStoreDate = new Map<string, ExcelGroup[]>()
   for (const [k, m] of sd) byStoreDate.set(k, [...m.values()])
-  return { bySno, bySnoQty, bySnoStore, byStoreDate }
+  return { bySno, bySnoQty, bySnoStore, bySnoStoreQty, byStoreDate }
+}
+
+// ── 按批次商品關鍵字歸屬的營收索引 ─────────────────────────────────────────────
+// 問題背景（2026-06 實測）：一張店鋪貨單同時含地瓜＋大學芋、兩商品扣到不同批次時，
+// 「單號|門市」索引把整張單（兩商品合計）的金額給每個批次的出貨紀錄各吸一次 → 月營收重複計。
+// 解法：對帳明細每列有「商品名稱」，批次有「商品關鍵字」（Drive 扣帳同一套規則），
+// 先把明細列按商品歸屬到批次，每個批次只用「自己商品的列」建索引。
+export interface BatchKeywordsLite { id: string; productKeywords?: string[] }
+export interface ExcelRevenueIndexes {
+  forBatch(batchId: string): ExcelRevenueIndex
+  full: ExcelRevenueIndex   // 全量索引（兜底用：關鍵字是「現在的設定」，歷史批次的關鍵字可能已被改掉）
+}
+
+export function buildExcelRevenueIndexes(excelRows: ExcelRow[], batches: BatchKeywordsLite[]): ExcelRevenueIndexes {
+  const kwBatches = batches.filter(b => (b.productKeywords?.length ?? 0) > 0)
+  const hitKw = (product: string, kws: string[]) => {
+    const t = product.toLowerCase()
+    return kws.some(k => k && t.includes(k.toLowerCase()))
+  }
+  // 每列先算出命中哪些批次的關鍵字（一次算完，之後查表）
+  const rowHits = excelRows.map(r => new Set(kwBatches.filter(b => hitKw(r.product || '', b.productKeywords!)).map(b => b.id)))
+  const fullIndex = buildExcelRevenueIndex(excelRows)
+  const cache = new Map<string, ExcelRevenueIndex>()
+  return {
+    forBatch(batchId: string): ExcelRevenueIndex {
+      // 批次沒填關鍵字（或未連結批次）→ 用全量索引（維持原行為）
+      if (!kwBatches.some(b => b.id === batchId)) return fullIndex
+      const hit = cache.get(batchId)
+      if (hit) return hit
+      // 本批次的列 ＝ 命中自己關鍵字的列 ＋ 誰的關鍵字都沒命中的列（商品名對不上任何批次時，
+      // 寧可保留原本「大家都看得到」的行為，不要讓營收憑空消失）
+      const mine = excelRows.filter((_, i) => rowHits[i].has(batchId) || rowHits[i].size === 0)
+      const idx = buildExcelRevenueIndex(mine)
+      cache.set(batchId, idx)
+      return idx
+    },
+    full: fullIndex,
+  }
+}
+
+// 兩段式推算：先用「歸屬到本批次商品」的索引（混搭單不重複吸金額），
+// 完全找不到再退回全量索引＋批次單價兜底。
+// 為什麼要兜底（2026-06 實測 S2026061101）：關鍵字欄是「現在的設定」，Colin 會隨新批次改寫；
+// 歷史批次的關鍵字對不上當時的商品名時，若不兜底，整張單的營收會直接歸零消失——
+// 寧可讓罕見的混搭+關鍵字失效情況回到舊行為（靠箱數比例分攤壓低重複），也不能讓營收憑空蒸發。
+export function deriveRevenueWithFallback(
+  rec: ShipmentRecord,
+  batchId: string,
+  indexes: ExcelRevenueIndexes,
+  batchPrices: Record<string, BatchPriceEntry[]>,
+): { amount: number | null; source: RevenueSource } {
+  // 第一段不帶批次單價：過濾索引沒中就該去試全量索引，不能先被批次單價攔走
+  const first = deriveRevenue(rec, batchId, indexes.forBatch(batchId), {})
+  if (first.source !== 'none') return first
+  return deriveRevenue(rec, batchId, indexes.full, batchPrices)
 }
 
 // 推算單筆出貨的營收（含稅），與來源。優先序：
@@ -115,10 +175,15 @@ export function deriveRevenue(
 
   const sno = (rec.shipmentNo || '').trim()
   if (sno) {
-    // 首選「單號＋門市」：一張出貨單有很多家店，整張金額不能發給每家店的紀錄
+    // 首選「單號＋門市」：一張出貨單有很多家店，整張金額不能發給每家店的紀錄。
+    // 同一店的商品若 FIFO 拆到多個批次（多筆紀錄），也不能每筆各吸整店金額 → 按箱數比例分攤
     if (store) {
       const vs = excelIndex.bySnoStore.get(`${sno}|${store}`)
-      if (vs != null && vs > 0) return { amount: vs, source: 'excel' }
+      if (vs != null && vs > 0) {
+        const qty = excelIndex.bySnoStoreQty.get(`${sno}|${store}`) ?? 0
+        if (qty > 0 && boxes > 0 && boxes < qty) return { amount: vs * boxes / qty, source: 'excel' }
+        return { amount: vs, source: 'excel' }
+      }
     }
     // 對帳明細有這張單但門市對不上（店名寫法不同等）：按箱數比例分攤整張單金額
     const v = excelIndex.bySno.get(sno)
@@ -131,7 +196,12 @@ export function deriveRevenue(
     const groups = excelIndex.byStoreDate.get(`${store}|${date}`)
     if (groups && groups.length > 0) {
       if (groups.length === 1) {
-        if (groups[0].amount > 0) return { amount: groups[0].amount, source: 'excel' }
+        // 同一店同日的商品拆到多批次（多筆紀錄）→ 同樣按箱數比例分攤，不能每筆各吸整組金額
+        const g = groups[0]
+        if (g.amount > 0) {
+          if (g.qty > 0 && boxes > 0 && boxes < g.qty) return { amount: g.amount * boxes / g.qty, source: 'excel' }
+          return { amount: g.amount, source: 'excel' }
+        }
       } else {
         // 同店同日有多張出貨單（跨批）→ 用箱數消歧，唯一吻合才採用，否則不猜
         const hit = groups.filter(g => g.qty === boxes && g.amount > 0)
@@ -154,7 +224,7 @@ export function computeBatchMargin(
   batch: Shipment,
   allRecords: ShipmentRecord[],
   furikomi: FurikomiRecord[],
-  excelIndex: ExcelRevenueIndex = { bySno: new Map(), bySnoQty: new Map(), bySnoStore: new Map(), byStoreDate: new Map() },
+  excelIndexes: ExcelRevenueIndexes = buildExcelRevenueIndexes([], []),
   batchPrices: Record<string, BatchPriceEntry[]> = {},
   today: string = new Date().toISOString().slice(0, 10),
 ): BatchMargin {
@@ -181,7 +251,7 @@ export function computeBatchMargin(
   const rows: RecordMargin[] = recs
     .map(r => {
       const boxes = num(r.boxes)
-      const { amount: rawAmount, source: revenueSource } = deriveRevenue(r, batch.id, excelIndex, batchPrices)
+      const { amount: rawAmount, source: revenueSource } = deriveRevenueWithFallback(r, batch.id, excelIndexes, batchPrices)
       const grossAmount = num(rawAmount) // 含稅金額（手動或推算）
       const revenue = taxMode === '5%' ? grossAmount / 1.05 : grossAmount
       const ratio = base > 0 ? boxes / base : 0
@@ -242,6 +312,7 @@ export function computeAllMargins(
   batchPrices: Record<string, BatchPriceEntry[]> = {},
   today?: string,
 ): BatchMargin[] {
-  const excelIndex = buildExcelRevenueIndex(excelRows)
-  return shipments.map(s => computeBatchMargin(s, records, furikomi, excelIndex, batchPrices, today))
+  // 每個批次用「歸屬到自己商品」的索引，混搭單金額才不會被多個批次重複吸走
+  const indexes = buildExcelRevenueIndexes(excelRows, shipments)
+  return shipments.map(s => computeBatchMargin(s, records, furikomi, indexes, batchPrices, today))
 }

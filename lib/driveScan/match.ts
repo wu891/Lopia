@@ -130,6 +130,10 @@ export interface AllocationResult {
   errors: string[]                     // 只有「對不到任何批次關鍵字」才會有（ok=false 時看這裡）
   notes: string[]                      // 軟提醒（如：某列靠檔名對到批次、某批超領）
   hasWaiting: boolean                  // 有商品的批次「還沒到貨、之後會接手」→ 呼叫端要把這檔標「待重掃」，等批次到貨自動補扣
+  skipped: { name: string; store: string; boxes: number; reason: string }[]
+  // ↑ 規則①跳過且「不會自動補扣」的商品列（已收完／出貨日早於入倉日）。
+  //   混搭單裡若某商品全落在這裡，出貨紀錄就永遠少這個商品（2026-05 大學芋漏登336箱的根因），
+  //   呼叫端要逐商品大聲警告，不能只看整張單是不是 0 箱。
 }
 
 /**
@@ -150,6 +154,7 @@ export function allocateFifo(
 ): AllocationResult {
   const errors: string[] = []
   let hasWaiting = false
+  const skipped: AllocationResult['skipped'] = []
   const acc = new Map<string, AllocationLine>()
   const perBatchTotal = new Map<string, number>()
   const notes: string[] = []
@@ -181,6 +186,7 @@ export function allocateFifo(
             const b = matched[0]
             const why = b.deliveryStatus === '全數出貨' ? '已收完(全數出貨)' : '出貨日早於入倉日'
             notes.push(`商品「${row.name}」（${tab.store} ${row.boxes}箱）屬批次「${b.ivName}」（${why}）→ 不扣帳`)
+            skipped.push({ name: row.name, store: tab.store, boxes: row.boxes, reason: why })
           }
           continue
         }
@@ -213,7 +219,7 @@ export function allocateFifo(
   }
 
   if (errors.length > 0) {
-    return { ok: false, lines: [], perBatchTotal: new Map(), errors, notes, hasWaiting }
+    return { ok: false, lines: [], perBatchTotal: new Map(), errors, notes, hasWaiting, skipped }
   }
 
   for (const [id, v] of tempRemaining) remainingByBatch.set(id, v)
@@ -222,5 +228,5 @@ export function allocateFifo(
     const fb = batchById.get(b.batchId)?.fifoDate ?? ''
     return fa.localeCompare(fb) || a.store.localeCompare(b.store)
   })
-  return { ok: true, lines, perBatchTotal, errors: [], notes, hasWaiting }
+  return { ok: true, lines, perBatchTotal, errors: [], notes, hasWaiting, skipped }
 }
