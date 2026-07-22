@@ -13,6 +13,11 @@
  * 注意：發到「群組」用 push message，需要 bot 仍在該群組內。
  */
 
+// ⏸️ 2026-07-22 LINE 月額度用完（429 monthly limit），全站推播暫停，
+// 只留「檢查清單」通知（走 pushChecklistGroup，不受此開關影響）。
+// 額度恢復（升級方案或每月1日重置）後，把這裡改回 false 即全部恢復。
+const PAUSED = true
+
 async function pushText(token: string, groupId: string, text: string): Promise<boolean> {
   try {
     const res = await fetch('https://api.line.me/v2/bot/message/push', {
@@ -46,6 +51,18 @@ export function lineNotifyConfigured(): boolean {
  * 回傳是否真的送出（env 沒設或失敗回 false）；刻意不丟例外，避免通知失敗連帶讓勾選 API 失敗。
  */
 export async function pushToGroup(text: string): Promise<boolean> {
+  if (PAUSED) return false
+  const token = process.env.LINE_CHANNEL_ACCESS_TOKEN?.trim()
+  const groupId = process.env.LINE_TARGET_GROUP_ID?.trim()
+  if (!token || !groupId) return false
+  return pushText(token, groupId, text)
+}
+
+/**
+ * 檢查清單專用通道：發到「出貨」群組，不受 PAUSED 開關影響。
+ * 三重チェック的「輪到下一位」「差し戻し」通知是流程必需，額度緊縮期間唯一保留的推播。
+ */
+export async function pushChecklistGroup(text: string): Promise<boolean> {
   const token = process.env.LINE_CHANNEL_ACCESS_TOKEN?.trim()
   const groupId = process.env.LINE_TARGET_GROUP_ID?.trim()
   if (!token || !groupId) return false
@@ -58,6 +75,7 @@ export function reconNotifyConfigured(): boolean {
 
 /** 推播一則純文字到「LOPIA對帳」群組（對帳同步結果專用，跟扣帳通知分開）。 */
 export async function pushToReconGroup(text: string): Promise<boolean> {
+  if (PAUSED) return false
   const token = process.env.LINE_CHANNEL_ACCESS_TOKEN?.trim()
   const groupId = process.env.LINE_RECON_GROUP_ID?.trim()
   if (!token || !groupId) return false

@@ -7,7 +7,7 @@ import {
 } from '@/lib/checklist'
 import { requireWho } from '@/lib/checklistAuth'
 import { clampLen } from '@/lib/auth'
-import { pushToGroup } from '@/lib/lineNotify'
+import { pushChecklistGroup } from '@/lib/lineNotify'
 
 export const dynamic = 'force-dynamic'
 
@@ -111,7 +111,7 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
       // pushToGroup 本身不會丟例外，送失敗只寫 log 不影響勾選。
       const afterLayer = currentLayerId(next)
       if (checked && afterLayer > beforeLayer) {
-        after(() => pushToGroup(nextUpMessage(saved.shipmentNo, afterLayer)))
+        after(() => pushChecklistGroup(nextUpMessage(saved.shipmentNo, afterLayer)))
       }
       return NextResponse.json({ item: saved })
     }
@@ -145,7 +145,7 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
       const next = applyReject(current.state, toLayer, who, reason, nowIso)
       const saved = await saveChecklistState(id, next)
       // 同樣改成背景送，退回按鈕不用等 LINE
-      after(() => pushToGroup(
+      after(() => pushChecklistGroup(
         `↩️【${saved.shipmentNo}】差し戻し\n` +
         `${personName(who)}が「第${toLayer}重」へ差し戻しました。\n` +
         `理由：${reason}\n` +
