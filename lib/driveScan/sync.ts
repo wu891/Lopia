@@ -15,9 +15,10 @@
  *      - 別的檔案已寫過 同單號+同批次+同店 → 比修改時間，較新的檔贏
  *      - 同檔若換了 S 單號（改用途）→ 舊單號紀錄保留不動，只通知，避免砍掉歷史
  *   6. 鏡像：自動紀錄永遠跟「本檔＋本單號」最新內容（多退少補）
- *   7. 寫完自動「讀回來逐筆核對」，結果放進 LINE 訊息
- *   8. 記帳本 ＋ LINE 通知（每張單一則；異常同內容只通知一次）
- *   9. 檔案從 Drive 消失 → 只通知、不自動砍紀錄
+ *   7. 寫完自動「讀回來逐筆核對」，結果寫進帳本摘要
+ *   8. 記帳本。LINE 通知：例行扣帳訊息已停發（2026-07-22，月額度爆掉）；
+ *      ⚠️ 警告類與對帳同步發到「LOPIA對帳」群組（異常同內容只通知一次）
+ *   9. 檔案從 Drive 消失 → 只通知（LOPIA對帳群組）、不自動砍紀錄
  *
  * 自動紀錄固定值：計畫狀態=計畫中、不填金額（毛利系統會把金額當手動營收）、
  * 備註不放「|」（/ops 會誤解析）。
@@ -25,7 +26,7 @@
 
 import { Client } from '@notionhq/client'
 import { createHash } from 'crypto'
-import { pushToGroup, pushToReconGroup } from '../lineNotify'
+import { pushToReconGroup } from '../lineNotify'
 import { listShipmentFiles, downloadAsXlsx, type DriveFileInfo } from './drive'
 import { parseStoreOrderWorkbook, type ParsedWorkbook } from './parseStoreOrder'
 import { fetchBatchesLite, allocateFifo, isActiveBatch, type BatchLite, type AllocationLine } from './match'
@@ -42,10 +43,9 @@ let scanRunning = false
 
 // 安靜模式：照樣寫 Notion，但不發任何 LINE（給第一次大回補用，避免洗版群組）
 let silentMode = false
-async function maybePush(text: string): Promise<void> {
-  if (!silentMode) await pushToGroup(text)
-}
-// 對帳同步的訊息獨立發到「LOPIA對帳」群組，不跟扣帳通知混在一起
+// 2026-07-22 Colin 指示：LINE 月額度用完，扣帳訊息從出貨群組整個拿掉。
+// 例行的「扣帳成功」訊息不再發；⚠️ 警告類（解析失敗／系統錯誤／檔案消失）改發「LOPIA對帳」群組，
+// 避免扣帳出問題卻沒人知道。帳本(notifiedHash)去重邏輯照舊。
 async function maybePushRecon(text: string): Promise<void> {
   if (!silentMode) await pushToReconGroup(text)
 }
@@ -237,7 +237,7 @@ async function doScan(opts: { dry?: boolean; force?: boolean; onlyFileId?: strin
       if (modMs < cutoff) continue
       const notifyHash = `gone:${fileId}`
       if (entry.notifiedHash !== notifyHash) {
-        await maybePush(`⚠️ 檔案已從 Drive 消失，出貨紀錄仍保留（不自動刪）\n檔案：${entry.fileName}\n如要作廢請到主頁手動處理`)
+        await maybePushRecon(`⚠️ 檔案已從 Drive 消失，出貨紀錄仍保留（不自動刪）\n檔案：${entry.fileName}\n如要作廢請到主頁手動處理`)
         await upsertLedgerEntry(entry, {
           fileId, fileName: entry.fileName, fingerprint: entry.fingerprint,
           fileModifiedTime: entry.fileModifiedTime, status: '略過',
@@ -275,7 +275,7 @@ async function notifyOnce(
   entry: LedgerEntry | undefined, f: DriveFileInfo,
   message: string, status: '異常' | '略過', notifyHash: string,
 ): Promise<void> {
-  if (entry?.notifiedHash !== notifyHash) await maybePush(message)
+  if (entry?.notifiedHash !== notifyHash) await maybePushRecon(message)
   await upsertLedgerEntry(entry, {
     fileId: f.id, fileName: f.name, fingerprint: fingerprintOf(f),
     fileModifiedTime: f.modifiedTime, status, notifiedHash: notifyHash,
@@ -530,7 +530,6 @@ async function processOneFile(
   const bookedNothing = hasProducts && lines.length === 0 && !alloc.hasWaiting
 
   // ── 組 LINE 訊息 ─────────────────────────────────────────────────────────────
-  const changed = creates.length + updates.length + archives.length + manualOverwritten > 0
   // 本檔動到的每個批次，用「所有動作做完後的記憶體帳」算真實剩餘（含超領＝負數）
   const touchedBatches = new Set(lines.map(l => l.batchId))
   const finalRemaining = new Map<string, number>()
@@ -579,8 +578,10 @@ async function processOneFile(
     // 對帳同步跟庫存扣帳綁在一起：對帳讀回不一致，整張單也標「異常」，下一輪重試，兩邊一起修好
     const status = (!verify.ok || !recon.verify.ok) ? '異常' : (alloc.hasWaiting ? '略過' : '已處理')
     const notifyHash = `ok:${sha1(message)}`
-    if (changed || !verify.ok || conflicts.length > 0 || bookedNothing) {
-      if (entry?.notifiedHash !== notifyHash) await maybePush(message)
+    // 例行「✅ 扣帳成功」已停發（見檔頭說明）；但 🚨０箱入帳／核對不符／衝突提醒
+    // 這類要人工介入的（6月營收漏記事件的教訓），改發「LOPIA對帳」群組，不能消音
+    if (!verify.ok || conflicts.length > 0 || bookedNothing) {
+      if (entry?.notifiedHash !== notifyHash) await maybePushRecon(message)
     }
     if (reconChanged || !recon.verify.ok || recon.skippedNoPrice.length > 0 || recon.manualDupes > 0) {
       await maybePushRecon(reconMessage)
