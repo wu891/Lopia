@@ -499,6 +499,24 @@ async function processOneFile(
     }
   }
 
+  // ── 自動推進配送狀態：批次已有出貨單入帳，狀態卻還停在「未到／待出貨」→ 自動改「部分出貨」──
+  //   （2026-07-23 Colin 指示：抓到出貨單就不用再手動切狀態）
+  //   只往前推、不往回改：已是「部分出貨」的不重寫；「全數出貨／退回銷毀」本來就不會被分配到，不會誤動。
+  //   能走到這裡代表批次一定已到倉（規則①要求入倉日≤出貨日才可扣），改「部分出貨」是事實描述。
+  for (const bId of new Set(lines.map(l => l.batchId))) {
+    const b = batches.find(x => x.id === bId)
+    if (!b) continue
+    if (!['', '未到', '待出貨'].includes(b.deliveryStatus)) continue
+    if (!dry) {
+      await notion.pages.update({
+        page_id: bId,
+        properties: { '配送狀態': { select: { name: '部分出貨' } } },
+      })
+    }
+    notes.push(`「${b.ivName}」配送狀態自動更新：${b.deliveryStatus || '（空白）'} → 部分出貨（已抓到出貨單）`)
+    b.deliveryStatus = '部分出貨'   // 記憶體同步，讓同一輪後面的檔案看到最新狀態
+  }
+
   // ── 對帳同步：同一批解析好的商品列，順便寫進「對帳明細」Notion DB ──────────────
   // 只有走到這裡（alloc.ok 已成立）才會呼叫；批次比對失敗時上面已提早 return，對帳也就一起不同步。
   const recon = await syncReconciliation({
