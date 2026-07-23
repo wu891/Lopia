@@ -35,6 +35,11 @@ export default function AddBatchForm({ lang, onBatchAdded, variant = 'outline' }
   const [arrivalTW, setArrivalTW]             = useState('')
   const [totalBoxes, setTotalBoxes]           = useState('')
   const [productSummary, setProductSummary]   = useState('')
+  // 商品關鍵字：自動扣帳機器人靠這欄認「這張出貨單的貨是哪一批的」。
+  // 沒填的話，機器人只能亂猜（用檔名猜），會像 07/24 加工品被扣到舊地瓜批那樣認錯。
+  const [productKeywords, setProductKeywords] = useState('')
+  // 沒填關鍵字按儲存時，先擋一次給警告；再按一次才放行（kwWarned=已經警告過了）
+  const [kwWarned, setKwWarned]               = useState(false)
   const [remarks, setRemarks]                 = useState('')
 
   // Attached files
@@ -58,6 +63,7 @@ export default function AddBatchForm({ lang, onBatchAdded, variant = 'outline' }
     setFlightNo(''); setAwbNo('')
     setDepartJP(''); setArrivalTW('')
     setTotalBoxes(''); setProductSummary(''); setRemarks('')
+    setProductKeywords(''); setKwWarned(false)
     setAttachedFiles([]); setPendingDocType('')
     setSaveError(''); setSuccess(false)
   }
@@ -82,6 +88,7 @@ export default function AddBatchForm({ lang, onBatchAdded, variant = 'outline' }
           arrivalTW:      arrivalTW      || undefined,
           totalBoxes:     totalBoxes     ? Number(totalBoxes) : undefined,
           productSummary: productSummary || undefined,
+          productKeywords: productKeywords.trim() || undefined,
           remarks:        remarks        || undefined,
         }),
       })
@@ -138,6 +145,11 @@ export default function AddBatchForm({ lang, onBatchAdded, variant = 'outline' }
 
   function handleSaveClick() {
     if (!ivName.trim()) { setSaveError(lang === 'ja' ? 'ロット名は必須です' : '請填寫批次名稱'); return }
+    // 關鍵字沒填 → 第一次按儲存先擋下來提醒（怕自動扣帳認錯批）；使用者再按一次就放行
+    if (!productKeywords.trim() && !kwWarned) {
+      setKwWarned(true)
+      return
+    }
     if (isAuthed()) {
       doSave()
     } else {
@@ -303,11 +315,41 @@ export default function AddBatchForm({ lang, onBatchAdded, variant = 'outline' }
                     </div>
                   </div>
 
+                  {/* ── 商品關鍵字（自動扣帳認貨用）── */}
+                  <div>
+                    <label className={labelCls}>
+                      {isJa ? '商品キーワード（自動引落し用）' : '商品關鍵字（自動扣帳認貨用）'}
+                    </label>
+                    <textarea
+                      value={productKeywords}
+                      onChange={e => { setProductKeywords(e.target.value); if (e.target.value.trim()) setKwWarned(false) }}
+                      rows={2}
+                      placeholder={isJa
+                        ? '例: 地瓜(產地, 黑蒜, HOSHIIMO, 甘藷條…（納品書に出る書き方を中/日/英で、カンマ区切り）'
+                        : '例: 地瓜(產地, 黑蒜, HOSHIIMO, 甘藷條…（貨單上會出現的品名寫法，中/日/英都放，逗號分隔）'}
+                      className={inputCls}
+                    />
+                    <p className="mt-1 text-[11px] text-gray-400">
+                      {isJa
+                        ? 'PL の品目ごとに最低 1 つ。入倉日を入力する前に必ず設定（ロボットはこの欄で出荷伝票の商品を識別します）'
+                        : '照 PL 逐項填、一個品項至少一個；最晚在填入倉日之前設定好（機器人靠這欄認出貨單上的商品是哪一批的）'}
+                    </p>
+                  </div>
+
                   {/* ── Remarks ── */}
                   <div>
                     <label className={labelCls}>{isJa ? '備考' : '備註'}</label>
                     <input type="text" value={remarks} onChange={e => setRemarks(e.target.value)} className={inputCls} />
                   </div>
+
+                  {/* ── 關鍵字沒填的警告（第一次按儲存時出現）── */}
+                  {kwWarned && !productKeywords.trim() && (
+                    <div className="rounded-lg border border-amber-300 bg-amber-50 px-3 py-2.5 text-xs text-amber-800">
+                      ⚠️ {isJa
+                        ? '商品キーワードが未入力です。自動引落しが別ロットに誤記帳する恐れがあります（07/24 の加工品誤記帳の原因）。このまま保存する場合はもう一度「保存」を押してください。'
+                        : '商品關鍵字還沒填。自動扣帳可能會把出貨單記到別的批次（07/24 加工品記錯批就是這個原因）。之後也可以在 Notion 批次頁補填；確定先跳過的話，再按一次「儲存」即可送出。'}
+                    </div>
+                  )}
 
                   {/* ── File upload section ── */}
                   <div className="rounded-xl border border-dashed border-gray-200 bg-gray-50 p-3 space-y-2">

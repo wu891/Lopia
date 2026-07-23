@@ -418,6 +418,7 @@ export async function createShipment(data: {
   estClearance?: string
   totalBoxes?: number
   productSummary?: string
+  productKeywords?: string
   remarks?: string
   transportMode?: string
   fclLcl?: string
@@ -436,6 +437,7 @@ export async function createShipment(data: {
   if (data.estClearance)   props['預計出關日'] = { date: { start: data.estClearance } }
   if (data.totalBoxes != null) props['入倉箱數'] = { number: data.totalBoxes }
   if (data.productSummary)  props['商品摘要']  = { rich_text: [{ text: { content: data.productSummary } }] }
+  if (data.productKeywords) props['商品關鍵字'] = { rich_text: [{ text: { content: data.productKeywords } }] }
   if (data.remarks)         props['備註']      = { rich_text: [{ text: { content: data.remarks } }] }
   if (data.transportMode)   props['運輸方式']  = { select: { name: data.transportMode } }
   if (data.fclLcl)          props['FCL/LCL']  = { select: { name: data.fclLcl } }
