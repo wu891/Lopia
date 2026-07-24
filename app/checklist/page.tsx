@@ -421,7 +421,7 @@ function CreateForm({ onCreated, flash }: {
     <div className="rounded-lg bg-white border border-slate-200 p-3 mb-4 shadow-sm">
       <div className="flex flex-col sm:flex-row gap-2">
         <input
-          placeholder="出貨單號 例：S2026070801"
+          placeholder="出貨單號＋批次編號 例：S2026070801-61801"
           value={shipmentNo} onChange={e => setShipmentNo(e.target.value)}
           className="flex-1 border border-slate-300 rounded-lg px-3 py-2.5 text-base"
         />
@@ -737,7 +737,7 @@ function EditInfoForm({ item, onSaved, onCancel, flash }: {
       <div className="text-xs font-bold text-slate-600 mb-2">✏️ 修改基本資料（勾選紀錄不會動）</div>
       <div className="flex flex-col sm:flex-row gap-2">
         <input
-          placeholder="出貨單號 例：S2026070801"
+          placeholder="出貨單號＋批次編號 例：S2026070801-61801"
           value={shipmentNo} onChange={e => setShipmentNo(e.target.value)}
           className="flex-1 border border-slate-300 rounded-lg px-3 py-2 text-sm bg-white font-mono"
         />
@@ -1259,7 +1259,7 @@ function WeeklyRowCard({ row, canEdit, onChanged, onChecklistCreated, flash }: {
         ) : mode === 'build' ? (
           <div className="flex items-center gap-2 w-full">
             <input
-              placeholder="輸入 S 單號 例：S2026070801"
+              placeholder="輸入 S 單號＋批次編號 例：S2026070801-61801"
               value={shipmentNo} onChange={e => setShipmentNo(e.target.value)}
               onKeyDown={e => { if (e.key === 'Enter') build() }}
               className="flex-1 border border-slate-300 rounded-lg px-3 py-2 text-sm"
