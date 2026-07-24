@@ -9,6 +9,9 @@
  *   3. 解析 → 硬警告（讀不準）就整張單當異常，不寫
  *   4. 商品對批次 → FIFO 分配。規則①：只扣「部分出貨(出貨中)」的批次；命中未到/待出貨/全數出貨的
  *      批次一律略過(不報錯)。出貨中批次剩餘不夠也不擋(容許超領並標記)。
+ *      2026-07-24 起：檔名有批次號（如「7.23出貨 地瓜 CITY20260501S」）→ 鎖定只記該批，不做關鍵字推測。
+ *   4b. 重掃不准默默換批：同檔重掃算出的批次跟已記的不同 → 該店凍結不寫、警告人工處理
+ *      （S2026072301 重複入帳的教訓：舊批關帳後重掃，寫了新批紀錄、舊紀錄又沒封存）。
  *   5. 防撞規則（出貨單為準）：
  *      - 規則②：本檔要扣的批次，過去(≤今天)的手排計畫紀錄整批封存，剩餘由出貨單重算(不逐筆對日期，
  *        因蘋果計畫寫6/26、實際6/27出、美麗華臨時補單，逐筆對不齊)；未來(>今天)計畫留著當預告
@@ -437,6 +440,44 @@ async function processOneFile(
     }
   }
 
+  // ── 鎖：重掃不准默默換批（2026-07-24 S2026072301 重複入帳的教訓）─────────────────
+  // 情境：同一個檔案之前已入帳，之後因為關鍵字改了／舊批關帳，重掃算出「不同批次」。
+  // 以前的行為：直接建新批次的紀錄，而舊紀錄因批次已關帳不會被封存 → 同一筆貨記兩次。
+  // 現在：逐店比對「已記的批次組合」vs「本次算出的批次組合」——
+  //   - 一樣（含只改箱數）→ 照常鏡像更新
+  //   - 不一樣、且舊紀錄全掛在已關帳批次 → 視為歷史已定案，這家店整個不動（只留備註）
+  //   - 不一樣、舊批還開著 → 這家店整個凍結不寫，發警告請人工確認；
+  //     確定要改的話把舊紀錄標「已取消」，下一輪自動重試就會寫新的
+  const frozenStores = new Set<string>()
+  let freezeAnomaly = false
+  {
+    const desiredBatchesByStore = new Map<string, Set<string>>()
+    for (const l of lines) {
+      const s = desiredBatchesByStore.get(l.store) ?? new Set<string>()
+      s.add(l.batchId); desiredBatchesByStore.set(l.store, s)
+    }
+    for (const [store, want] of desiredBatchesByStore) {
+      const haveIds = new Set(own
+        .filter(r => r.store === store && r.batchId && r.planStatus !== '已取消')
+        .map(r => r.batchId as string))
+      if (haveIds.size === 0) continue
+      const same = haveIds.size === want.size && [...haveIds].every(x => want.has(x))
+      if (same) continue
+      frozenStores.add(store)
+      const name = (id: string) => batches.find(b => b.id === id)?.ivName ?? id
+      const haveNames = [...haveIds].map(name).join('、')
+      const wantNames = [...want].map(name).join('、')
+      const allHaveClosed = [...haveIds].every(id =>
+        batches.find(b => b.id === id)?.deliveryStatus === '全數出貨')
+      if (allHaveClosed) {
+        notes.push(`「${store}」既有紀錄掛在已關帳批次（${haveNames}）→ 視為已定案，不改記到 ${wantNames}`)
+      } else {
+        freezeAnomaly = true
+        conflicts.push(`🚨「${store}」批次歸屬改變（已記 ${haveNames} → 本次算出 ${wantNames}）→ 不自動改寫。確定要改請把舊紀錄標「已取消」，10 分鐘內自動重試`)
+      }
+    }
+  }
+
   // ── 決定輪次（每個批次一個輪次號）────────────────────────────────────────────
   const batchRound = new Map<string, number>()
   const hint = roundHintFromName(f.name)
@@ -454,13 +495,28 @@ async function processOneFile(
   }
 
   // ── 鏡像同步：自動紀錄 = 本檔本單號最新內容（新增／更新／封存）──────────────────
-  const desiredByKey = new Map(lines.map(l => [`${l.batchId}|${l.store}`, l]))
+  // 凍結店的行整批拿掉：不新增、不更新、不封存（見上面「重掃不准默默換批」）
+  const activeLines = lines.filter(l => !frozenStores.has(l.store))
+  const desiredByKey = new Map(activeLines.map(l => [`${l.batchId}|${l.store}`, l]))
+
+  // ── 鎖：同單號＋同店在「別的來源」已掛不同批次（且沒被本輪封存掉）→ 疑似同一筆貨記兩邊 ──
+  // 不擋寫入（可能真的是拆批出貨），但一定要讓人看到，別再等 Colin 自己點進批次頁才發現
+  for (const line of activeLines) {
+    const foreign = records.filter(r =>
+      r.sourceFileId !== f.id && r.planStatus !== '已取消' &&
+      r.shipmentNo === sNo && r.store === line.store &&
+      !!r.batchId && r.batchId !== line.batchId)
+    for (const other of foreign) {
+      const bn = batches.find(b => b.id === other.batchId)?.ivName ?? other.batchId
+      conflicts.push(`⚠️「${line.store}」單號 ${sNo} 另有一筆記在批次「${bn}」（${other.boxes}箱，${other.sourceFileId ? '來自別的檔案' : '手動建立'}）→ 疑似同一筆貨記兩邊，請確認`)
+    }
+  }
   const creates: NonNullable<FileOutcome['creates']> = []
   const updates: NonNullable<FileOutcome['updates']> = []
   const archives: NonNullable<FileOutcome['archives']> = []
   const writtenIds: { id: string; batchId: string; store: string; boxes: number }[] = []
 
-  for (const line of lines) {
+  for (const line of activeLines) {
     const round = batchRound.get(line.batchId) ?? 1
     const existing = own.find(r => r.batchId === line.batchId && r.store === line.store)
     if (existing) {
@@ -489,6 +545,7 @@ async function processOneFile(
   for (const r of own.slice()) {
     if (!r.batchId || !r.store) continue
     if (r.id.startsWith('dry-')) continue
+    if (frozenStores.has(r.store)) continue   // 凍結店不動（批次歸屬爭議中，等人工處理）
     const rBatch = batches.find(b => b.id === r.batchId)
     if (rBatch && !isActiveBatch(rBatch)) continue
     if (!desiredByKey.has(`${r.batchId}|${r.store}`)) {
@@ -503,7 +560,7 @@ async function processOneFile(
   //   （2026-07-23 Colin 指示：抓到出貨單就不用再手動切狀態）
   //   只往前推、不往回改：已是「部分出貨」的不重寫；「全數出貨／退回銷毀」本來就不會被分配到，不會誤動。
   //   能走到這裡代表批次一定已到倉（規則①要求入倉日≤出貨日才可扣），改「部分出貨」是事實描述。
-  for (const bId of new Set(lines.map(l => l.batchId))) {
+  for (const bId of new Set(activeLines.map(l => l.batchId))) {
     const b = batches.find(x => x.id === bId)
     if (!b) continue
     if (!['', '未到', '待出貨'].includes(b.deliveryStatus)) continue
@@ -559,7 +616,7 @@ async function processOneFile(
 
   // ── 組 LINE 訊息 ─────────────────────────────────────────────────────────────
   // 本檔動到的每個批次，用「所有動作做完後的記憶體帳」算真實剩餘（含超領＝負數）
-  const touchedBatches = new Set(lines.map(l => l.batchId))
+  const touchedBatches = new Set(activeLines.map(l => l.batchId))
   const finalRemaining = new Map<string, number>()
   for (const bId of touchedBatches) {
     const b = batches.find(x => x.id === bId)
@@ -570,7 +627,7 @@ async function processOneFile(
   const batchLines: string[] = []
   for (const bId of touchedBatches) {
     const b = batches.find(x => x.id === bId)
-    const mine = lines.filter(x => x.batchId === bId)
+    const mine = activeLines.filter(x => x.batchId === bId)
     const total = mine.reduce((s, l) => s + l.boxes, 0)
     const remain = finalRemaining.get(bId) ?? 0
     batchLines.push(`▸ ${b?.ivName ?? bId}：本單 ${total} 箱（剩餘 ${remain}／入倉 ${b?.totalBoxes ?? '?'}）`)
@@ -608,7 +665,8 @@ async function processOneFile(
   if (!dry) {
     // 有「待到貨」批次(之後會接手這張單) → 標「略過」讓它每輪重掃，等批次到貨(Colin 填入倉日)自動補扣；否則正常「已處理」
     // 對帳同步跟庫存扣帳綁在一起：對帳讀回不一致，整張單也標「異常」，下一輪重試，兩邊一起修好
-    const status = (!verify.ok || !recon.verify.ok) ? '異常' : (alloc.hasWaiting ? '略過' : '已處理')
+    // 凍結警告（批次歸屬爭議）也算異常：每輪重試，等 Colin 處理完舊紀錄後自動寫入
+    const status = (!verify.ok || !recon.verify.ok || freezeAnomaly) ? '異常' : (alloc.hasWaiting ? '略過' : '已處理')
     const notifyHash = `ok:${sha1(message)}`
     // 例行「✅ 扣帳成功」已停發（見檔頭說明）；但 🚨０箱入帳／核對不符／衝突提醒
     // 這類要人工介入的（6月營收漏記事件的教訓），改發「LOPIA對帳」群組，不能消音

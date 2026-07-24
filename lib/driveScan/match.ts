@@ -75,6 +75,21 @@ function hitKeyword(text: string, b: BatchLite): boolean {
 }
 
 /**
+ * 檔名裡有沒有直接寫批次號（2026-07-24 Colin 拍板的新規則）。
+ * 例：檔名「7.23出貨 地瓜 CITY20260501S」→ 這張單鎖定只記 CITY20260501S，完全不用猜。
+ * 這是最高優先的判定方式——Colin 做單時自己標的批次，比任何關鍵字推測都準。
+ * 注意：批次名稱會互相包含（CITY20260701 是 CITY20260701S 的開頭），
+ * 檔名寫長的那個時短的也會被比中 → 只留「最長」的那個，避免誤鎖到別批。
+ */
+export function fileNameBatchTags(fileName: string, batches: BatchLite[]): BatchLite[] {
+  const fn = fileName.toLowerCase()
+  const hits = batches.filter(b =>
+    b.ivName && b.ivName !== '(無名稱)' && fn.includes(b.ivName.toLowerCase()))
+  return hits.filter(a =>
+    !hits.some(b => b !== a && b.ivName.toLowerCase().includes(a.ivName.toLowerCase())))
+}
+
+/**
  * 找出一列商品的候選批次。
  * 先用商品名比、比不到再用檔名比（蘋果單商品列只有品種名，批號在檔名「蘋果11.3」裡）。
  * 規則①（訪談定案）：機器人只碰「已到倉、正在出貨中」的批次，用「入倉日」自動辨識，不用手動改狀態。
@@ -92,18 +107,30 @@ export function isActiveBatch(b: BatchLite): boolean {
   const today = new Date().toISOString().slice(0, 10)
   return !!b.intakeDate && b.intakeDate <= today       // 有入倉日且已到＝到倉出貨中；空白或未到＝不扣
 }
-export function candidateBatches(rowName: string, fileName: string, batches: BatchLite[], noteDate: string): {
+export function candidateBatches(rowName: string, fileName: string, batches: BatchLite[], noteDate: string, pinned: BatchLite[] = []): {
   eligible: BatchLite[]          // 可扣：到倉出貨中 ＋ 入倉日不晚於出貨日，FIFO 排序
   waiting: BatchLite[]           // 待到貨：現在不能扣、但沒收完、且出貨日不早於其入倉日 → 之後到貨會接手這張單（檔案要留著重掃）
   matched: BatchLite[]           // 所有命中關鍵字的批次（判斷是不是「完全對不到關鍵字」用）
   usedFilenameFallback: boolean
+  ambiguousPinned: boolean       // 檔名指定了多個批次，但這列商品分不出屬於哪個 → 要人工補關鍵字
 } {
-  const withKw = batches.filter(b => b.keywords.length > 0)
-  let hits = withKw.filter(b => hitKeyword(rowName, b))
+  let hits: BatchLite[]
   let usedFilenameFallback = false
-  if (hits.length === 0) {
-    hits = withKw.filter(b => hitKeyword(fileName, b))
-    usedFilenameFallback = hits.length > 0
+  if (pinned.length > 0) {
+    // 檔名指定批次 → 候選「只限」指定的那幾批，絕不會跑去扣別批。
+    // 指定多批（混搭單）時，用商品名關鍵字分流；只指定一批就全部記它。
+    hits = pinned.filter(b => hitKeyword(rowName, b))
+    if (hits.length === 0) {
+      if (pinned.length === 1) hits = [...pinned]
+      else return { eligible: [], waiting: [], matched: [], usedFilenameFallback: false, ambiguousPinned: true }
+    }
+  } else {
+    const withKw = batches.filter(b => b.keywords.length > 0)
+    hits = withKw.filter(b => hitKeyword(rowName, b))
+    if (hits.length === 0) {
+      hits = withKw.filter(b => hitKeyword(fileName, b))
+      usedFilenameFallback = hits.length > 0
+    }
   }
   // 防呆：貨還沒到倉不可能先出 → 出貨日不能早於批次入倉日（入倉日空白＝還沒填，先放行）。
   //   這道防呆讓「舊的大學芋單(6月)」不會在新批次 601FS(入倉7/14) 啟用時被誤扣。
@@ -111,7 +138,7 @@ export function candidateBatches(rowName: string, fileName: string, batches: Bat
   const eligible = hits.filter(b => isActiveBatch(b) && dateOk(b))
     .sort((a, b) => a.fifoDate.localeCompare(b.fifoDate))
   const waiting = hits.filter(b => !isActiveBatch(b) && b.deliveryStatus !== '全數出貨' && dateOk(b))
-  return { eligible, waiting, matched: hits, usedFilenameFallback }
+  return { eligible, waiting, matched: hits, usedFilenameFallback, ambiguousPinned: false }
 }
 
 // ── FIFO 分配 ─────────────────────────────────────────────────────────────────
@@ -161,6 +188,12 @@ export function allocateFifo(
   const tempRemaining = new Map(remainingByBatch)
   const batchById = new Map(batches.map(b => [b.id, b]))
 
+  // 檔名指定批次（最高優先）：Colin 做單時把批次號寫進檔名 → 這張單只認這幾批
+  const pinned = fileNameBatchTags(fileName, batches)
+  if (pinned.length > 0) {
+    notes.push(`檔名指定批次：${pinned.map(b => b.ivName).join('、')}（本單只會記到指定批次，不做關鍵字推測）`)
+  }
+
   const book = (b: BatchLite, store: string, boxes: number) => {
     const key = `${b.id}|${store}`
     const line = acc.get(key) ?? { batchId: b.id, batchName: b.ivName, store, boxes: 0 }
@@ -173,7 +206,13 @@ export function allocateFifo(
   for (const tab of tabs) {
     if (!tab.store || tab.rows.length === 0) continue
     for (const row of tab.rows) {
-      const { eligible: candidates, waiting, matched, usedFilenameFallback } = candidateBatches(row.name, fileName, batches, noteDate)
+      const { eligible: candidates, waiting, matched, usedFilenameFallback, ambiguousPinned } = candidateBatches(row.name, fileName, batches, noteDate, pinned)
+      if (ambiguousPinned) {
+        // 檔名指定了多個批次（混搭單），但這列商品名對不到任何指定批次的關鍵字 → 分不出要記哪批，
+        // 寧可整張單停下來請人工補關鍵字，也不要亂猜（0724 加工品誤扣的教訓）
+        errors.push(`檔名指定了多個批次（${pinned.map(b => b.ivName).join('、')}），但商品「${row.name}」（${tab.store} ${row.boxes}箱）對不到其中任何一批的關鍵字 → 無法判斷記哪批`)
+        continue
+      }
       if (candidates.length === 0) {
         if (matched.length > 0) {
           // 命中批次但現在不能扣（尚未到貨／已收完／出貨日早於入倉日）→ 不擋整張單，只記提醒
