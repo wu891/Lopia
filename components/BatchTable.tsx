@@ -116,9 +116,20 @@ export default function BatchTable({
                   <span className="text-[12px] font-semibold text-[var(--mod-sub)] whitespace-nowrap">{s.supplier ?? '—'}</span>
                 </td>
                 <td className="px-3.5 py-2.5">
-                  <span className="whitespace-nowrap border border-[var(--mod-hair)] px-2 py-0.5 text-[11px] font-bold text-[var(--mod-sub)]">
-                    {s.deliveryStatus ?? STATUS_LABEL[status][lang]}
-                  </span>
+                  {/* 狀態膠囊照舊；下方補「已出貨 X / Y 箱」（有入倉箱數才顯示）。
+                      入倉箱數空白但已有出貨紀錄 → 提醒去 Notion 補填（分母缺料，箱數上限檢查也靠它） */}
+                  <div className="flex flex-col items-start gap-1">
+                    <span className="whitespace-nowrap border border-[var(--mod-hair)] px-2 py-0.5 text-[11px] font-bold text-[var(--mod-sub)]">
+                      {s.deliveryStatus ?? STATUS_LABEL[status][lang]}
+                    </span>
+                    {s.totalBoxes != null ? (
+                      <span className="whitespace-nowrap text-[11px] text-[var(--mod-sub2)]">
+                        {T.shipped} <span className="font-mono font-bold text-[var(--mod-ink)]">{s.shippedBoxes ?? 0} / {s.totalBoxes}</span> {T.boxes}
+                      </span>
+                    ) : (s.plannedBoxes ?? 0) > 0 && s.deliveryStatus !== '全數出貨' && s.deliveryStatus !== '退回/銷毀' ? (
+                      <span className="whitespace-nowrap text-[11px] font-bold text-amber-600">⚠ {T.noIntakeBoxes}</span>
+                    ) : null}
+                  </div>
                 </td>
               </tr>
             )
