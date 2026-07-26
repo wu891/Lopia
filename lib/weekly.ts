@@ -21,6 +21,7 @@
 import { Client } from '@notionhq/client'
 import { getShipmentRecords, getShipments, type ShipmentRecord } from './notion'
 import { STORES } from './stores'
+import { weekRange } from './weekRange'
 
 const notion = new Client({ auth: process.env.NOTION_API_KEY })
 
@@ -99,23 +100,9 @@ function rt(s: string | null | undefined): { text: { content: string } }[] {
 }
 
 // ── 週範圍（以台灣時區 UTC+8 為準）──────────────────────────────────────────
-/**
- * 回傳指定週的週一～週日（yyyy-mm-dd）。offsetWeeks=0 是本週、-1 上週、+1 下週。
- * 為什麼要自己算時區：Vercel 伺服器是 UTC，直接用 new Date() 會在台灣週日晚上就跳到下一週。
- */
-export function weekRange(offsetWeeks = 0, nowMs = Date.now()): { from: string; to: string; label: string } {
-  const TW_OFFSET = 8 * 60 * 60 * 1000
-  const tw = new Date(nowMs + TW_OFFSET) // 用底下的 getUTC* 讀，即等於台灣當地時間
-  const dow = tw.getUTCDay()             // 0=日, 1=一, …, 6=六
-  const mondayShift = (dow === 0 ? -6 : 1 - dow) + offsetWeeks * 7
-  const monday = new Date(Date.UTC(tw.getUTCFullYear(), tw.getUTCMonth(), tw.getUTCDate() + mondayShift))
-  const sunday = new Date(monday.getTime() + 6 * 86400000)
-  const fmt = (d: Date) =>
-    `${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, '0')}-${String(d.getUTCDate()).padStart(2, '0')}`
-  const from = fmt(monday)
-  const to = fmt(sunday)
-  return { from, to, label: `${from} ~ ${to}` }
-}
+// 實作搬到 lib/weekRange.ts（純計算、瀏覽器端也能用），這裡原樣轉出，
+// 既有的 `import { weekRange } from '@/lib/weekly'` 用法不受影響。
+export { weekRange }
 
 // ── 讀 ────────────────────────────────────────────────────────────────────
 export async function getWeeklyRows(range?: { from: string; to: string }): Promise<WeeklyRow[]> {

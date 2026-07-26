@@ -13,6 +13,7 @@ import {
   canEditWeekly,
   type PersonId, type ChecklistState,
 } from '@/lib/checklistModel'
+import { weekRange } from '@/lib/weekRange'
 
 interface Checklist {
   id: string
@@ -50,6 +51,15 @@ function fmtDate(iso: string | null): string {
   if (!iso) return '出貨日期待訂'
   const d = new Date(iso + 'T00:00:00')
   return `${d.getMonth() + 1}/${d.getDate()} (${WEEKDAY[d.getDay()]})`
+}
+
+// 判斷某個配送日是不是落在「本週」（週一～週日，台灣時區）。
+// 用的是跟「本週出貨」分頁、LINE 通知同一支 weekRange()，所以三邊的「本週」永遠一致。
+// 沒填配送日（待訂）的單算「不是本週」→ 完成後就不會留在已完成區塊佔畫面。
+function isThisWeek(deliveryDate: string | null): boolean {
+  if (!deliveryDate) return false
+  const { from, to } = weekRange()
+  return deliveryDate >= from && deliveryDate <= to
 }
 
 // 依配送日算「倒數紅黃燈」：逾期/今天=紅、明天=黃、其餘=綠、沒填=灰（待訂）
@@ -473,9 +483,12 @@ function ChecklistList({ items, who, expandedId, setExpandedId, onChanged, onDel
   if (items.length === 0) {
     return <div className="text-center text-slate-400 py-10 text-sm">目前沒有檢查清單。用上方按鈕新增，或到「本週出貨」一鍵建立。</div>
   }
-  // 已完結的單另外放到最下方一個獨立區塊，避免跟還在跑的單混在一起看到「逾期」誤會成沒處理
+  // 已完結的單另外放到最下方一個獨立區塊，避免跟還在跑的單混在一起看到「逾期」誤會成沒處理。
+  // 已完成區塊只留「本週配送」的單：過去幾週的完成單會一直累積、把畫面塞爆，
+  // 但資料沒有刪掉，之後要翻舊單還是能從 Notion 或搜尋看到。
   const pending = items.filter(it => !it.completed)
-  const done = items.filter(it => it.completed)
+  const done = items.filter(it => it.completed && isThisWeek(it.deliveryDate))
+  const doneHidden = items.filter(it => it.completed).length - done.length
   return (
     <div>
       <div className="space-y-3">
@@ -496,10 +509,13 @@ function ChecklistList({ items, who, expandedId, setExpandedId, onChanged, onDel
         )}
       </div>
 
-      {done.length > 0 && (
+      {(done.length > 0 || doneHidden > 0) && (
         <div className="mt-8">
           <div className="flex items-center gap-2 mb-3">
             <span className="text-xs font-bold text-emerald-700">✅ 已完成（{done.length}）</span>
+            <span className="text-[10px] text-slate-400">
+              只顯示本週{doneHidden > 0 ? `，之前的 ${doneHidden} 張已收起` : ''}
+            </span>
             <div className="flex-1 border-t border-slate-200" />
           </div>
           <div className="space-y-3">
