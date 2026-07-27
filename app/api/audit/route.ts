@@ -146,34 +146,28 @@ export async function GET(req: NextRequest) {
       const rc = reconBySno.get(sno) ?? null
       const rec = recBySno.get(sno) ?? null
       const date = dateOfSno.get(sno) ?? ''
-      const notes: string[] = []
-      let status: SnoRow['status'] = 'ok'
-      const flag = (msg: string) => { status = 'mismatch'; notes.push(msg) }
+      const errs: string[] = []   // 對不上的重點（會讓狀態變 mismatch）
+      const softs: string[] = []  // 只需知道、不用處理的備註
 
       if (d && rc && Math.abs(d.amount - rc.amount) > 1) {
         // 金額對不上 → 先看是不是同日拆單（同一天總額一致就只記備註，如 S2026052701/02）
         const dd = driveByDate.get(date) ?? 0
         const rd = reconByDate.get(date) ?? 0
-        if (Math.abs(dd - rd) <= 1) {
-          if (status === 'ok') status = 'note'
-          notes.push('單號拆法不同，但當日出貨單與對帳總額一致')
-        } else {
-          flag(`對帳金額 ${rc.amount.toLocaleString()} ≠ 出貨單 ${d.amount.toLocaleString()}（差 ${(rc.amount - d.amount).toLocaleString()}）`)
-        }
+        if (Math.abs(dd - rd) <= 1) softs.push('單號拆法不同，但當日出貨單與對帳總額一致')
+        else errs.push(`對帳金額 ${rc.amount.toLocaleString()} ≠ 出貨單 ${d.amount.toLocaleString()}（差 ${(rc.amount - d.amount).toLocaleString()}）`)
       }
-      if (d && !rc) flag('對帳明細沒有這張單（漏上傳？）')
-      if (!d && rc) flag('對帳明細有、但 Drive 沒有這張出貨單（重複上傳或該刪的殘留？）')
-      if (d && rec != null && rec !== d.boxes) flag(`出貨紀錄 ${rec} 箱 ≠ 出貨單 ${d.boxes} 箱（差 ${rec - d.boxes}）`)
-      if (d && rec == null) flag('出貨紀錄完全沒有這張單（自動掃描漏建？）')
-      if (!d && !rc && rec != null) flag('只有出貨紀錄有這個單號（單號打錯或出貨單沒歸檔？）')
+      if (d && !rc) errs.push('對帳明細沒有這張單（漏上傳？）')
+      if (!d && rc) errs.push('對帳明細有、但 Drive 沒有這張出貨單（重複上傳或該刪的殘留？）')
+      if (d && rec != null && rec !== d.boxes) errs.push(`出貨紀錄 ${rec} 箱 ≠ 出貨單 ${d.boxes} 箱（差 ${rec - d.boxes}）`)
+      if (d && rec == null) errs.push('出貨紀錄完全沒有這張單（自動掃描漏建？）')
+      if (!d && !rc && rec != null) errs.push('只有出貨紀錄有這個單號（單號打錯或出貨單沒歸檔？）')
 
       // 未來的出貨（計畫單）：貨單通常晚幾天才歸檔、自動掃描也還沒跑，不算異常
-      if (status === 'mismatch' && date > today) {
-        status = 'note'
-        notes.push('出貨日在未來（計畫中），先觀察不報警；出貨後仍對不上才算異常')
-      }
+      const future = errs.length > 0 && date > today
+      if (future) softs.push('出貨日在未來（計畫中），先觀察不報警；出貨後仍對不上才算異常')
 
-      perSno.push({ sno, date, drive: d ? { boxes: d.boxes, amount: d.amount } : null, recon: rc, recordBoxes: rec, status, notes })
+      const status: SnoRow['status'] = errs.length > 0 && !future ? 'mismatch' : (errs.length + softs.length > 0 ? 'note' : 'ok')
+      perSno.push({ sno, date, drive: d ? { boxes: d.boxes, amount: d.amount } : null, recon: rc, recordBoxes: rec, status, notes: [...errs, ...softs] })
     }
 
     // ── 月度小計：出貨單 vs 對帳 vs profit 營收 ──────────────────────────
