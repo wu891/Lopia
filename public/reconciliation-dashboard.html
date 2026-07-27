@@ -534,10 +534,31 @@ const STORE_MAP = {
 const PROCESSED_KW = ['ジュース','果汁','ジャム','果醬','ドライ','果乾','ゼリー','果凍','チョコ','ケーキ','クッキー','餅乾','アイス','プリン','加工','調味','醬','sauce','ソース','漬け','醃','干し','乾燥','冷凍','罐','瓶','ボトル','大学芋','大學芋','スティック','揚げ','フライ','コロッケ','焼き芋','干しいも','いもスティック','天ぷら','炒め','地瓜條','芋條','酥脆地瓜'];
 const VEG_KW = ['地瓜','さつまいも','サツマイモ','甘薯','馬鈴薯','じゃがいも','キャベツ','高麗菜','白菜','大根','蘿蔔','にんじん','紅蘿蔔','トマト','番茄','レタス','ほうれん草','きゅうり','なす','茄子','玉ねぎ','洋蔥','ねぎ','蔥','にんにく','大蒜','ブロッコリー','アスパラ','とうもろこし','えだまめ','毛豆','芋','野菜','蔬菜'];
 
+// ── 冷凍苺（冷凍草莓）算水果，不算加工品（2026-07-27 Colin 指示）──────────────
+// 以前只要品名有「冷凍」兩個字就一律當加工品收 5% 稅。但冷凍苺就是整顆草莓冰起來、
+// 沒有做成別的東西，所以要當水果免稅。判斷順序因此改成三步：
+//   ① 先看有沒有「真的加工過」的字（ジャム、干し、大学芋…）→ 有就是加工品
+//      （這樣「冷凍苺ジャム」草莓果醬還是會正確算加工品，不會被下面那步放行）
+//   ② 再看是不是「冷凍 ＋ 草莓」→ 是就算水果
+//   ③ 其他含「冷凍」的（例如冷凍芋）維持原本的加工品判定
+const FROZEN_KW = ['冷凍','フローズン','frozen'];
+const STRAWBERRY_KW = ['苺','いちご','イチゴ','草莓','ストロベリー','strawberry'];
+const PROCESSED_KW_NO_FROZEN = PROCESSED_KW.filter(k => !FROZEN_KW.includes(k));
+
+// 是不是「冷凍苺」這種冷凍草莓？（品名同時有「冷凍」和「草莓」，而且沒有其他加工字眼）
+function isFrozenStrawberry(name) {
+    const l = (name || '').toLowerCase();
+    const hit = list => list.some(k => l.includes(k.toLowerCase()));
+    return !hit(PROCESSED_KW_NO_FROZEN) && hit(FROZEN_KW) && hit(STRAWBERRY_KW);
+}
+
 function classifyProduct(name) {
-    const l = name.toLowerCase();
-    if (PROCESSED_KW.some(k => l.includes(k.toLowerCase()))) return '加工品';
-    if (VEG_KW.some(k => l.includes(k.toLowerCase()))) return '蔬菜';
+    const l = (name || '').toLowerCase();
+    const hit = list => list.some(k => l.includes(k.toLowerCase()));
+    if (hit(PROCESSED_KW_NO_FROZEN)) return '加工品';
+    if (isFrozenStrawberry(name)) return '水果';  // 冷凍苺＝水果免稅
+    if (hit(PROCESSED_KW)) return '加工品';
+    if (hit(VEG_KW)) return '蔬菜';
     return '水果';
 }
 function resolveStore(name) {
@@ -883,7 +904,7 @@ function parseExcelForBatch(batchId, input) {
                         const spec = String(row[specCol] || '').trim();
                         const price = parseFloat(row[priceCol]) || 0;
                         const cat = String(row[catCol] || '').trim();
-                        const category = cat.includes('加工') ? '加工品' : classifyProduct(name);
+                        const category = (cat.includes('加工') && !isFrozenStrawberry(name)) ? '加工品' : classifyProduct(name);
                         if (price <= 0) continue;
                         if (!products.some(p => p.name === name && p.unitPrice === price)) {
                             products.push({ name, spec, unitPrice: price, category });
@@ -952,7 +973,7 @@ function parseExcelForBatch(batchId, input) {
                             if (price <= 0) continue;
                             const spec = gSpecCol >= 0 ? String(row[gSpecCol]||'').trim() : '';
                             const catRaw = gCatCol >= 0 ? String(row[gCatCol]||'').trim() : '';
-                            const category = catRaw.includes('加工') ? '加工品' : classifyProduct(name);
+                            const category = (catRaw.includes('加工') && !isFrozenStrawberry(name)) ? '加工品' : classifyProduct(name);
                             if (!products.some(p => p.name === name && p.unitPrice === price)) {
                                 products.push({ name, spec, unitPrice: price, category });
                             }
