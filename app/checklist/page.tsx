@@ -92,14 +92,13 @@ const PERSON_STYLE: Record<PersonId, PersonStyle> = {
   cai:     { solid: 'bg-violet-600 text-white',  soft: 'bg-violet-100 text-violet-800 border border-violet-300', block: 'border-violet-300 bg-violet-50',   blockHead: 'text-violet-800',  ring: 'ring-violet-400',  dot: 'bg-violet-500' },
   kawagoe: { solid: 'bg-slate-600 text-white',   soft: 'bg-slate-200 text-slate-800 border border-slate-300',    block: 'border-slate-300 bg-slate-50',     blockHead: 'text-slate-700',   ring: 'ring-slate-400',   dot: 'bg-slate-500' },
 }
-// 第二～四重的負責人（給區塊上色用）；第一重是互查，另外處理
-const LAYER_OWNER: Record<number, PersonId> = { 2: 'hayashi', 3: 'cai', 4: 'kawagoe' }
+// 第二～三重的負責人（給區塊上色用）；第一重是互查，另外處理
+const LAYER_OWNER: Record<number, PersonId> = { 2: 'hayashi', 3: 'cai' }
 // 卡片頭的進度色條：一層一格，完成才上色；顏色＝該層負責人（第1層互查＝藍→橙漸層）
 const LAYER_SEG: Record<number, string> = {
   1: 'bg-gradient-to-r from-blue-500 to-amber-500',
   2: 'bg-emerald-500',
   3: 'bg-violet-500',
-  4: 'bg-slate-500',
 }
 
 type Tab = 'checklist' | 'weekly'
@@ -596,7 +595,7 @@ function ChecklistCard({ item, who, expanded, onToggle, onChanged, onDeleted, fl
           <div className={`text-xs font-semibold ${item.completed ? 'text-emerald-600' : 'text-slate-600'}`}>
             {item.completed ? '✅ 已完結' : stageLabel(state)}
           </div>
-          {/* 進度色條：滑鼠停上去仍可看到「n/4 層完成」文字 */}
+          {/* 進度色條：滑鼠停上去仍可看到「n/3 層完成」文字 */}
           <div className="flex gap-0.5 mt-1 justify-end" title={`${doneLayers}/${LAST_LAYER_ID} 層完成`}>
             {LAYERS.map(l => (
               <span key={l.id}

@@ -3,7 +3,7 @@ import {
   getChecklistById, saveChecklistState, deleteChecklist,
   updateChecklistInfo, getChecklistByShipmentNo,
   applyCheck, applyReject, canCheck,
-  currentLayerId, personName, LAST_LAYER_ID, WAREHOUSES,
+  currentLayerId, LAST_LAYER_ID, WAREHOUSES,
 } from '@/lib/checklist'
 import { requireWho } from '@/lib/checklistAuth'
 import { clampLen } from '@/lib/auth'
@@ -29,29 +29,13 @@ function checklistLink(shipmentNo: string): string {
   return `${CHECKLIST_URL}?s=${encodeURIComponent(shipmentNo)}`
 }
 
-// 一層完成後的 LINE 通知（日文）。afterLayer＝現在輪到的層；剛完成的是 afterLayer-1。
-function nextUpMessage(shipmentNo: string, afterLayer: number): string {
+// 三重チェックが全部終わった（＝この出荷が完結した）時だけ送る通知（日文）。
+// LINE額度緊縮中、途中の層の遷移・差し戻しは通知しない。
+function completedMessage(shipmentNo: string): string {
   const link = checklistLink(shipmentNo)
-  if (afterLayer > LAST_LAYER_ID) {
-    return `🎉【${shipmentNo}】三重チェック 全工程完了\n`
-      + `第4重「社外共有」まで完了しました。川越さんが平山さんへ情報共有済みです。\n`
-      + `▶ 詳細：${link}`
-  }
-  // 直前に完了した重（afterLayer-1）の名称と内容
-  const done: Record<number, string> = {
-    1: '第1重「作成・相互チェック」\n（KIDO・COLINが納品書を相互確認し、林さんへ報告済み）',
-    2: '第2重「到着確認」\n（林さんが倉庫（優儲・美福・三義）・物流会社（三義）への到着を確認し、蔡さんへ報告済み）',
-    3: '第3重「総合確認」\n（蔡さんがステップ1・2を総合確認し、川越さんへ報告済み）',
-  }
-  // 次の担当者（afterLayer）と、その人がやること
-  const next: Record<number, string> = {
-    2: '👉 次は林さんの番です\n出荷指示が倉庫（優儲・美福・三義）・物流会社（三義）へ届いているかご確認ください。',
-    3: '👉 次は蔡さんの番です\nステップ1・2の内容を総合確認してください。',
-    4: '👉 次は川越さんの番です\n平山さんへ情報共有をお願いします（共有で完了です）。',
-  }
-  return `🔔【${shipmentNo}】\n`
-    + `✅ 完了：${done[afterLayer - 1] ?? ''}\n\n`
-    + `${next[afterLayer] ?? ''}\n\n`
+  return `🎉【${shipmentNo}】\n`
+    + `✅ 三重チェック 全工程完了\n`
+    + `（第1重 相互チェック → 第2重 送達確認 → 第3重 総合確認、すべて完了しました）\n\n`
     + `▶ チェックリスト：${link}`
 }
 
@@ -106,12 +90,12 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
       const next = applyCheck(current.state, itemKey, who, checked, nowIso)
       const saved = await saveChecklistState(id, next)
 
-      // 只有「往上跨過一層」才通知（勾完某層的最後一項）。
+      // 只在「最後一層（第3重）勾完、此單完結」這一刻通知（LINE額度緊縮期間只留這一種+出貨前2天提醒）。
       // 用 after()：先把回應送給使用者（勾勾馬上有反應），LINE 通知在背景送，
-      // pushToGroup 本身不會丟例外，送失敗只寫 log 不影響勾選。
+      // pushChecklistGroup 本身不會丟例外，送失敗只寫 log 不影響勾選。
       const afterLayer = currentLayerId(next)
-      if (checked && afterLayer > beforeLayer) {
-        after(() => pushChecklistGroup(nextUpMessage(saved.shipmentNo, afterLayer)))
+      if (checked && afterLayer > beforeLayer && afterLayer > LAST_LAYER_ID) {
+        after(() => pushChecklistGroup(completedMessage(saved.shipmentNo)))
       }
       return NextResponse.json({ item: saved })
     }
@@ -144,14 +128,6 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
 
       const next = applyReject(current.state, toLayer, who, reason, nowIso)
       const saved = await saveChecklistState(id, next)
-      // 同樣改成背景送，退回按鈕不用等 LINE
-      after(() => pushChecklistGroup(
-        `↩️【${saved.shipmentNo}】差し戻し\n` +
-        `${personName(who)}が「第${toLayer}重」へ差し戻しました。\n` +
-        `理由：${reason}\n` +
-        `該当の担当者は再確認をお願いします。\n` +
-        `▶ チェックリスト：${checklistLink(saved.shipmentNo)}`
-      ))
       return NextResponse.json({ item: saved })
     }
 

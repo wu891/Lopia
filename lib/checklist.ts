@@ -223,7 +223,7 @@ export async function provisionChecklistDb(): Promise<{ databaseId: string }> {
         select: {
           options: [
             { name: '待互查' }, { name: '待林さん確認' }, { name: '待蔡さん確認' },
-            { name: '待川越さん共享' }, { name: '已完結' },
+            { name: '已完結' },
           ],
         },
       },

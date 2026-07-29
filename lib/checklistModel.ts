@@ -88,15 +88,6 @@ export const LAYERS: Layer[] = [
       { key: 'l3_reported', label: '已報告川越さん', role: 'cai' },
     ],
   },
-  {
-    id: 4,
-    title: '第四重：對外共享',
-    who: '川越さん',
-    items: [
-      { key: 'l4_shared', label: '已把資訊共享給平山さん（此單完結）', role: 'kawagoe' },
-      { key: 'l4_reminder', label: '出貨前一日提醒倉庫(美福OR優儲)和物流商確認配送時程', role: 'kawagoe' },
-    ],
-  },
 ]
 
 export const LAST_LAYER_ID = LAYERS[LAYERS.length - 1].id
@@ -171,7 +162,7 @@ export function layerHasAnyCheck(state: ChecklistState, layerId: number): boolea
   return layerById(layerId).items.some(it => state.checks[it.key]?.checked === true)
 }
 
-/** 目前進行到第幾層（1..4）。全部完成回傳 LAST_LAYER_ID + 1 代表「已完結」 */
+/** 目前進行到第幾層（1..3）。全部完成回傳 LAST_LAYER_ID + 1 代表「已完結」 */
 export function currentLayerId(state: ChecklistState): number {
   for (const l of LAYERS) {
     if (!isLayerComplete(state, l.id)) return l.id
@@ -192,7 +183,7 @@ export function isLayerUnlocked(state: ChecklistState, layerId: number): boolean
 export function stageLabel(state: ChecklistState): string {
   if (isCompleted(state)) return '已完結'
   const cur = currentLayerId(state)
-  const map: Record<number, string> = { 1: '待互查', 2: '待林さん確認', 3: '待蔡さん確認', 4: '待川越さん共享' }
+  const map: Record<number, string> = { 1: '待互查', 2: '待林さん確認', 3: '待蔡さん確認' }
   return map[cur] ?? '進行中'
 }
 
@@ -268,7 +259,7 @@ export function applyCheck(
     delete next.checks[itemKey]
   }
 
-  // 剛好把第四層勾完 → 標記完結時間；被退回導致未完成 → 清掉
+  // 剛好把最後一層（第三重）勾完 → 標記完結時間；被退回導致未完成 → 清掉
   if (isCompleted(next) && !next.completedAt) next.completedAt = nowIso
   if (!isCompleted(next)) next.completedAt = undefined
 
