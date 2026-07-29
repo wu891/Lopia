@@ -107,6 +107,12 @@
         .chart-container { background: var(--bg-card); border-radius: var(--radius); padding: 20px 24px; box-shadow: 0 1px 3px rgba(0,0,0,0.06); }
         .chart-container h3 { font-size: 13px; font-weight: 700; margin-bottom: 14px; }
         .chart-container canvas { max-height: 280px; }
+        /* 商品排行三張圖：品項多的時候在框框裡上下捲，不把整張卡片撐爆 */
+        .rank-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+        .rank-title { font-size: 12px; font-weight: 700; margin-bottom: 6px; }
+        .rank-scroll { max-height: 430px; overflow-y: auto; overflow-x: hidden; border: 1px solid var(--border); border-radius: 8px; padding: 8px 6px; }
+        .rank-scroll canvas { max-height: none; }
+        @media (max-width: 900px) { .rank-grid { grid-template-columns: 1fr; } }
 
         /* Tables */
         .table-section { background: var(--bg-card); border-radius: var(--radius); padding: 20px 24px; box-shadow: 0 1px 3px rgba(0,0,0,0.06); overflow-x: auto; margin-bottom: var(--gap); }
@@ -299,10 +305,27 @@
         <div class="chart-row">
             <div class="chart-container"><h3>月度出貨金額趨勢</h3><canvas id="chart-monthly-trend"></canvas></div>
             <div class="chart-container"><h3>各門市出貨金額佔比</h3><canvas id="chart-store-share"></canvas></div>
-        </div>
-        <div class="chart-row">
-            <div class="chart-container"><h3>商品/批次出貨金額排行</h3><canvas id="chart-product-rank"></canvas></div>
             <div class="chart-container"><h3>水果 vs 加工品 vs 蔬菜</h3><canvas id="chart-category-split"></canvas></div>
+        </div>
+        <!-- 商品排行：依類別拆三張，每一張都把該類別「所有商品」列出來（不再只取前 10 名） -->
+        <div class="chart-row">
+            <div class="chart-container" style="grid-column: 1 / -1">
+                <h3>商品出貨金額排行 · 依類別分開（全品項）
+                    <span style="font-size:12px;font-weight:400;color:var(--text-secondary);margin-left:8px">目前篩選共 <span id="rank-item-count">0</span> 個商品，全部列出；圖框內可上下捲動</span>
+                </h3>
+                <div class="rank-grid">
+                    <div>
+                        <div class="rank-title" style="color:#55A868">水果（免稅）· <span id="rank-n-fruit">0</span> 項</div>
+                        <div class="rank-scroll"><div id="rank-h-fruit"><canvas id="chart-rank-fruit"></canvas></div></div>
+                    </div>
+                    <div>
+                        <div class="rank-title" style="color:#DD8452">加工品（含稅 5%）· <span id="rank-n-proc">0</span> 項</div>
+                        <div class="rank-scroll"><div id="rank-h-proc"><canvas id="chart-rank-proc"></canvas></div></div>
+                        <div class="rank-title" style="color:#64B5CD;margin-top:14px">蔬菜（免稅）· <span id="rank-n-veg">0</span> 項</div>
+                        <div class="rank-scroll"><div id="rank-h-veg"><canvas id="chart-rank-veg"></canvas></div></div>
+                    </div>
+                </div>
+            </div>
         </div>
 
         <div class="table-section">
@@ -531,7 +554,7 @@ const STORE_MAP = {
     '漢神':'台中漢神中港店','中漢':'台中漢神中港店','中港':'台中漢神中港店',
     '北蛋':'台北大巨蛋店','sogo':'台南 SOGO 新天店','高漢':'高雄漢神百貨店'
 };
-const PROCESSED_KW = ['ジュース','果汁','ジャム','果醬','ドライ','果乾','ゼリー','果凍','チョコ','ケーキ','クッキー','餅乾','アイス','プリン','加工','調味','醬','sauce','ソース','漬け','醃','干し','乾燥','冷凍','罐','瓶','ボトル','大学芋','大學芋','スティック','揚げ','フライ','コロッケ','焼き芋','干しいも','いもスティック','天ぷら','炒め','地瓜條','芋條','酥脆地瓜','黑蒜','黒にんにく','black garlic','熟成黑','hoshiimo','ほしいも','干し芋','ほし芋','甘藷塊','甘薷塊','脆片','せんべい','煎餅','senbei','matsuba','松葉','酥脆','拔絲','甘藷條','甘薷條','confection','candied','スティックポテト','カリカリ'];
+const PROCESSED_KW = ['ジュース','果汁','ジャム','果醬','ドライ','果乾','ゼリー','果凍','チョコ','ケーキ','クッキー','餅乾','アイス','プリン','加工','調味','醬','sauce','ソース','漬け','醃','干し','乾燥','冷凍','罐','瓶','ボトル','大学芋','大學芋','スティック','揚げ','フライ','コロッケ','焼き芋','干しいも','いもスティック','天ぷら','炒め','地瓜條','芋條','酥脆地瓜','黑蒜','黒にんにく','black garlic','熟成黑','hoshiimo','ほしいも','干し芋','ほし芋','甘藷塊','甘薷塊','脆片','せんべい','煎餅','senbei','matsuba','松葉','酥脆','拔絲','甘藷條','甘薷條','confection','candied','スティックポテト','カリカリ','地瓜燒','地瓜焼','烤地瓜','甘納豆','あまなっとう','amanatto','蜜地瓜'];
 const VEG_KW = ['地瓜','さつまいも','サツマイモ','甘薯','馬鈴薯','じゃがいも','キャベツ','高麗菜','白菜','大根','蘿蔔','にんじん','紅蘿蔔','トマト','番茄','レタス','ほうれん草','きゅうり','なす','茄子','玉ねぎ','洋蔥','ねぎ','蔥','にんにく','大蒜','ブロッコリー','アスパラ','とうもろこし','えだまめ','毛豆','芋','野菜','蔬菜'];
 
 // ── 冷凍苺（冷凍草莓）算水果，不算加工品（2026-07-27 Colin 指示）──────────────
@@ -561,6 +584,20 @@ function classifyProduct(name) {
     if (hit(VEG_KW)) return '蔬菜';
     return '水果';
 }
+// 已經存進 Notion 的舊資料，類別是「當初存的那個」，就算之後補了上面的關鍵字也不會自己變。
+// 這裡做「只升級、不降級」的補救：
+//   ・名字明顯是加工品（命中關鍵字）但舊資料寫成蔬菜／水果 → 改成加工品
+//   ・舊資料已經是加工品的一律不動（あんぽ柿、冷凍苺 這種當初人工判過的，不要被自動改掉）
+//   ・冷凍苺 例外照舊算水果
+// 2026-07-29 Colin 指示：地瓜甘納豆／烤地瓜風味地瓜燒 是加工品（5月的單已經是加工品，7月被誤判成蔬菜）
+function upgradeToProcessed(name, storedCat) {
+    const cat = storedCat || classifyProduct(name);
+    if (cat === '加工品') return cat;
+    if (isFrozenStrawberry(name)) return cat;
+    const l = (name || '').toLowerCase();
+    return PROCESSED_KW.some(k => l.includes(k.toLowerCase())) ? '加工品' : cat;
+}
+
 function resolveStore(name) {
     if (!name) return '';
     const t = name.trim();
@@ -584,6 +621,8 @@ let pendingCSV = [];
 
 function loadLocal() {
     try { allData = JSON.parse(localStorage.getItem('lopia_recon_data') || '[]'); } catch { allData = []; }
+    // 瀏覽器上次存的舊資料，類別可能是修正前的，這裡一起補救（只升級成加工品，不降級）
+    allData.forEach(r => { r.category = upgradeToProcessed(r.product, r.category); });
     try { batchPrices = JSON.parse(localStorage.getItem('lopia_batch_prices') || '{}'); } catch { batchPrices = {}; }
     try { lastSync = localStorage.getItem('lopia_last_sync') || null; } catch { lastSync = null; }
 }
@@ -708,7 +747,10 @@ async function syncFromNotion() {
             if (Array.isArray(notionExcelRows) && notionExcelRows.length > 0) {
                 // Remove any existing excel-sourced rows then re-add from Notion
                 allData = allData.filter(r => r.source !== 'excel');
-                notionExcelRows.forEach(r => allData.push({ ...r, id: genId(), source: 'excel' }));
+                notionExcelRows.forEach(r => allData.push({
+                    ...r, id: genId(), source: 'excel',
+                    category: upgradeToProcessed(r.product, r.category)   // 舊資料類別誤判時補救（只升級成加工品）
+                }));
             }
         }
 
@@ -1263,18 +1305,46 @@ function renderStoreShare() {
     });
 }
 
+// 商品排行：水果／加工品／蔬菜各畫一張，每一張都列出該類別「全部」商品（以前只畫前 10 名，
+// 品項一多就有幾十項看不到）。一列大約 22px，品項越多圖就越高，框框裡自己捲。
+const RANK_PANELS = [
+    { cat:'水果',   key:'fruit', color:'#55A868' },
+    { cat:'加工品', key:'proc',  color:'#DD8452' },
+    { cat:'蔬菜',   key:'veg',   color:'#64B5CD' },
+];
+const RANK_ROW_HEIGHT = 22;   // 每個商品一列的高度（px）
+const RANK_AXIS_HEIGHT = 46;  // 底下 X 軸刻度要留的高度（px）
+
 function renderProductRank() {
-    const byProduct = {};
-    filteredData.forEach(r => { byProduct[r.product] = (byProduct[r.product]||0) + r.quantity*r.unitPrice; });
-    const entries = Object.entries(byProduct).sort((a,b)=>b[1]-a[1]).slice(0,10);
-    if (charts.productRank) charts.productRank.destroy();
-    charts.productRank = new Chart(document.getElementById('chart-product-rank'), {
-        type:'bar', data:{ labels:entries.map(e=>e[0]), datasets:[{data:entries.map(e=>e[1]), backgroundColor:COLORS.map(c=>c+'CC'), borderRadius:4}] },
-        options:{ responsive:true, maintainAspectRatio:false, indexAxis:'y',
-            plugins:{ legend:{display:false}, tooltip:{callbacks:{label:ctx=>fmtCurrency(ctx.parsed.x)}} },
-            scales:{ x:{ticks:{callback:v=>fmtCurrency(v)}}, y:{grid:{display:false}} }
-        }
+    // 先把篩選後的資料按「類別 → 商品」加總金額
+    const byCat = { '水果':{}, '加工品':{}, '蔬菜':{} };
+    filteredData.forEach(r => {
+        const c = byCat[r.category] ? r.category : '水果';   // 沒歸到類別的當水果，不讓它消失
+        byCat[c][r.product] = (byCat[c][r.product]||0) + r.quantity*r.unitPrice;
     });
+
+    let itemCount = 0;
+    RANK_PANELS.forEach(p => {
+        const entries = Object.entries(byCat[p.cat]).sort((a,b)=>b[1]-a[1]);
+        itemCount += entries.length;
+        document.getElementById('rank-n-'+p.key).textContent = entries.length;
+        // 圖的高度跟著品項數長，這樣每一項都畫得出來、名字不會被擠掉
+        document.getElementById('rank-h-'+p.key).style.height =
+            (entries.length * RANK_ROW_HEIGHT + RANK_AXIS_HEIGHT) + 'px';
+
+        if (charts['rank_'+p.key]) charts['rank_'+p.key].destroy();
+        charts['rank_'+p.key] = new Chart(document.getElementById('chart-rank-'+p.key), {
+            type:'bar',
+            data:{ labels: entries.map(e=>e[0]),
+                   datasets:[{ data: entries.map(e=>e[1]), backgroundColor: p.color+'CC', borderRadius:3, barPercentage:0.85 }] },
+            options:{ responsive:true, maintainAspectRatio:false, indexAxis:'y',
+                plugins:{ legend:{display:false}, tooltip:{callbacks:{label:ctx=>fmtCurrency(ctx.parsed.x)}} },
+                scales:{ x:{ ticks:{callback:v=>fmtCurrency(v)} },
+                         y:{ grid:{display:false}, ticks:{ autoSkip:false, font:{size:10} } } }
+            }
+        });
+    });
+    document.getElementById('rank-item-count').textContent = itemCount;
 }
 
 function renderCategorySplit() {
