@@ -646,6 +646,88 @@ code {
 }
 
 .divider { height: 1px; background: var(--border); margin: 24px 0; }
+
+/* ══════════════════════════════════════════════════════════
+   Section 05「報價與接單」專用樣式
+   白話說明：這一整段只有報價那一節在用，改壞了也只會影響那一節。
+   ══════════════════════════════════════════════════════════ */
+
+/* 「待確認」黃底標記：內容還沒跟 Colin 對過的地方 */
+.tbd {
+  background: #fff3cd; border-bottom: 1px dashed #f59e0b;
+  padding: 0 3px; border-radius: 3px;
+}
+.tbd::after { content: "?"; font-size: 10px; color: #b45309; vertical-align: super; font-weight: 700; }
+
+/* ── 報價流程條（5 個方塊橫著排） ───────────────────── */
+/* 9 欄 = 5 個方塊 + 4 個箭頭夾在中間 */
+.qflow { display: grid; grid-template-columns: 1fr 22px 1fr 22px 1fr 22px 1fr 22px 1fr; align-items: start; gap: 0 4px; padding: 6px 0 0; }
+/* 每一欄是一個直向容器，方塊在上、附註小卡在下，這樣視窗變窄也不會拆散 */
+.qcol { display: flex; flex-direction: column; min-width: 0; }
+.qbox { background: var(--navy); color: #fff; border-radius: 9px; padding: 11px 12px; font-size: 12.5px; font-weight: 700; line-height: 1.45; text-align: center; min-height: 66px; display: flex; flex-direction: column; justify-content: center; }
+.qbox small { display: block; font-weight: 400; opacity: .62; font-size: 11px; margin-top: 3px; }
+.qbox.me { background: var(--blue); box-shadow: 0 4px 14px rgba(37,99,168,.3); }  /* 藍色＝TMJ 自己要做的事 */
+.qbox.me small { opacity: .85; }
+.qarrow { color: var(--blue); font-size: 18px; font-weight: 700; text-align: center; padding-top: 22px; }
+.qnum { display: inline-block; background: rgba(255,255,255,.18); border-radius: 4px; padding: 0 5px; margin-right: 4px; font-size: 11px; }
+.qsub { padding-top: 8px; display: flex; flex-direction: column; gap: 6px; }
+.qchip { background: #fff; border: 1.5px solid var(--border); border-radius: 7px; padding: 7px 9px; font-size: 11.5px; line-height: 1.5; color: var(--text); }
+.qchip b { display: block; font-size: 12px; }
+.qchip.ok { border-color: var(--ok-border); background: var(--ok-bg); }
+.qchip.warn { border-color: var(--warn-border); background: var(--warn-bg); }
+.qtick { text-align: center; color: var(--muted); font-size: 15px; line-height: 1; padding-top: 2px; }
+/* 殺價退回重算的虛線迴圈 */
+.qloop { grid-column: 3 / 10; margin-top: 10px; border: 1.5px dashed var(--warn-border); border-top: none; border-radius: 0 0 10px 10px; height: 28px; position: relative; }
+.qloop span { position: absolute; bottom: -10px; left: 50%; transform: translateX(-50%); background: var(--warn-bg); border: 1px solid var(--warn-border); border-radius: 20px; padding: 2px 12px; font-size: 11.5px; color: #92400e; font-weight: 700; white-space: nowrap; }
+.qloop::before { content: "◀"; position: absolute; left: -1px; bottom: -7px; color: var(--warn-border); font-size: 12px; }
+
+/* ── 成本三堆（日本側／台灣通關／國內） ─────────────── */
+.cstack { display: flex; align-items: stretch; gap: 6px; flex-wrap: wrap; }
+.cgroup { flex: 1 1 210px; border-radius: 10px; overflow: hidden; border: 2px solid; background: #fff; min-width: 200px; }
+.cgroup .ch { padding: 8px 11px; font-size: 12.5px; font-weight: 700; color: #fff; }
+.cgroup .cb { padding: 9px 11px 11px; }
+.cgroup .ci { display: flex; justify-content: space-between; gap: 8px; font-size: 12px; padding: 4px 0; border-bottom: 1px dotted var(--border); line-height: 1.5; }
+.cgroup .ci:last-child { border-bottom: none; }
+.cgroup .ci span.k { color: var(--text); font-weight: 500; }
+.cgroup .ci span.v { color: var(--muted); font-size: 11px; text-align: right; flex-shrink: 0; max-width: 52%; }
+.cgroup .note { margin-top: 7px; font-size: 11px; line-height: 1.6; padding: 6px 8px; border-radius: 6px; }
+.cg-jp { border-color: #d93025; }              /* 紅＝日本境內 */
+.cg-jp .ch { background: #d93025; }
+.cg-jp .note { background: #fef2f2; color: #991b1b; }
+.cg-tw { border-color: var(--blue); }          /* 藍＝台灣進關 */
+.cg-tw .ch { background: var(--blue); }
+.cg-tw .note { background: var(--info-bg); color: #1e40af; }
+.cg-dom { border-color: var(--accent); }       /* 橘＝台灣境內 */
+.cg-dom .ch { background: var(--accent); }
+.cg-dom .note { background: var(--warn-bg); color: #92400e; }
+.cplus { align-self: center; font-size: 22px; font-weight: 700; color: var(--muted); }
+
+/* 成本 → 價格 的算式鏈 */
+.cchain { margin-top: 14px; display: flex; flex-direction: column; gap: 0; align-items: center; }
+.cdown { color: var(--muted); font-size: 17px; line-height: 1.1; }
+.cres { width: 100%; max-width: 520px; text-align: center; border-radius: 9px; padding: 10px 14px; font-size: 13px; font-weight: 700; }
+.cres small { display: block; font-weight: 400; font-size: 11px; opacity: .8; margin-top: 2px; }
+.cres.sum { background: var(--navy); color: #fff; }
+.cres.per { background: var(--blue); color: #fff; }
+.cres.price { background: var(--green); color: #fff; }
+.cformula { font-size: 11.5px; color: var(--muted); background: #fff; border: 1px dashed var(--border); border-radius: 20px; padding: 3px 12px; margin: 5px 0; }
+
+/* ── 倉儲二選一 ─────────────────────────────────────── */
+.pickrow { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.pickcard { border: 2px solid var(--border); border-radius: 9px; padding: 10px 12px; font-size: 12px; line-height: 1.6; }
+.pickcard h5 { font-size: 13px; color: var(--navy); margin-bottom: 4px; }
+.pickcard .when { display: block; background: var(--navy); color: #fff; border-radius: 5px; padding: 3px 7px; font-size: 11px; font-weight: 700; margin-bottom: 6px; }
+.pickcard ul { padding-left: 15px; }
+.pickcard li { color: var(--muted); font-size: 11.5px; line-height: 1.65; }
+
+/* 手機／窄視窗：流程條改成直排 */
+@media (max-width: 900px) {
+  .qflow { grid-template-columns: 1fr; }
+  .qarrow { padding: 2px 0; transform: rotate(90deg); }
+  .qloop { grid-column: 1; }
+  .pickrow { grid-template-columns: 1fr; }
+  .cplus { align-self: flex-start; }
+}
 </style>
 </head>
 <body>
@@ -683,27 +765,30 @@ code {
 
   <div class="nav-section">
     <div class="nav-section-label">作業流程</div>
+    <div class="nav-item" onclick="showSection('quote')">
+      <span class="num">5</span> 報價與接單
+    </div>
     <div class="nav-item" onclick="showSection('import')">
-      <span class="num">5</span> 進口通關
+      <span class="num">6</span> 進口通關
     </div>
     <div class="nav-item" onclick="showSection('warehouse')">
-      <span class="num">6</span> 提貨 & 倉儲
+      <span class="num">7</span> 提貨 & 倉儲
     </div>
     <div class="nav-item" onclick="showSection('delivery')">
-      <span class="num">7</span> 出貨到門市
+      <span class="num">8</span> 出貨到門市
     </div>
     <div class="nav-item" onclick="showSection('invoice')">
-      <span class="num">8</span> 月底請款
+      <span class="num">9</span> 月底請款
     </div>
   </div>
 
   <div class="nav-section">
     <div class="nav-section-label">參考資料</div>
     <div class="nav-item" onclick="showSection('pitfalls')">
-      <span class="num">9</span> 常見地雷
+      <span class="num">10</span> 常見地雷
     </div>
     <div class="nav-item" onclick="showSection('quickref')">
-      <span class="num">10</span> 快速查找
+      <span class="num">11</span> 快速查找
     </div>
   </div>
 
@@ -853,7 +938,7 @@ code {
             </div>
           </div>
         </div>
-        <div style="margin-top:10px;font-size:12px;color:var(--muted);">☝ 詳細流程見「6. 出貨到門市」的三重檢查體制</div>
+        <div style="margin-top:10px;font-size:12px;color:var(--muted);">☝ 詳細流程見「8. 出貨到門市」的三重檢查體制</div>
       </div>
 
       <div class="card">
@@ -926,13 +1011,35 @@ code {
         <div class="card-title"><span class="icon">🚛</span>台灣貨運 / 倉儲</div>
         <div class="contact-grid">
           <div class="contact-card">
-            <div class="contact-role">代倉庫 / 提貨 / 配送</div>
+            <div class="contact-role">提貨 / 配送（物流）</div>
             <div class="contact-name">廖 惠枝</div>
             <div class="contact-org">三義國際物流有限公司</div>
             <div class="contact-detail">
               <div class="line"><span>📞</span>0913-838-688</div>
               <div class="line"><span>📍</span>桃園市平鎮區雙榮路 185 號</div>
-              <div class="line"><span>🏭</span>切結倉地址（FDA 非登不可已登記）</div>
+              <div class="line"><span>🚚</span>主要負責提貨與門市配送，非長期倉儲</div>
+              <div class="line"><span>🏭</span>切結倉地址（FDA 非登不可已登記，通關留置用）</div>
+            </div>
+          </div>
+          <div class="contact-card">
+            <div class="contact-role">倉庫</div>
+            <div class="contact-name">彭采瑜 Vera Peng</div>
+            <div class="contact-org">優儲有限公司 GoodsMile Logistics Ltd.</div>
+            <div class="contact-detail">
+              <div class="line"><span>📞</span>(03)476-6844 #105</div>
+              <div class="line"><span>📍</span>327006 桃園市新屋區望間五路46巷38號</div>
+              <div class="line"><span>✉</span>vera.peng@goodsmile.ltd</div>
+              <div class="line"><span>🔁</span>＝下方物流公司表「グッズマイル」（台中CK／夢時CK配送路線）</div>
+            </div>
+          </div>
+          <div class="contact-card">
+            <div class="contact-role">倉庫</div>
+            <div class="contact-name">陳谷嵐 Karen</div>
+            <div class="contact-org">美福（桃園）</div>
+            <div class="contact-detail">
+              <div class="line"><span>📞</span>03-252-0888 #315（傳真 03-252-0789）</div>
+              <div class="line"><span>📍</span>桃園市蘆竹區長安路二段109號</div>
+              <div class="line"><span>✉</span>karen@mayfull.com.tw</div>
             </div>
           </div>
           <div class="contact-card">
@@ -953,7 +1060,7 @@ code {
         <table>
           <tr><th>公司</th><th>主要路線</th><th>發車時間</th></tr>
           <tr><td><strong>成功物流</strong></td><td>五股 PC → 桃園/南港/新荘/中和/台中/高雄各倉（隔日配送）</td><td>每日 17:00</td></tr>
-          <tr><td><strong>グッズマイル</strong></td><td>台中 CK：南港→新荘→中和→桃園<br>夢時 CK：巨蛋→台南MOP→北門</td><td>台中 7:00<br>夢時 8:00</td></tr>
+          <tr><td><strong>グッズマイル</strong><br><small style="color:var(--muted);font-weight:400;">＝優儲有限公司</small></td><td>台中 CK：南港→新荘→中和→桃園<br>夢時 CK：巨蛋→台南MOP→北門</td><td>台中 7:00<br>夢時 8:00</td></tr>
         </table>
       </div>
     </div>
@@ -1067,11 +1174,11 @@ code {
         <div class="card-title"><span class="icon">🔧</span>現在有的系統</div>
         <table>
           <tr><th>工具</th><th>網址</th><th>用途</th><th>取代了哪個手動步驟</th></tr>
-          <tr><td><strong>出貨單產生</strong></td><td><code>/shipment-generator</code></td><td>依店鋪貨單、入庫總單自動產生格式化出貨單 Excel</td><td>「7. 出貨到門市」手動做出貨單 Excel</td></tr>
-          <tr><td><strong>出貨檢查清單</strong></td><td><code>/checklist</code></td><td>三重檢查體制線上化，逐項勾選、留紀錄</td><td>「7. 出貨到門市」三重檢查靠 LINE／口頭報告</td></tr>
-          <tr><td><strong>對帳單系統</strong></td><td><code>/reconciliation-dashboard.html</code></td><td>月結請款對帳，Drive 出貨單會自動同步進來</td><td>「8. 月底請款」手動彙整當月出貨明細</td></tr>
+          <tr><td><strong>出貨單產生</strong></td><td><code>/shipment-generator</code></td><td>依店鋪貨單、入庫總單自動產生格式化出貨單 Excel</td><td>「8. 出貨到門市」手動做出貨單 Excel</td></tr>
+          <tr><td><strong>出貨檢查清單</strong></td><td><code>/checklist</code></td><td>三重檢查體制線上化，逐項勾選、留紀錄</td><td>「8. 出貨到門市」三重檢查靠 LINE／口頭報告</td></tr>
+          <tr><td><strong>對帳單系統</strong></td><td><code>/reconciliation-dashboard.html</code></td><td>月結請款對帳，Drive 出貨單會自動同步進來</td><td>「9. 月底請款」手動彙整當月出貨明細</td></tr>
           <tr><td><strong>批次即時毛利</strong></td><td><code>/profit.html</code></td><td>每張出貨單即時看毛利，不用等月底才算</td><td>（新功能，之前沒有這一步）</td></tr>
-          <tr><td><strong>進口進度追蹤</strong></td><td>lopia-status 首頁</td><td>5 關進度：出貨→海運→到港→通關→入庫配送</td><td>「5. 進口通關」靠人工追問、記憶進度</td></tr>
+          <tr><td><strong>進口進度追蹤</strong></td><td>lopia-status 首頁</td><td>5 關進度：出貨→海運→到港→通關→入庫配送</td><td>「6. 進口通關」靠人工追問、記憶進度</td></tr>
           <tr><td><strong>出貨日程總表</strong></td><td><code>/schedule-board</code></td><td>店 × 日期的出貨日程樞紐表，一眼看全部門市排程</td><td>（新功能，之前要逐批次翻）</td></tr>
         </table>
       </div>
@@ -1082,10 +1189,231 @@ code {
       </div>
     </div>
 
-    <!-- ══ 5. 進口通關 ═════════════════════════════════════ -->
-    <div class="section" id="sec-import">
+    <!-- ══ 5. 報價與接單 ═══════════════════════════════════ -->
+    <div class="section" id="sec-quote">
       <div class="section-header">
         <div class="section-num">Section 05</div>
+        <div class="section-title">報價與接單</div>
+        <div class="section-desc">價格是怎麼算出來的：哪些東西要算成本、成本怎麼變成賣給 LOPIA 的價格，以及報出去之後怎麼收尾。這一節談完，才會進入下一節的進口通關。</div>
+      </div>
+
+      <div class="callout warn">
+        <span class="callout-icon">🚧</span>
+        <div class="callout-text"><strong>這一節還在確認中。</strong>凡是<span class="tbd">黃底加問號</span>的地方，代表數字或負責人還沒最後確認過，先不要照著當標準答案用。有疑問直接問 Colin。</div>
+      </div>
+
+      <!-- ① 流程全貌 -->
+      <div class="card">
+        <div class="card-title"><span class="icon">🗺</span>報價流程全貌</div>
+        <div class="qflow">
+          <div class="qcol">
+            <div class="qbox"><span><span class="qnum">1</span>日方送商品計畫</span><small>宮山さん（シティ青果）<br>品項・箱數・仕入値</small></div>
+          </div>
+          <div class="qarrow">→</div>
+          <div class="qcol">
+            <div class="qbox me"><span><span class="qnum">2</span>算成本、定價格</span><small>用 <strong>lopia.html</strong> 跑<br>算出今回卸値</small></div>
+            <div class="qsub">
+              <div class="qtick">▼ 這一步就是下一張卡</div>
+              <div class="qchip"><b>成本 → 價格</b>三堆成本加總 ÷ 箱數 ÷（1−8%）</div>
+            </div>
+          </div>
+          <div class="qarrow">→</div>
+          <div class="qcol">
+            <div class="qbox me"><span><span class="qnum">3</span>覆核</span><small>台灣支社總務<br>報出去就收不回來</small></div>
+          </div>
+          <div class="qarrow">→</div>
+          <div class="qcol">
+            <div class="qbox me"><span><span class="qnum">4</span>LINE 報價</span><small>群組傳給平山さん<br>沒有正式報價單</small></div>
+          </div>
+          <div class="qarrow">→</div>
+          <div class="qcol">
+            <div class="qbox"><span><span class="qnum">5</span>平山回覆</span><small>只有兩種：接受／殺價</small></div>
+            <div class="qsub">
+              <div class="qtick">▲ 兩種結果</div>
+              <div class="qchip ok"><b>✅ 接受</b>就用這個金額成交，訂單成立 → 進 Section 06 進口通關</div>
+              <div class="qchip warn"><b>💬 殺價</b>退回第 2 步重算，<u>毛利不得低於 8%</u></div>
+            </div>
+          </div>
+
+          <div class="qloop"><span>殺價 → 退回重算（8% 是底線，要破線一定要<strong>台灣支社總務</strong>確認過才行）</span></div>
+        </div>
+      </div>
+
+      <!-- ② 成本組成（核心） -->
+      <div class="card" style="border-color:var(--blue);border-width:2px;">
+        <div class="card-title"><span class="icon">🧮</span>成本由哪些東西組成（這一張看懂，報價就會了）</div>
+        <p style="font-size:12.5px;color:var(--muted);margin-bottom:12px;line-height:1.7;">
+          一批貨從日本工廠到 LOPIA 門市，中間<strong>每一段都有人收錢</strong>。把三段的錢全部加起來，才是這批貨真正的成本。少算任何一段，帳面上看起來有賺，實際上是虧的。
+        </p>
+
+        <div class="cstack">
+          <div class="cgroup cg-jp">
+            <div class="ch">🇯🇵 第一段：日本境內（JPY）</div>
+            <div class="cb">
+              <div class="ci"><span class="k">仕入値</span><span class="v">跟供應商買的價<br>JPY／箱</span></div>
+              <div class="ci"><span class="k">日本側運費</span><span class="v">工廠 → 日本港口／機場</span></div>
+              <div class="ci"><span class="k">保險</span><span class="v">運送途中的保險</span></div>
+              <div class="note"><strong>這三項加起來 ＝ CIF</strong>，也就是台灣海關拿來課稅的「貨值」。<br>系統可切換成 FOB（只算貨本身、不含運保），課稅基礎不同 → 關稅就不同。</div>
+            </div>
+          </div>
+
+          <div class="cplus">＋</div>
+
+          <div class="cgroup cg-tw">
+            <div class="ch">🛃 第二段：台灣進關（TWD）</div>
+            <div class="cb">
+              <div class="ci"><span class="k">關稅</span><span class="v">CIF × 関税率<br>稅率看品項</span></div>
+              <div class="ci"><span class="k">檢疫費</span><span class="v">CIF × 0.1%<br>系統自動算</span></div>
+              <div class="ci"><span class="k">FDA 查驗費</span><span class="v">看 FDA 品目數</span></div>
+              <div class="ci"><span class="k">機場倉費</span><span class="v">貨重 kg × 溫層單價<br>常溫 4／冷藏 30／冷凍 47</span></div>
+              <div class="ci"><span class="k">報關雜費</span><span class="v">群海報關行</span></div>
+              <div class="note"><strong>溫層差 10 倍以上。</strong>同樣的重量，冷凍（47/kg）跟常溫（4/kg）差十幾倍。溫層選錯，成本直接錯一大截。</div>
+            </div>
+          </div>
+
+          <div class="cplus">＋</div>
+
+          <div class="cgroup cg-dom">
+            <div class="ch">🏭 第三段：台灣境內（TWD）</div>
+            <div class="cb">
+              <div class="ci"><span class="k">倉租</span><span class="v">放幾天 × 溫層 × 棧板數<br>（選サンギ就沒這項）</span></div>
+              <div class="ci"><span class="k">分貨費</span><span class="v">整櫃拆成各店的量</span></div>
+              <div class="ci"><span class="k">配送費</span><span class="v">送幾趟 × 送幾家店<br>北／中／南 分開算</span></div>
+              <div class="ci"><span class="k">雜項</span><span class="v">人工折櫃、收換板費<br>租棧板 100/個、EDI</span></div>
+              <div class="note"><strong>這一段最容易漏。</strong>倉儲要先選サンギ還是優儲 → 見下一張卡。</div>
+            </div>
+          </div>
+        </div>
+
+        <div class="cchain">
+          <div class="cdown">▼</div>
+          <div class="cres sum">三段全部加起來 ＝ 落地成本合計<small>日圓的部分先用 1 NTD ＝ 4.5 JPY 換算成台幣（系統寫 0.222）</small></div>
+          <div class="cformula">÷ 這一櫃的總箱數</div>
+          <div class="cdown">▼</div>
+          <div class="cres per">平均攤成本（每箱多少錢）<small>系統明細表的「平均攤成本」欄，定價就看這一欄</small></div>
+          <div class="cformula">÷（1 − 8%）　←　不是 × 1.08</div>
+          <div class="cdown">▼</div>
+          <div class="cres price">今回卸値（報給 LOPIA 的價）<small>拉滑桿確認「真實毛利率」有到 8%</small></div>
+        </div>
+
+        <div class="callout danger" style="margin-top:14px;">
+          <span class="callout-icon">❌</span>
+          <div class="callout-text"><strong>毛利千萬不要用「成本 × 1.08」。</strong>成本 100 元 × 1.08 ＝ 108 元，賣 108 賺 8 元，毛利是 8÷108 ＝ <strong>7.4%</strong>，不是 8%。正確算法是 100 ÷（1−0.08）＝ <strong>108.7 元</strong>。每一櫃都少賺，而且看起來完全正常，這是最難自己發現的錯。</div>
+        </div>
+
+        <div class="callout info" style="margin-top:8px;">
+          <span class="callout-icon">🚫</span>
+          <div class="callout-text"><strong>這些「不算」在報價成本裡：</strong>營業稅（那是代收代付，另外開發票）、<span class="tbd">我們自己的人事費與工時</span>、<span class="tbd">辦公室與系統費用</span>。報價只算這一櫃貨自己花掉的錢。</div>
+        </div>
+      </div>
+
+      <!-- ③ 倉儲二選一 -->
+      <div class="card">
+        <div class="card-title"><span class="icon">🏭</span>第三段的岔路：倉儲選サンギ還是優儲</div>
+        <p style="font-size:12.5px;color:var(--muted);margin-bottom:10px;line-height:1.7;">系統會把兩家的費用並排算給你看。<strong>先問自己一句：這批貨要不要久放。</strong></p>
+        <div class="pickrow">
+          <div class="pickcard" style="border-color:var(--blue);">
+            <span class="when">🚚 到貨後很快就分完 → サンギ（三義）</span>
+            <h5>不收倉租，只收分貨＋運送</h5>
+            <ul>
+              <li>要填：送幾趟、送幾家店（北/中/南）、時段（日間/夜間/深夜）、等待時數、進出板數</li>
+              <li>總價通常比較低 — <strong>但那是因為根本沒算倉租</strong></li>
+            </ul>
+          </div>
+          <div class="pickcard" style="border-color:var(--accent);">
+            <span class="when" style="background:var(--accent);">📦 貨要放一陣子才出 → 優儲</span>
+            <h5>有倉租，可以長期存放</h5>
+            <ul>
+              <li>要填：放幾天、溫層、棧板數、跨月數、人工折櫃、收換板費、租棧板（100/個）</li>
+              <li>EDI 張數系統自動帶</li>
+            </ul>
+          </div>
+        </div>
+        <div class="callout danger" style="margin-top:12px;">
+          <span class="callout-icon">❌</span>
+          <div class="callout-text"><strong>最容易選錯的地方：</strong>サンギ幾乎一定比較便宜，新人就直接選它。但サンギ<u>不含倉租</u>，貨如果不能馬上分完，你等於報了一個沒把倉租算進去的價 — 錢實際上還是要付，只是從毛利裡面吃掉。</div>
+        </div>
+      </div>
+
+      <!-- ④ 算完之後怎麼看、怎麼報 -->
+      <div class="card">
+        <div class="card-title"><span class="icon">📊</span>算完之後：怎麼看、怎麼報</div>
+        <table>
+          <tr><th>欄位</th><th>意思</th><th>怎麼用</th></tr>
+          <tr style="background:#eff6ff;"><td><strong>平均攤成本</strong></td><td>三段成本加總 ÷ 總箱數，每箱攤一樣多</td><td><strong style="color:var(--blue);">定價就看這一欄</strong></td></tr>
+          <tr><td>照實攤成本</td><td><span class="tbd">按商品實際重量／體積去分攤</span></td><td>只當參考。跟平均攤差很多 → 這櫃商品輕重懸殊，心裡有數</td></tr>
+          <tr><td>前回卸値 → 今回卸値</td><td>上次賣給 LOPIA 的價 → 這次要報的價</td><td>報價的本質是「跟上一櫃比」，不是從零算</td></tr>
+          <tr style="background:#fffbeb;"><td><strong>漲跌</strong></td><td>這次比上次貴多少／便宜多少</td><td><strong style="color:#92400e;">只要是漲，就要同時講得出為什麼</strong></td></tr>
+          <tr><td>真實毛利率</td><td>照你拉的今回卸値，實際賺幾 %</td><td>不得低於 <strong>8%</strong></td></tr>
+        </table>
+        <div class="callout warn" style="margin-top:10px;">
+          <span class="callout-icon">📣</span>
+          <div class="callout-text"><strong>漲價一律附理由。</strong>我們是在 LINE 直接講價格，丟一個比上次貴的數字上去，平山さん一定回問「為什麼」。報價的同時就講清楚是哪一段變貴了：<strong>仕入値／日本運費／匯率／通關／倉儲配送</strong>。答不出來，整批報價就卡在那裡。</div>
+        </div>
+        <div class="callout info" style="margin-top:8px;">
+          <span class="callout-icon">🎚</span>
+          <div class="callout-text">滑桿上兩個記號：<strong>▏＝成本線（拉過去就虧錢）</strong>、<strong>▲＝建議價（點一下直接跳過去）</strong>。做法是先點 ▲，再看真實毛利率有沒有到 8%。<br>最後按「☁ 存這一櫃到 Google Sheet」— 那是<strong>存底</strong>，不是給平山看的，下一櫃「照上一櫃改」就是讀這一筆。</div>
+        </div>
+      </div>
+
+      <!-- ⑤ 會過期的費率 -->
+      <div class="card" style="border-color:var(--warn-border);border-width:2px;background:var(--warn-bg);">
+        <div class="card-title" style="color:#92400e;"><span class="icon">🕒</span>用之前先確認：這些成本數字會過期</div>
+        <p style="font-size:12.5px;color:var(--muted);margin-bottom:8px;line-height:1.7;">系統裡有一部分費率是「當時抄進去的報價」，不會自己更新。看到紅字警語<strong style="color:var(--red);">不要硬跑下去</strong>，先照下表找人確認。</p>
+        <table>
+          <tr><th>寫死的數字</th><th>屬於哪一段</th><th>現在狀態</th><th>過期了找誰</th></tr>
+          <tr style="background:#fef2f2;"><td>優儲倉儲費率</td><td>第三段</td><td><strong style="color:var(--red);">系統已標示效期已過（26-0403）</strong></td><td>彭采瑜 Vera（優儲）要新報價</td></tr>
+          <tr><td>サンギ分貨／運送費率</td><td>第三段</td><td><span class="tbd">未標效期</span></td><td>廖惠枝（三義）</td></tr>
+          <tr><td>機場倉單價（4／30／47 元每 kg）</td><td>第二段</td><td><span class="tbd">未標效期</span></td><td>群海報關行</td></tr>
+          <tr><td>匯率 1 NTD ＝ 4.5 JPY</td><td>換算</td><td>固定值，不隨市場動</td><td>台灣支社總務（公司層級決定，不是業務自己能改的）</td></tr>
+          <tr><td>関税率</td><td>第二段</td><td>系統會帶歷史稅率</td><td>新商品要重查，別直接沿用舊的</td></tr>
+        </table>
+      </div>
+
+      <!-- ⑥ 名詞對照 -->
+      <div class="card">
+        <div class="card-title"><span class="icon">📖</span>名詞對照：五個「價」差在哪</div>
+        <table>
+          <tr><th>名詞</th><th>意思</th><th>常被搞錯的地方</th></tr>
+          <tr><td><strong>仕入値</strong></td><td>跟日本供應商買的價（JPY／箱）</td><td>只是第一段的第一項，離成本還很遠</td></tr>
+          <tr><td><strong>CIF</strong></td><td>仕入値＋日本側運費＋保險</td><td>這是<u>課稅</u>用的貨值，不是我們的總成本</td></tr>
+          <tr><td><strong>平均攤成本</strong></td><td>三段全部加總 ÷ 總箱數</td><td>這才是真成本。只看仕入値報價一定虧</td></tr>
+          <tr style="background:#fef2f2;"><td><strong>原価</strong></td><td><strong style="color:var(--red);">TMJ 賣給 LOPIA 的批發價</strong>（＝售價，不是成本！）</td><td><strong style="color:var(--red);">最大的坑。</strong>商品計畫 Excel 那個「原価」欄名字長得像成本，實際是售價。跟月毛利用的「仕入成本」是兩個完全不同的金額</td></tr>
+          <tr><td><strong>未稅價</strong></td><td>不含 5% 營業稅的售價</td><td>蔬果<strong>免稅</strong>、加工品才課 5%</td></tr>
+        </table>
+      </div>
+
+      <!-- ⑦ 地雷 -->
+      <div class="card" style="border-color:var(--danger-border);">
+        <div class="card-title" style="color:var(--red)"><span class="icon">❌</span>報價常見地雷</div>
+        <table>
+          <tr><th>地雷</th><th>會發生什麼</th><th>怎麼防</th></tr>
+          <tr><td>毛利用「成本 × 1.08」</td><td>實際只有 7.4%，每櫃都少賺，看起來卻很正常</td><td><strong>售價 ＝ 成本 ÷（1 − 毛利率）</strong></td></tr>
+          <tr><td>只算了仕入値就報價</td><td>漏掉第二、三段，直接虧本賣</td><td>三段都要有數字才准送覆核</td></tr>
+          <tr><td>倉儲直接選便宜的サンギ</td><td>貨放不掉，倉租從毛利裡面吃掉</td><td>先確定幾天內分得完再選</td></tr>
+          <tr><td>溫層填錯</td><td>機場倉費差十幾倍（4 vs 47 元/kg）</td><td>冷凍就是冷凍，別為了好看填常溫</td></tr>
+          <tr><td>看到效期已過的警語照跑</td><td>用一年前的倉儲費率報價，差額我們自己吸收</td><td>停下來，照「用之前先確認」那張表找人</td></tr>
+        </table>
+      </div>
+
+      <!-- ⑧ 時限 -->
+      <div class="card">
+        <div class="card-title"><span class="icon">⏱</span>每一步該多久（<span class="tbd">整張表都還沒確認</span>）</div>
+        <table>
+          <tr><th>步驟</th><th>誰負責</th><th>時限</th><th>逾時怎麼辦</th></tr>
+          <tr><td>1. 收商品計畫 → 確認資料齊全</td><td>你</td><td><span class="tbd">收到當天</span></td><td>缺資料當天就問宮山さん</td></tr>
+          <tr><td>2. 算成本、定價格</td><td>你</td><td><span class="tbd">1 個工作天內</span></td><td>費率過期卡住 → 當天就去要新報價</td></tr>
+          <tr><td>3. 覆核（要破 8% 也走這道）</td><td>台灣支社總務</td><td><span class="tbd">半個工作天內</span></td><td><span class="tbd">總務不在時找誰</span></td></tr>
+          <tr><td>4. LINE 報給平山さん</td><td><span class="tbd">你（或川越さん）</span></td><td><span class="tbd">覆核過當天</span></td><td>—</td></tr>
+          <tr><td>5. 等平山回覆</td><td>平山さん</td><td><span class="tbd">2 個工作天</span></td><td><span class="tbd">第 3 天在 LINE 群主動追一次</span></td></tr>
+        </table>
+      </div>
+    </div>
+
+    <!-- ══ 6. 進口通關 ═════════════════════════════════════ -->
+    <div class="section" id="sec-import">
+      <div class="section-header">
+        <div class="section-num">Section 06</div>
         <div class="section-title">進口通關流程</div>
         <div class="section-desc">每批日本空運進口的完整作業流程，包含文件時間點、通關類型、煙燻與輻射檢驗。</div>
       </div>
@@ -1245,23 +1573,26 @@ code {
       </div>
     </div>
 
-    <!-- ══ 6. 倉儲 ════════════════════════════════════════ -->
+    <!-- ══ 7. 倉儲 ════════════════════════════════════════ -->
     <div class="section" id="sec-warehouse">
       <div class="section-header">
-        <div class="section-num">Section 06</div>
+        <div class="section-num">Section 07</div>
         <div class="section-title">提貨 & 倉儲管理</div>
       </div>
 
       <div class="card">
         <div class="card-title"><span class="icon">🏭</span>倉庫資訊</div>
         <table>
-          <tr><th>項目</th><th>說明</th></tr>
-          <tr><td>倉庫公司</td><td>三義國際物流有限公司</td></tr>
-          <tr><td>地址</td><td>324 桃園市平鎮區雙榮路 185 號</td></tr>
-          <tr><td>聯絡人</td><td>廖惠枝</td></tr>
-          <tr><td>電話</td><td><code>0913-838-688</code></td></tr>
-          <tr><td>FDA 切結地址</td><td>已登記在非登不可系統（含樓層：1樓）</td></tr>
+          <tr><th>項目</th><th>優儲 GoodsMile Logistics</th><th>美福（桃園）</th></tr>
+          <tr><td>聯絡人</td><td>彭采瑜 Vera Peng</td><td>陳谷嵐 Karen</td></tr>
+          <tr><td>電話</td><td><code>(03)476-6844 #105</code></td><td><code>03-252-0888 #315</code></td></tr>
+          <tr><td>Email</td><td>vera.peng@goodsmile.ltd</td><td>karen@mayfull.com.tw</td></tr>
+          <tr><td>地址</td><td>327006 桃園市新屋區望間五路46巷38號</td><td>桃園市蘆竹區長安路二段109號</td></tr>
         </table>
+        <div class="callout info" style="margin-top:12px;">
+          <span class="callout-icon">💡</span>
+          <div class="callout-text">優儲、美福<strong>沒有固定分工</strong>，依當批狀況彈性使用、互為備援。三義國際物流主要負責<strong>提貨與門市配送</strong>（電話 <code>0913-838-688</code>），其登記的 FDA 切結地址是通關檢疫留置用，不是日常存貨的倉庫。</div>
+        </div>
       </div>
 
       <div class="card">
@@ -1270,7 +1601,7 @@ code {
           <div class="step"><div class="step-num">1</div><div class="step-body"><strong>Yumu 通知可提貨</strong><p>確認煙燻完成或直接放行</p></div></div>
           <div class="step"><div class="step-num">2</div><div class="step-body"><strong>通知三義派車</strong><p>提供提貨時間，三義司機至機場機放倉 2 樓倉租櫃檯領提單</p></div></div>
           <div class="step"><div class="step-num">3</div><div class="step-body"><strong>憑提單提貨</strong><p>確認箱數與 PL 核對，拍照記錄異常</p></div></div>
-          <div class="step"><div class="step-num">4</div><div class="step-body"><strong>進倉（桃園三義）</strong><p>更新庫存記錄</p></div></div>
+          <div class="step"><div class="step-num">4</div><div class="step-body"><strong>進倉（優儲／美福）</strong><p>更新庫存記錄</p></div></div>
         </div>
       </div>
 
@@ -1290,10 +1621,10 @@ code {
       </div>
     </div>
 
-    <!-- ══ 7. 出貨 ════════════════════════════════════════ -->
+    <!-- ══ 8. 出貨 ════════════════════════════════════════ -->
     <div class="section" id="sec-delivery">
       <div class="section-header">
-        <div class="section-num">Section 07</div>
+        <div class="section-num">Section 08</div>
         <div class="section-title">出貨到 LOPIA 門市</div>
         <div class="section-desc">出貨作業採「三重檢查體制（3重チェック体制）」：每個人都有固定負責的工作，每一層都要檢查上一層，確認沒問題才往上報。</div>
       </div>
@@ -1328,7 +1659,7 @@ code {
             <div class="step-body">
               <strong>林さん：確認指示有確實送達（第二重）</strong>
               <ul>
-                <li>確認出貨指示<strong>是否確實送達倉庫（優儲・美福・三義）與物流公司</strong></li>
+                <li>確認出貨指示<strong>是否確實送達倉庫（優儲・美福）與物流公司（三義等）</strong></li>
                 <li>確認後，<strong>報告蔡さん並請他確認</strong></li>
               </ul>
             </div>
@@ -1418,10 +1749,10 @@ code {
       </div>
     </div>
 
-    <!-- ══ 8. 請款 ════════════════════════════════════════ -->
+    <!-- ══ 9. 請款 ════════════════════════════════════════ -->
     <div class="section" id="sec-invoice">
       <div class="section-header">
-        <div class="section-num">Section 08</div>
+        <div class="section-num">Section 09</div>
         <div class="section-title">月底請款作業</div>
       </div>
 
@@ -1454,10 +1785,10 @@ code {
       </div>
     </div>
 
-    <!-- ══ 9. 地雷 ════════════════════════════════════════ -->
+    <!-- ══ 10. 地雷 ════════════════════════════════════════ -->
     <div class="section" id="sec-pitfalls">
       <div class="section-header">
-        <div class="section-num">Section 09</div>
+        <div class="section-num">Section 10</div>
         <div class="section-title">常見地雷 & 注意事項</div>
         <div class="section-desc">從對話紀錄中整理出的實際發生過的錯誤，新人必讀。</div>
       </div>
@@ -1563,10 +1894,10 @@ code {
       </div>
     </div>
 
-    <!-- ══ 10. 快速查找 ══════════════════════════════════════ -->
+    <!-- ══ 11. 快速查找 ══════════════════════════════════════ -->
     <div class="section" id="sec-quickref">
       <div class="section-header">
-        <div class="section-num">Section 10</div>
+        <div class="section-num">Section 11</div>
         <div class="section-title">緊急快速查找</div>
         <div class="section-desc">遇到突發狀況時，找對人最重要。</div>
       </div>
@@ -1589,8 +1920,13 @@ code {
         </div>
         <div class="quick-card" onclick="showSection('warehouse')">
           <div class="situation">情況</div>
-          <div class="action">提貨司機 / 倉儲問題</div>
+          <div class="action">提貨司機問題</div>
           <div class="contact">→ 三義 廖惠枝 0913-838-688</div>
+        </div>
+        <div class="quick-card" onclick="showSection('warehouse')">
+          <div class="situation">情況</div>
+          <div class="action">倉庫存貨問題</div>
+          <div class="contact">→ 優儲 Vera / 美福 Karen</div>
         </div>
         <div class="quick-card" onclick="showSection('delivery')">
           <div class="situation">情況</div>
@@ -1647,6 +1983,7 @@ const sections = {
   contacts: { title: '關係人清單' },
   stores:   { title: '門市資訊' },
   systems:  { title: '系統與工具' },
+  quote:    { title: '報價與接單' },
   import:   { title: '進口通關' },
   warehouse:{ title: '提貨 & 倉儲' },
   delivery: { title: '出貨到門市' },
