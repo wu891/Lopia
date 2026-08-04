@@ -1,5 +1,6 @@
 'use client'
 import { useState, useEffect, useRef, useCallback } from 'react'
+import { resolveStoreName } from '@/lib/parseDeliveryExcel'
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -14,44 +15,21 @@ interface GenerateResult {
   summary: SummaryItem[]
   numbers: string
   checklist: ChecklistRec | null
+  verifyNote: string          // 交付前核對結果（跟計劃書一致才會有值）
 }
 
-// ── Store map (mirrors lib/parseDeliveryExcel.ts EXCEL_STORE_MAP) ─────────────
-// Longer / more specific keys first to avoid substring false-matches
+// 店名對照統一走 lib/parseDeliveryExcel.ts 的 resolveStoreName（完全比對 → 最長子字串 → 原名）。
+// 這裡以前自己抄了一份「只做完全比對」的對照表，跟後端算出來的店名會不一致，
+// 造成分頁名多一個字的門市（例如「7回目夢時代店」）整間變 0 箱，已移除。
 
-const EXCEL_STORE_MAP: Record<string, string> = {
-  '台中漢神':    '台中漢神中港店',
-  '漢神台中':    '台中漢神中港店',
-  '漢神(台中)':  '台中漢神中港店',
-  '高雄巨蛋':    '高雄漢神巨蛋店',
-  '台北巨蛋':    '台北大巨蛋店',
-  '大巨蛋':      '台北大巨蛋店',
-  '夢時代':      '高雄夢時代店',
-  '小北門':      '台南小北門店',
-  'らら台中':    'LaLaport 台中店',
-  '台中':        'LaLaport 台中店',
-  '桃園':        '桃園春日店',
-  '中和':        '新北中和環球店',
-  '新荘':        '新莊宏匯店',
-  '新莊':        '新莊宏匯店',
-  '高雄':        '高雄漢神巨蛋店',
-  '巨蛋':        '高雄漢神巨蛋店',
-  '北蛋':        '台北大巨蛋店',
-  '南港':        '南港 LaLaport 店',
-  'IKEA':        'IKEA 台中南屯店',
-  'イケア':      'IKEA 台中南屯店',
-  '夢時':        '高雄夢時代店',
-  '北門':        '台南小北門店',
-  '台南':        '台南小北門店',
-  'MOP':         '台南三井 Outlet 店',
-  'mop':         '台南三井 Outlet 店',
-  'MO':          '台南三井 Outlet 店',
-  '漢神':        '台中漢神中港店',
-  '中漢':        '台中漢神中港店',
-}
-
-function resolveStoreName(code: string): string {
-  return EXCEL_STORE_MAP[code] ?? code
+// ── 讀後端回傳的 base64 標頭（內容含中文，要用 UTF-8 解碼，不能只用 atob）────
+function decodeHeader(b64: string | null): string {
+  if (!b64) return ''
+  try {
+    const bin = atob(b64)
+    const bytes = Uint8Array.from(bin, c => c.charCodeAt(0))
+    return new TextDecoder('utf-8').decode(bytes)
+  } catch { return '' }
 }
 
 // ── Parse sheet names for a given round ───────────────────────────────────────
@@ -437,9 +415,11 @@ function GeneratorPanel() {
       let summary: SummaryItem[] = []
       let numbers = ''
       let checklist: ChecklistRec | null = null
-      try { summary   = JSON.parse(atob(res.headers.get('X-Summary') ?? 'W10=')) } catch { /* noop */ }
-      try { numbers   = atob(res.headers.get('X-Numbers') ?? '') } catch { /* noop */ }
-      try { checklist = JSON.parse(atob(res.headers.get('X-Checklist') ?? 'bnVsbA==')) } catch { /* noop */ }
+      // 這幾個標頭含中文，必須用 UTF-8 解碼（以前直接 atob 會變亂碼）
+      try { summary   = JSON.parse(decodeHeader(res.headers.get('X-Summary')) || '[]') } catch { /* noop */ }
+      try { numbers   = decodeHeader(res.headers.get('X-Numbers')) } catch { /* noop */ }
+      try { checklist = JSON.parse(decodeHeader(res.headers.get('X-Checklist')) || 'null') } catch { /* noop */ }
+      const verifyNote = decodeHeader(res.headers.get('X-Verify'))
 
       // Auto-download
       const batchName = label || (manualMode ? '手動選頁' : `第${roundNo}回`)
@@ -451,7 +431,7 @@ function GeneratorPanel() {
       a.click()
       URL.revokeObjectURL(url)
 
-      setResult({ driveUrl, shipmentNo, summary, numbers, checklist })
+      setResult({ driveUrl, shipmentNo, summary, numbers, checklist, verifyNote })
     } catch {
       setError('網路錯誤，請稍後再試')
     } finally {
@@ -651,10 +631,13 @@ function GeneratorPanel() {
       {/* Step 3: Generate */}
       <div className={`transition-opacity ${!canGenerate ? 'opacity-40 pointer-events-none' : ''}`}>
         {error && (
-          <div className="mb-3 px-4 py-2.5 bg-red-50 border border-red-200 rounded-lg text-xs text-red-600">
+          <div className="mb-3 px-4 py-2.5 bg-red-50 border border-red-200 rounded-lg text-xs text-red-600 whitespace-pre-line leading-5">
             ❌ {error}
           </div>
         )}
+        <p className="mb-2 text-[11px] text-gray-400 text-center">
+          產出後會自動把 Excel 讀回來、逐店逐品項對回計劃書，數字一致才會下載
+        </p>
         <button
           onClick={handleGenerate}
           disabled={!canGenerate || generating}
@@ -711,6 +694,11 @@ function GeneratorPanel() {
               </button>
             </div>
           </div>
+          {result.verifyNote && (
+            <div className="bg-white border border-emerald-200 rounded-lg px-3 py-2 text-xs text-emerald-700">
+              ✅ 已對回計劃書：{result.verifyNote}
+            </div>
+          )}
           <ShipmentReport summary={result.summary} numbers={result.numbers} checklist={result.checklist} />
         </div>
       )}

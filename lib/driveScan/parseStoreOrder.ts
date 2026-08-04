@@ -27,7 +27,7 @@
  */
 
 import * as XLSX from 'xlsx'
-import { EXCEL_STORE_MAP } from '../parseDeliveryExcel'
+import { resolveStoreName } from '../parseDeliveryExcel'
 import { STORES } from '../stores'
 
 export interface ParsedOrderRow {
@@ -109,20 +109,9 @@ function toIsoDate(v: any): string | null {
 }
 
 // 店名對照：完全比對 → 子字串 fallback（最長 key 優先）→ 原文
-// 跟 lib/parseDeliveryExcel.ts 既有邏輯一致，共用同一張 EXCEL_STORE_MAP
-export function resolveStoreName(raw: string): string {
-  const trimmed = raw.trim()
-  let name = EXCEL_STORE_MAP[trimmed]
-  if (!name) {
-    const lower = trimmed.toLowerCase()
-    let bestKey = ''
-    for (const key of Object.keys(EXCEL_STORE_MAP)) {
-      if (lower.includes(key.toLowerCase()) && key.length > bestKey.length) bestKey = key
-    }
-    name = bestKey ? EXCEL_STORE_MAP[bestKey] : trimmed
-  }
-  return name
-}
+// 全站唯一一支放在 lib/parseDeliveryExcel.ts，這裡只是轉出去給既有 import 用，
+// 不要再自己抄一份（抄出來的版本會跟別處算出不同店名，門市就會憑空消失）。
+export { resolveStoreName }
 
 // 合計 / 小計 / 稅（含日文税、簡體计） / 簽名 之類的「非商品」列
 function isMarkerText(s: string): boolean {

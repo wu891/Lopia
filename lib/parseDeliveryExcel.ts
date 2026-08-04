@@ -66,6 +66,31 @@ export const EXCEL_STORE_MAP: Record<string, string> = {
   '中漢':   '台中漢神中港店',
 }
 
+/**
+ * 分頁名（或縮寫）→ 完整門市名。**全站唯一一支**，前端後端都用這支。
+ *
+ * 白話：
+ *   1. 先看有沒有一模一樣的 key（「夢時代」→ 高雄夢時代店）
+ *   2. 沒有就找「包含在裡面、而且最長」的 key（「夢時代店」裡面有「夢時代」→ 高雄夢時代店）
+ *   3. 還是找不到就原樣回傳（之後會被擋下來提醒，不會默默消失）
+ *
+ * ⚠️ 以前前端（出貨單產生頁）自己抄了一份「只做第 1 步」的版本，
+ *    分頁名多一個字（例如「7回目夢時代店」）前端算出「夢時代店」、後端算出「高雄夢時代店」，
+ *    兩邊對不起來 → 那間店的箱數整個變 0，總表也不會出現 → 就是「漏掉夢時代店」的原因。
+ */
+export function resolveStoreName(raw: string): string {
+  const trimmed = (raw ?? '').trim()
+  if (!trimmed) return trimmed
+  const exact = EXCEL_STORE_MAP[trimmed]
+  if (exact) return exact
+  const lower = trimmed.toLowerCase()
+  let bestKey = ''
+  for (const key of Object.keys(EXCEL_STORE_MAP)) {
+    if (lower.includes(key.toLowerCase()) && key.length > bestKey.length) bestKey = key
+  }
+  return bestKey ? EXCEL_STORE_MAP[bestKey] : trimmed
+}
+
 // Matches "1回目" or "1か目" at the start of a sheet name
 const ROUND_RE = /^(\d+)[回か]目/
 // Matches "台中(4)" — round number in parentheses at end of sheet name
@@ -88,6 +113,12 @@ export interface ParsedDeliveryRound {
   roundNo: number
   /** Stores with their total box count for this round */
   stores: { name: string; boxes: number; products: ParsedProduct[] }[]
+  /**
+   * 這一回目裡「有分頁、但一筆商品都讀不出來」的分頁。
+   * 白話：Excel 裡明明有這一頁，程式卻讀不到東西（找不到表頭、或整頁都 0 箱）。
+   * 以前這種分頁是默默跳過的，現在記下來讓上層可以擋下並告訴使用者。
+   */
+  skippedSheets?: { sheet: string; reason: string }[]
 }
 
 /**
@@ -110,6 +141,7 @@ export async function parseDeliveryExcel(
   if (manualSheets && manualSheets.length > 0) {
     const validSheets = manualSheets.filter(sn => wb.SheetNames.includes(sn))
     const storeMap = new Map<string, { totalBoxes: number; products: ParsedProduct[] }>()
+    const skippedSheets: { sheet: string; reason: string }[] = []
 
     for (const sn of validSheets) {
       const ws = wb.Sheets[sn]
@@ -129,17 +161,9 @@ export async function parseDeliveryExcel(
         header: 1, defval: null, raw: true,
       })
 
-      // Resolve store name via map, fallback to raw sheet name
+      // Resolve store name via map, fallback to raw sheet name（共用同一支解析函式）
       const storeRaw = sn.trim()
-      let storeName = EXCEL_STORE_MAP[storeRaw]
-      if (!storeName) {
-        const lower = storeRaw.toLowerCase()
-        let bestKey = ''
-        for (const key of Object.keys(EXCEL_STORE_MAP)) {
-          if (lower.includes(key.toLowerCase()) && key.length > bestKey.length) bestKey = key
-        }
-        storeName = bestKey ? EXCEL_STORE_MAP[bestKey] : storeRaw
-      }
+      const storeName = resolveStoreName(storeRaw)
 
       // Find header row
       let hdrIdx = -1
@@ -150,7 +174,7 @@ export async function parseDeliveryExcel(
           String(c).includes('箱數') || String(c).includes('商品名')
         ))) { hdrIdx = i; break }
       }
-      if (hdrIdx === -1) continue
+      if (hdrIdx === -1) { skippedSheets.push({ sheet: sn, reason: '找不到表頭（沒有 ケース／数量／箱數／商品名 這幾個字）' }); continue }
 
       let totalBoxes = 0
       const products: ParsedProduct[] = []
@@ -176,7 +200,7 @@ export async function parseDeliveryExcel(
         })
       }
 
-      if (totalBoxes === 0 && !includeZero) continue
+      if (totalBoxes === 0 && !includeZero) { skippedSheets.push({ sheet: sn, reason: '整頁都是 0 箱' }); continue }
 
       const existing = storeMap.get(storeName)
       if (existing) {
@@ -192,6 +216,7 @@ export async function parseDeliveryExcel(
       stores: Array.from(storeMap.entries()).map(([name, data]) => ({
         name, boxes: data.totalBoxes, products: data.products,
       })),
+      skippedSheets,
     }]
   }
 
@@ -211,6 +236,12 @@ export async function parseDeliveryExcel(
 
   // roundNo → storeName → { totalBoxes, products }
   const roundAccum = new Map<number, Map<string, { totalBoxes: number; products: ParsedProduct[] }>>()
+  // roundNo → 被跳過的分頁（讀不到東西的）
+  const skippedAccum = new Map<number, { sheet: string; reason: string }[]>()
+  const noteSkipped = (r: number, sheet: string, reason: string) => {
+    if (!skippedAccum.has(r)) skippedAccum.set(r, [])
+    skippedAccum.get(r)!.push({ sheet, reason })
+  }
 
   for (const sn of sheets) {
     const ws = wb.Sheets[sn]
@@ -277,19 +308,8 @@ export async function parseDeliveryExcel(
 
     if (!storeRaw) continue
 
-    // Map shorthand → full store name
-    // 1. Exact key match  2. Substring fallback (longest matching key wins)  3. Raw name
-    let storeName = EXCEL_STORE_MAP[storeRaw]
-    if (!storeName) {
-      const lower = storeRaw.toLowerCase()
-      let bestKey = ''
-      for (const key of Object.keys(EXCEL_STORE_MAP)) {
-        if (lower.includes(key.toLowerCase()) && key.length > bestKey.length) {
-          bestKey = key
-        }
-      }
-      storeName = bestKey ? EXCEL_STORE_MAP[bestKey] : storeRaw
-    }
+    // Map shorthand → full store name（共用 resolveStoreName：完全比對 → 最長子字串 → 原名）
+    const storeName = resolveStoreName(storeRaw)
 
     // Find header row
     let hdrIdx = -1
@@ -309,7 +329,10 @@ export async function parseDeliveryExcel(
         break
       }
     }
-    if (hdrIdx === -1) continue
+    if (hdrIdx === -1) {
+      noteSkipped(roundNo, sn, '找不到表頭（沒有 ケース／数量／箱數／商品名 這幾個字）')
+      continue
+    }
 
     // Extract product details and sum box counts
     let totalBoxes = 0
@@ -341,7 +364,10 @@ export async function parseDeliveryExcel(
       })
     }
 
-    if (totalBoxes === 0 && !includeZero) continue
+    if (totalBoxes === 0 && !includeZero) {
+      noteSkipped(roundNo, sn, '整頁都是 0 箱')
+      continue
+    }
 
     if (!roundAccum.has(roundNo)) roundAccum.set(roundNo, new Map())
     const storeMap = roundAccum.get(roundNo)!
@@ -355,6 +381,11 @@ export async function parseDeliveryExcel(
   }
 
   // Sort by round number and convert to array
+  // 注意：只有被跳過分頁、完全沒有店的回目也要出現在結果裡，
+  // 否則上層只會看到「找不到第 N 回目」，看不到真正的原因。
+  for (const r of skippedAccum.keys()) {
+    if (!roundAccum.has(r)) roundAccum.set(r, new Map())
+  }
   return Array.from(roundAccum.entries())
     .sort((a, b) => a[0] - b[0])
     .map(([roundNo, storeMap]) => ({
@@ -364,5 +395,6 @@ export async function parseDeliveryExcel(
         boxes: data.totalBoxes,
         products: data.products,
       })),
+      skippedSheets: skippedAccum.get(roundNo) ?? [],
     }))
 }
