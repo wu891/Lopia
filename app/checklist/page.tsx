@@ -62,6 +62,13 @@ function isThisWeek(deliveryDate: string | null): boolean {
   return deliveryDate >= from && deliveryDate <= to
 }
 
+// 判斷是不是「本週之前」的舊單（配送日早於本週一）。
+// 沒填配送日（待訂）不算舊單 —— 它可能是還沒排期的新單，不能收起來。
+function isBeforeThisWeek(deliveryDate: string | null): boolean {
+  if (!deliveryDate) return false
+  return deliveryDate < weekRange().from
+}
+
 // 依配送日算「倒數紅黃燈」：逾期/今天=紅、明天=黃、其餘=綠、沒填=灰（待訂）
 function light(deliveryDate: string | null): { color: string; label: string } {
   if (!deliveryDate) return { color: 'bg-gray-300 text-gray-700', label: '待訂' }
@@ -479,13 +486,18 @@ function ChecklistList({ items, who, expandedId, setExpandedId, onChanged, onDel
   onDeleted: (id: string) => void
   flash: (t: 'err' | 'ok', m: string) => void
 }) {
+  // 本週之前沒完成的舊單預設收起，按一下才展開
+  const [showStale, setShowStale] = useState(false)
   if (items.length === 0) {
     return <div className="text-center text-slate-400 py-10 text-sm">目前沒有檢查清單。用上方按鈕新增，或到「本週出貨」一鍵建立。</div>
   }
+  // 主清單只留「本週（週一起）之後」的單，過去的舊單不再擋在最上面。
+  // 沒完成的舊單不是刪掉，是收進最下面一條可展開的灰色列，還進得去補勾或刪除。
   // 已完結的單另外放到最下方一個獨立區塊，避免跟還在跑的單混在一起看到「逾期」誤會成沒處理。
   // 已完成區塊只留「本週配送」的單：過去幾週的完成單會一直累積、把畫面塞爆，
   // 但資料沒有刪掉，之後要翻舊單還是能從 Notion 或搜尋看到。
-  const pending = items.filter(it => !it.completed)
+  const pending = items.filter(it => !it.completed && !isBeforeThisWeek(it.deliveryDate))
+  const stale = items.filter(it => !it.completed && isBeforeThisWeek(it.deliveryDate))
   const done = items.filter(it => it.completed && isThisWeek(it.deliveryDate))
   const doneHidden = items.filter(it => it.completed).length - done.length
   return (
@@ -504,9 +516,36 @@ function ChecklistList({ items, who, expandedId, setExpandedId, onChanged, onDel
           />
         ))}
         {pending.length === 0 && (
-          <div className="text-center text-slate-400 py-6 text-sm">目前沒有進行中的檢查單。</div>
+          <div className="text-center text-slate-400 py-6 text-sm">本週沒有進行中的檢查單。</div>
         )}
       </div>
+
+      {stale.length > 0 && (
+        <div className="mt-6">
+          <button
+            onClick={() => setShowStale(v => !v)}
+            className="w-full text-left text-xs text-slate-400 hover:text-slate-600 border-t border-slate-200 pt-3"
+          >
+            ⚠️ 本週之前還沒完成的 {stale.length} 張，已收起 {showStale ? '▾ 點此收合' : '▸ 點此展開'}
+          </button>
+          {showStale && (
+            <div className="space-y-3 mt-3 opacity-70">
+              {stale.map(item => (
+                <ChecklistCard
+                  key={item.id}
+                  item={item}
+                  who={who}
+                  expanded={expandedId === item.id}
+                  onToggle={() => setExpandedId(expandedId === item.id ? null : item.id)}
+                  onChanged={onChanged}
+                  onDeleted={onDeleted}
+                  flash={flash}
+                />
+              ))}
+            </div>
+          )}
+        </div>
+      )}
 
       {(done.length > 0 || doneHidden > 0) && (
         <div className="mt-8">
