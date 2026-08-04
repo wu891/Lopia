@@ -59,21 +59,23 @@ export const LAYERS: Layer[] = [
       { key: 'kido_colin_store', label: '店鋪正確',   role: 'kido',  checker: 'kido',  target: 'colin' },
       { key: 'kido_colin_item',  label: '品項正確',   role: 'kido',  checker: 'kido',  target: 'colin' },
       { key: 'kido_colin_qty',   label: '數量正確',   role: 'kido',  checker: 'kido',  target: 'colin' },
+      { key: 'kido_colin_price', label: '商品單價正確', role: 'kido',  checker: 'kido',  target: 'colin' },
       { key: 'kido_colin_date',  label: '配送日正確', role: 'kido',  checker: 'kido',  target: 'colin' },
       // COLIN 檢查 KIDO 做的文件（區塊 B）
       { key: 'colin_kido_store', label: '店鋪正確',   role: 'colin', checker: 'colin', target: 'kido' },
       { key: 'colin_kido_item',  label: '品項正確',   role: 'colin', checker: 'colin', target: 'kido' },
       { key: 'colin_kido_qty',   label: '數量正確',   role: 'colin', checker: 'colin', target: 'kido' },
+      { key: 'colin_kido_price', label: '商品單價正確', role: 'colin', checker: 'colin', target: 'kido' },
       { key: 'colin_kido_date',  label: '配送日正確', role: 'colin', checker: 'colin', target: 'kido' },
       // 兩人都查完後，共同送出（不屬於任一區塊，整寬顯示）
-      // requires：上面 8 個互查項全部勾完才准勾這一項，避免還沒互查完就先送文件出去
+      // requires：上面 10 個互查項全部勾完才准勾這一項，避免還沒互查完就先送文件出去
       {
         key: 'l1_reported',
         label: '已送出出貨總表(優儲)、店鋪貨單納品書(三義)或美福出庫單。並告知林さん檢查',
         role: ['kido', 'colin'],
         requires: [
-          'kido_colin_store', 'kido_colin_item', 'kido_colin_qty', 'kido_colin_date',
-          'colin_kido_store', 'colin_kido_item', 'colin_kido_qty', 'colin_kido_date',
+          'kido_colin_store', 'kido_colin_item', 'kido_colin_qty', 'kido_colin_price', 'kido_colin_date',
+          'colin_kido_store', 'colin_kido_item', 'colin_kido_qty', 'colin_kido_price', 'colin_kido_date',
         ],
       },
     ],
