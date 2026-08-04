@@ -39,6 +39,7 @@ export interface SubItem {
   checker?: PersonId              // 互查專用：這一項是「誰」在檢查（給畫面分區塊、上色）
   target?: PersonId               // 互查專用：檢查的是「誰」做的文件（給區塊標題顯示）
   note?: string                   // 補充備註（顯示在項目文字下方的小字，純顯示用）
+  requires?: string[]             // 同層前置項：這些 key 全部勾完，這一項才能勾（例：兩人互查都做完才准送出）
 }
 
 export interface Layer {
@@ -65,7 +66,16 @@ export const LAYERS: Layer[] = [
       { key: 'colin_kido_qty',   label: '數量正確',   role: 'colin', checker: 'colin', target: 'kido' },
       { key: 'colin_kido_date',  label: '配送日正確', role: 'colin', checker: 'colin', target: 'kido' },
       // 兩人都查完後，共同送出（不屬於任一區塊，整寬顯示）
-      { key: 'l1_reported',      label: '已送出出貨總表(優儲)、店鋪貨單納品書(三義)或美福出庫單。並告知林さん檢查', role: ['kido', 'colin'] },
+      // requires：上面 8 個互查項全部勾完才准勾這一項，避免還沒互查完就先送文件出去
+      {
+        key: 'l1_reported',
+        label: '已送出出貨總表(優儲)、店鋪貨單納品書(三義)或美福出庫單。並告知林さん檢查',
+        role: ['kido', 'colin'],
+        requires: [
+          'kido_colin_store', 'kido_colin_item', 'kido_colin_qty', 'kido_colin_date',
+          'colin_kido_store', 'colin_kido_item', 'colin_kido_qty', 'colin_kido_date',
+        ],
+      },
     ],
   },
   {
@@ -202,17 +212,43 @@ export interface CanCheckResult {
   reason?: string      // 不行的原因（給前端顯示）
 }
 
+/** 這一項的前置項（requires）是不是都勾完了 */
+export function prereqDone(state: ChecklistState, item: SubItem): boolean {
+  if (!item.requires?.length) return true
+  return item.requires.every(k => state.checks[k]?.checked === true)
+}
+
+/** 找出「把 itemKey 列為前置項」而且已經勾起來的項目（取消勾時要一起清掉，避免前後矛盾） */
+function dependentsChecked(state: ChecklistState, itemKey: string): SubItem[] {
+  const out: SubItem[] = []
+  for (const l of LAYERS) {
+    for (const it of l.items) {
+      if (it.requires?.includes(itemKey) && state.checks[it.key]?.checked === true) out.push(it)
+    }
+  }
+  return out
+}
+
 /**
  * 判斷某人現在能不能勾某個小項目。
- * 規則：①該層必須已解鎖 ②本人角色符合，或本人是代理者（蔡さん）
+ * 規則：①該層必須已解鎖 ②前置項（requires）要先勾完 ③本人角色符合，或本人是代理者（蔡さん）
+ * intendChecked=false（想取消勾）時不檢查前置項，否則勾錯了會連取消都不行。
  */
-export function canCheck(state: ChecklistState, itemKey: string, person: PersonId): CanCheckResult {
+export function canCheck(
+  state: ChecklistState,
+  itemKey: string,
+  person: PersonId,
+  intendChecked = true,
+): CanCheckResult {
   const layer = LAYERS.find(l => l.items.some(it => it.key === itemKey))
   const item = layer?.items.find(it => it.key === itemKey)
   if (!layer || !item) return { ok: false, proxy: false, reason: '找不到這個檢查項目' }
 
   if (!isLayerUnlocked(state, layer.id)) {
     return { ok: false, proxy: false, reason: '上一層還沒完成，這層先鎖住' }
+  }
+  if (intendChecked && !prereqDone(state, item)) {
+    return { ok: false, proxy: false, reason: '兩人的互查項目還沒全部勾完，這項先鎖住' }
   }
   if (roleMatches(item.role, person)) return { ok: true, proxy: false }
   if (person === PROXY_PERSON) return { ok: true, proxy: true }
@@ -232,7 +268,7 @@ export function applyCheck(
   checked: boolean,
   nowIso: string,
 ): ChecklistState {
-  const can = canCheck(state, itemKey, person)
+  const can = canCheck(state, itemKey, person, checked)
   if (!can.ok) throw new Error(can.reason ?? '無法勾選')
 
   const layer = LAYERS.find(l => l.items.some(it => it.key === itemKey))!
@@ -257,6 +293,9 @@ export function applyCheck(
     }
   } else {
     delete next.checks[itemKey]
+    // 取消互查項時，把已勾的「送出並告知林さん」一起取消：
+    // 不然會變成「互查沒做完卻顯示已送出」，前後矛盾。
+    for (const dep of dependentsChecked(state, itemKey)) delete next.checks[dep.key]
   }
 
   // 剛好把最後一層（第三重）勾完 → 標記完結時間；被退回導致未完成 → 清掉

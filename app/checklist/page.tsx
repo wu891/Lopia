@@ -9,7 +9,7 @@
 import { useState, useEffect, useCallback, type ReactNode } from 'react'
 import {
   PEOPLE, LAYERS, LAST_LAYER_ID, personName, WAREHOUSES,
-  currentLayerId, isCompleted, isLayerUnlocked, isLayerComplete, canCheck, stageLabel,
+  currentLayerId, isCompleted, isLayerUnlocked, isLayerComplete, canCheck, prereqDone, stageLabel,
   canEditWeekly,
   type PersonId, type ChecklistState,
 } from '@/lib/checklistModel'
@@ -857,6 +857,7 @@ function Layer1Section({ item, state, who, active, unlocked, complete, marker, o
 
       {reported && (
         <div className="mt-2">
+          {/* 兩人的互查項目沒有全部勾完，這一列先鎖住（灰底不能點），避免還沒互查完就把文件送出去 */}
           <ItemCheckbox
             checklistId={item.id}
             baseLastEdited={item.lastEdited}
@@ -865,10 +866,15 @@ function Layer1Section({ item, state, who, active, unlocked, complete, marker, o
             note={reported.note}
             mark={state.checks[reported.key]}
             allowed={canCheck(state, reported.key, who)}
-            locked={!unlocked}
+            locked={!unlocked || !prereqDone(state, reported)}
             onChanged={onChanged}
             flash={flash}
           />
+          {!prereqDone(state, reported) && !state.checks[reported.key]?.checked && (
+            <div className="mt-1 text-[11px] text-slate-500 flex items-center gap-1">
+              🔒 兩個人的互查項目都勾完，這一項才會解鎖
+            </div>
+          )}
         </div>
       )}
     </div>

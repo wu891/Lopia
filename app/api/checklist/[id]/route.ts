@@ -84,7 +84,7 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
       const itemKey = String(body.itemKey ?? '')
       const checked = !!body.checked
       // 先檢查權限，給明確錯誤訊息（例如「上一層還沒完成」「不能勾自己做的」）
-      const can = canCheck(current.state, itemKey, who)
+      const can = canCheck(current.state, itemKey, who, checked)
       if (!can.ok) return NextResponse.json({ error: can.reason ?? '無法勾選' }, { status: 403 })
 
       const next = applyCheck(current.state, itemKey, who, checked, nowIso)
