@@ -21,12 +21,14 @@ export async function GET(req: NextRequest) {
 }
 
 // POST：手動測試觸發（需主站編輯密碼）。方便不等排程就先發一則看看格式。
-export async function POST() {
+// 加 ?dry=1 只會回傳「會發出去的內容」但不真的發 LINE（不消耗每月額度），確認格式用。
+export async function POST(req: NextRequest) {
   if (!(await requireAuth('edit'))) {
     return NextResponse.json({ error: '請先用編輯密碼登入主站' }, { status: 401 })
   }
   try {
-    return NextResponse.json(await runUpcomingReminder())
+    const dryRun = req.nextUrl.searchParams.get('dry') === '1'
+    return NextResponse.json(await runUpcomingReminder(dryRun))
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err)
     console.error('[checklist upcoming reminder manual]', msg)
