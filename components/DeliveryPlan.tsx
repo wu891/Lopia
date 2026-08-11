@@ -118,12 +118,21 @@ export default function DeliveryPlan({ batchId, batchName, totalBoxes, records, 
   // Three-way verification modal
   const [pendingGenerateRound, setPendingGenerateRound] = useState<number | null>(null)
 
-  const batchRecords = records.filter(r => r.batchId === batchId).sort((a, b) => (a.round ?? 99) - (b.round ?? 99))
+  // 這裡故意分成兩份名單，差別在「已取消」的列算不算進去：
+  //   allRecords   = 全部（含已取消）→ 只拿來算「下一個輪次號」
+  //   batchRecords = 只留有效的     → 畫面顯示、箱數加總、總量檢查都用這份
+  // 為什麼要分開：
+  //   1. 加總如果把已取消的也算進去，總箱數會虛胖，「計畫總量不符」的紅字會永遠亮著，
+  //      久了就失去警告的意義（2026-08 蘋果11 就是這樣：資料明明修好了紅字還在）。
+  //   2. 但輪次號不能只看有效的 —— 如果第 6 輪被取消了，新輪次又撿回 6 號，
+  //      出貨單號（S+日期+輪次）就會跟已取消那張撞號。所以輪次號要連取消的一起避開。
+  const allRecords   = records.filter(r => r.batchId === batchId).sort((a, b) => (a.round ?? 99) - (b.round ?? 99))
+  const batchRecords = allRecords.filter(r => r.planStatus !== '已取消')
   const roundGroups  = groupByRound(batchRecords)
   const plannedTotal = batchRecords.reduce((s, r) => s + (r.boxes ?? 0), 0)
   const validationOk = totalBoxes != null && plannedTotal === totalBoxes
 
-  const nextRoundNo  = roundGroups.length > 0 ? Math.max(...roundGroups.map(g => g.roundNo)) + 1 : 1
+  const nextRoundNo  = allRecords.length > 0 ? Math.max(...allRecords.map(r => r.round ?? 0)) + 1 : 1
   const openStores   = STORES
   const sName        = (s: typeof STORES[0]) => lang === 'ja' ? s.name_ja : s.name_zh
 
@@ -338,6 +347,7 @@ export default function DeliveryPlan({ batchId, batchName, totalBoxes, records, 
       // Skip locked rounds — they are protected from Excel updates
       const skippedLocked = changedRounds.filter(d => d.existingGroup?.locked)
       const updatableRounds = changedRounds.filter(d => !d.existingGroup?.locked)
+      const retiredAll: string[] = []
       const checkDeletes = async (responses: Response[], roundNo: number) => {
         const err = (await Promise.all(
           responses.map(async r => r.ok ? null : (await r.json().catch(() => ({}))).error ?? `HTTP ${r.status}`)
@@ -357,6 +367,10 @@ export default function DeliveryPlan({ batchId, batchName, totalBoxes, records, 
           const delRes = await Promise.all(d.existingGroup.ids.map(id => fetch(`/api/records/${id}`, { method: 'DELETE' })))
           await checkDeletes(delRes, d.roundNo)
         }
+        // 上傳的時程表是用「輪次編號」去對既有輪次的。只要 Excel 裡的列順序變了
+        // （中間插一趟或少一趟），同一天就會對到不同的輪次號，舊的那份留在原地不會被覆蓋。
+        // 所以除了照輪次刪，還要再照「日期」掃一次，把同一天殘留的別輪計畫標已取消。
+        retiredAll.push(...await retireSameDatePlans(date, d.existingGroup?.ids ?? []))
         if (d.newStores.length > 0) {
           const res = await Promise.all(
             d.newStores.filter(s => s.boxes > 0).map(s =>
@@ -374,7 +388,8 @@ export default function DeliveryPlan({ batchId, batchName, totalBoxes, records, 
       await logChange(
         '更新出貨時程表',
         batchId,
-        `Excel 更新 ${updatableRounds.length} 個輪次${skippedLocked.length > 0 ? ` / 跳過 ${skippedLocked.length} 個已鎖定輪次` : ''} / 檔案: ${xlsUpdateFileName}`,
+        `Excel 更新 ${updatableRounds.length} 個輪次${skippedLocked.length > 0 ? ` / 跳過 ${skippedLocked.length} 個已鎖定輪次` : ''} / 檔案: ${xlsUpdateFileName}`
+        + (retiredAll.length ? ` / 自動取消同日舊計畫: ${Array.from(new Set(retiredAll)).join('、')}` : ''),
       )
 
       // Upload updated supplier Excel to Drive (overwrite reference)
@@ -412,12 +427,64 @@ export default function DeliveryPlan({ batchId, batchName, totalBoxes, records, 
     setShowXlsUpdate(false); setDiffRounds([]); setXlsUpdateFileName(''); setApplyError('')
   }
 
+  // ── 同一天只留一份有效計畫 ─────────────────────────────
+  // 這在解決什麼問題：
+  //   以前不管是「+ 新增輪次」還是「上傳修改出貨時程表」，都不會去看那一天是不是已經有計畫，
+  //   所以同一天可以並存兩份一模一樣的出貨單，箱數就被算成兩倍。
+  //   （真實案例：2026-08-07 蘋果11 同時有 S2026080701 和 S2026080707，各 83 箱，
+  //     那天變成 166 箱，整批總量從 1104 衝到 1187。）
+  // 現在的做法：要寫入某一天的新計畫之前，先把那天既有的舊計畫標成「已取消」。
+  // 兩個刻意的選擇：
+  //   1. 是「標已取消」不是「刪除」—— 紀錄留著，之後查帳看得到當初排過什麼。
+  //   2. 已鎖定（locked）的列不碰 —— 那是刻意保護起來不讓自動流程亂改的。
+  // keepIds = 這次要保留的列（例如編輯時本來就要重建的那些），不會被標取消。
+  // 回傳被取消掉的出貨單號，讓呼叫的人可以寫進變更紀錄告訴使用者。
+  async function retireSameDatePlans(date: string, keepIds: string[] = []): Promise<string[]> {
+    const stale = findSameDatePlans(date, keepIds)
+    if (stale.length === 0) return []
+    await Promise.all(stale.map(r =>
+      fetch(`/api/records/${r.id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ planStatus: '已取消' }),
+      })
+    ))
+    return Array.from(new Set(stale.map(r => r.shipmentNo).filter(Boolean)))
+  }
+
+  // 純查詢，不改任何東西：找出「那一天已經存在、等一下會被自動取消」的列。
+  // 存檔前拿它來預告給使用者看，不要讓系統偷偷把東西取消掉。
+  function findSameDatePlans(date: string, keepIds: string[] = []) {
+    const keep = new Set(keepIds)
+    return batchRecords.filter(r => r.date === date && !r.locked && !keep.has(r.id))
+  }
+
+  // 把上面查到的列整理成「一張單一行」的摘要，給畫面上的提醒用
+  function summariseSameDatePlans(dates: (string | null | undefined)[], keepIds: string[] = []) {
+    const out: { date: string; shipmentNo: string; boxes: number }[] = []
+    const seenDate = new Set<string>()
+    for (const d of dates) {
+      if (!d || seenDate.has(d)) continue
+      seenDate.add(d)
+      const byNo = new Map<string, number>()
+      for (const r of findSameDatePlans(d, keepIds)) {
+        const no = r.shipmentNo || '—'
+        byNo.set(no, (byNo.get(no) ?? 0) + (r.boxes ?? 0))
+      }
+      for (const [shipmentNo, boxes] of byNo) out.push({ date: d, shipmentNo, boxes })
+    }
+    return out
+  }
+
   // ── Save ─────────────────────────────────────────────
   async function handleSave() {
     setSaving(true); setSaveError('')
     try {
       if (editRound) {
         await Promise.all(editRound.existingIds.map(id => fetch(`/api/records/${id}`, { method: 'DELETE' })))
+        // 這一輪自己的舊列上面已經刪掉了。但同一天有可能還躺著「別輪」的計畫，
+        // 那才是會讓箱數變兩倍的元兇，一併標成已取消。
+        const retired = editRound.date ? await retireSameDatePlans(editRound.date, editRound.existingIds) : []
         const res = await Promise.all(
           editRound.stores.filter(s => s.boxes && Number(s.boxes) > 0).map(s =>
             fetch('/api/records', { method: 'POST', headers: { 'Content-Type': 'application/json' },
@@ -430,13 +497,19 @@ export default function DeliveryPlan({ batchId, batchName, totalBoxes, records, 
         await logChange(
           '編輯出貨計畫',
           batchId,
-          `第 ${editRound.roundNo} 次 / 日期: ${editRound.date} / 店數: ${editRound.stores.length}`,
+          `第 ${editRound.roundNo} 次 / 日期: ${editRound.date} / 店數: ${editRound.stores.length}`
+          + (retired.length ? ` / 自動取消同日舊計畫: ${retired.join('、')}` : ''),
         )
       } else {
         const valid = rounds.filter(r => (r.date || r.dateTbd) && r.stores.some(s => s.boxes && Number(s.boxes) > 0))
         if (!valid.length) return
         let offset = 0
+        const retiredAll: string[] = []
         for (const r of valid) {
+          // 這裡是重複的主要來源：「+ 新增輪次」本來完全不看那天有沒有計畫，
+          // 直接開一個新輪次寫進去，同一天就變成兩份。先把舊的退場再寫新的。
+          const targetDate = r.dateTbd ? null : r.date
+          if (targetDate) retiredAll.push(...await retireSameDatePlans(targetDate))
           const res = await Promise.all(
             r.stores.filter(s => s.boxes && Number(s.boxes) > 0).map(s =>
               fetch('/api/records', { method: 'POST', headers: { 'Content-Type': 'application/json' },
@@ -451,7 +524,8 @@ export default function DeliveryPlan({ batchId, batchName, totalBoxes, records, 
         await logChange(
           '新增出貨計畫',
           batchId,
-          `新增 ${valid.length} 個輪次`,
+          `新增 ${valid.length} 個輪次`
+          + (retiredAll.length ? ` / 自動取消同日舊計畫: ${Array.from(new Set(retiredAll)).join('、')}` : ''),
         )
 
         // Upload supplier Excel to Drive if available and not already uploaded
@@ -1136,6 +1210,24 @@ export default function DeliveryPlan({ batchId, batchName, totalBoxes, records, 
             ))}
           </div>
 
+          {/* 上傳時程表也一樣先預告：同一天殘留的別輪計畫會被標已取消 */}
+          {(() => {
+            const changed = diffRounds.filter(d => d.hasChanges && !d.existingGroup?.locked && d.date)
+            const willRetire = changed.flatMap(d =>
+              summariseSameDatePlans([d.date], d.existingGroup?.ids ?? []))
+            if (!willRetire.length) return null
+            return (
+              <div className="px-2.5 py-2 bg-amber-50 border border-amber-200 rounded-lg text-xs text-amber-800 space-y-1">
+                <p className="font-medium">⚠ 這幾天同一天還有別輪的舊計畫，套用後會自動標成「已取消」：</p>
+                <ul className="pl-4 list-disc space-y-0.5">
+                  {willRetire.map(w => (
+                    <li key={`${w.date}-${w.shipmentNo}`}>{w.date}　{w.shipmentNo}　{w.boxes} 箱</li>
+                  ))}
+                </ul>
+              </div>
+            )
+          })()}
+
           {/* Apply error */}
           {applyError && (
             <div className="px-2.5 py-2 bg-red-50 border border-red-200 rounded-lg text-xs text-red-600">⚠ {applyError}</div>
@@ -1262,6 +1354,29 @@ export default function DeliveryPlan({ batchId, batchName, totalBoxes, records, 
               <FormSummary />
             </>
           )}
+
+          {/* 存檔前預告：那幾天已經有計畫，存下去會自動被標成「已取消」。
+              刻意講清楚是哪一張單、幾箱，不要讓系統偷偷把東西取消掉。 */}
+          {(() => {
+            const willRetire = summariseSameDatePlans(
+              editRound ? [editRound.date] : rounds.filter(r => !r.dateTbd).map(r => r.date),
+              editRound?.existingIds ?? [],
+            )
+            if (!willRetire.length) return null
+            return (
+              <div className="px-2.5 py-2 bg-amber-50 border border-amber-200 rounded-lg text-xs text-amber-800 space-y-1">
+                <p className="font-medium">⚠ 這幾天已經有出貨計畫，儲存後會自動標成「已取消」：</p>
+                <ul className="pl-4 list-disc space-y-0.5">
+                  {willRetire.map(w => (
+                    <li key={`${w.date}-${w.shipmentNo}`}>
+                      {w.date}　{w.shipmentNo}　{w.boxes} 箱
+                    </li>
+                  ))}
+                </ul>
+                <p className="text-amber-700">同一天只會留一份有效計畫，避免箱數被重複計算。舊紀錄不會刪除，只是標記取消。</p>
+              </div>
+            )
+          })()}
 
           {/* Save error */}
           {saveError && (
