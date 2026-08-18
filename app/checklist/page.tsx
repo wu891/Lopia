@@ -718,6 +718,8 @@ function ChecklistCard({ item, who, expanded, onToggle, onChanged, onDeleted, fl
                       mark={state.checks[it.key]}
                       allowed={canCheck(state, it.key, who)}
                       locked={!unlocked}
+                      who={who}
+                      proxyForRole={Array.isArray(it.role) ? it.role[0] : it.role}
                       onChanged={onChanged}
                       flash={flash}
                     />
@@ -884,6 +886,8 @@ function Layer1Section({ item, state, who, active, unlocked, complete, marker, o
                     mark={state.checks[it.key]}
                     allowed={canCheck(state, it.key, who)}
                     locked={!unlocked}
+                    who={who}
+                    proxyForRole={Array.isArray(it.role) ? it.role[0] : it.role}
                     onChanged={onChanged}
                     flash={flash}
                   />
@@ -906,21 +910,43 @@ function Layer1Section({ item, state, who, active, unlocked, complete, marker, o
             mark={state.checks[reported.key]}
             allowed={canCheck(state, reported.key, who)}
             locked={!unlocked || !prereqDone(state, reported)}
+            who={who}
+            proxyForRole={Array.isArray(reported.role) ? reported.role[0] : reported.role}
             onChanged={onChanged}
             flash={flash}
           />
-          {!prereqDone(state, reported) && !state.checks[reported.key]?.checked && (
-            <div className="mt-1 text-[11px] text-slate-500 flex items-center gap-1">
-              🔒 兩個人的互查項目都勾完，這一項才會解鎖
-            </div>
-          )}
+          {/* 這行提示解鎖後會消失，先固定佔著高度，免得下面的內容突然往上跳害人點錯 */}
+          <div className="mt-1 min-h-[17px] text-[11px] text-slate-500 flex items-center gap-1">
+            {!prereqDone(state, reported) && !state.checks[reported.key]?.checked
+              ? '🔒 兩個人的互查項目都勾完，這一項才會解鎖'
+              : ''}
+          </div>
         </div>
       )}
     </div>
   )
 }
 
-function ItemCheckbox({ checklistId, baseLastEdited, itemKey, label, note, mark, allowed, locked, onChanged, flash }: {
+// 「同一張單一次只送一筆」的等候區。key＝檢查單 id，value＝這張單目前排到哪一筆。
+// 目的：後端有版本鎖（送出要帶你看到的版本，對不上就擋下叫你再點一次）。
+// 兩項連著快點時，第二筆若跟第一筆同時送，帶的一定是舊版本 → 必被擋。
+// 排隊之後每一筆都用「上一筆回來的新版本」，就能連著點好幾項都不出錯。
+const checkQueue = new Map<string, Promise<void>>()
+const latestVersion = new Map<string, string>()
+
+// 兩個時間字串取比較新的那個（ISO 格式可以直接比大小）
+function newerIso(a: string, b?: string): string {
+  return b && b > a ? b : a
+}
+
+function enqueueCheck(checklistId: string, task: () => Promise<void>): Promise<void> {
+  const prev = checkQueue.get(checklistId) ?? Promise.resolve()
+  const run = prev.then(task, task)          // 前一筆就算失敗，後面的照樣要送
+  checkQueue.set(checklistId, run.catch(() => {}))
+  return run
+}
+
+function ItemCheckbox({ checklistId, baseLastEdited, itemKey, label, note, mark, allowed, locked, who, proxyForRole, onChanged, flash }: {
   checklistId: string
   baseLastEdited: string
   itemKey: string
@@ -929,6 +955,8 @@ function ItemCheckbox({ checklistId, baseLastEdited, itemKey, label, note, mark,
   mark?: { checked: boolean; by?: string; proxyFor?: string }
   allowed: { ok: boolean; proxy: boolean; reason?: string }
   locked: boolean
+  who: PersonId               // 現在登入的人：勾下去當場就能把名字畫上，不必等伺服器
+  proxyForRole: PersonId      // 這一項原本歸誰負責（蔡さん代理時顯示「代○○」用）
   onChanged: (id: string, updated?: Checklist) => void
   flash: (t: 'err' | 'ok', m: string) => void
 }) {
@@ -940,28 +968,46 @@ function ItemCheckbox({ checklistId, baseLastEdited, itemKey, label, note, mark,
   const serverChecked = mark?.checked === true
   const checked = pending ?? serverChecked
 
+  // 「誰勾的」也一起樂觀顯示：送出期間先用本機知道的登入者，不等伺服器回來才長出那一行，
+  // 免得那一行事後突然冒出來把下面的項目往下推，害人點錯（這是誤點取消勾的主因）。
+  const shownBy = pending === true ? who : mark?.by
+  const shownProxyFor = pending === true ? (allowed.proxy ? proxyForRole : undefined) : mark?.proxyFor
+  const byLine = checked && shownBy
+    ? `${personName(shownBy)}${shownProxyFor ? `（代 ${personName(shownProxyFor)}）` : ''}`
+    : ''
+
   async function toggle() {
     if (busy) return
-    if (!serverChecked && !allowed.ok) { flash('err', allowed.reason ?? '無法勾選'); return }
-    setPending(!serverChecked)   // 畫面立刻反應，不等伺服器
+    const want = !checked
+    if (want && !allowed.ok) { flash('err', allowed.reason ?? '無法勾選'); return }
+    // 取消已勾的項目要再確認一次：誤點的代價是把別人的勾拿掉，比多按一下麻煩得多
+    if (!want && !window.confirm(`要取消「${label}」的勾嗎？`)) return
+
+    setPending(want)   // 畫面立刻反應，不等伺服器
     setBusy(true)
-    try {
-      const res = await fetch(`/api/checklist/${checklistId}`, {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ action: 'check', itemKey, checked: !serverChecked, baseLastEdited }),
-      })
-      const d = await res.json()
-      // 409（被別人搶先改）跟成功的回應都帶著最新整張單，直接交給上層套用，不再重新抓
-      if (res.status === 409) { flash('err', d.error ?? '已被更新，請再點一次'); onChanged(checklistId, d.item) }
-      else if (!res.ok) flash('err', d.error ?? '操作失敗')
-      else onChanged(checklistId, d.item)
-    } catch {
-      flash('err', '操作失敗')
-    } finally {
-      setPending(null)
-      setBusy(false)
-    }
+    // 同一張單一次只送一筆（排隊）：後端有版本鎖，送出時要帶「你看到的版本」，
+    // 版本對不上就會被擋下叫你再點一次。排隊＋每筆用最新版本，就能連著快點好幾項不出錯。
+    await enqueueCheck(checklistId, async () => {
+      try {
+        const base = newerIso(baseLastEdited, latestVersion.get(checklistId))
+        const res = await fetch(`/api/checklist/${checklistId}`, {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ action: 'check', itemKey, checked: want, baseLastEdited: base }),
+        })
+        const d = await res.json()
+        if (d?.item?.lastEdited) latestVersion.set(checklistId, d.item.lastEdited)
+        // 409（被別人搶先改）跟成功的回應都帶著最新整張單，直接交給上層套用，不再重新抓
+        if (res.status === 409) { flash('err', d.error ?? '已被更新，請再點一次'); onChanged(checklistId, d.item) }
+        else if (!res.ok) flash('err', d.error ?? '操作失敗')
+        else onChanged(checklistId, d.item)
+      } catch {
+        flash('err', '操作失敗')
+      } finally {
+        setPending(null)
+        setBusy(false)
+      }
+    })
   }
 
   const disabled = busy || (!checked && (locked || !allowed.ok))
@@ -982,11 +1028,8 @@ function ItemCheckbox({ checklistId, baseLastEdited, itemKey, label, note, mark,
         {note && (
           <span className="block text-[11px] text-amber-600 mt-0.5">※ {note}</span>
         )}
-        {checked && mark?.by && (
-          <span className="block text-[10px] text-slate-400">
-            {personName(mark.by)}{mark.proxyFor ? `（代 ${personName(mark.proxyFor)}）` : ''}
-          </span>
-        )}
+        {/* 這一行不管有沒有勾都存在（空的時候也佔著高度），所以勾完不會把下面的項目往下推 */}
+        <span className="block text-[10px] text-slate-400 h-[14px] leading-[14px] truncate">{byLine}</span>
       </span>
     </button>
   )
