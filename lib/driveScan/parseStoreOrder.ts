@@ -27,7 +27,7 @@
  */
 
 import * as XLSX from 'xlsx'
-import { resolveStoreName } from '../parseDeliveryExcel'
+import { resolveStoreName, resolveStoreNameDetailed } from '../parseDeliveryExcel'
 import { STORES } from '../stores'
 
 export interface ParsedOrderRow {
@@ -47,6 +47,8 @@ export interface ParsedStoreTab {
   totalBoxes: number
   warnings: string[]
   blocking: boolean   // 表頭壞掉 / 箱數讀不出 → 這張單不能自動入帳
+  /** 店名不是查到的、是靠「純城市名」猜出來的 → 很可能是名單裡還沒有的新門市，不能自動入帳 */
+  storeGuessSuspicious: boolean
 }
 
 export interface ParsedWorkbook {
@@ -139,7 +141,7 @@ function parseSheet(sheetName: string, ws: XLSX.WorkSheet): ParsedStoreTab | 'no
 
   const tab: ParsedStoreTab = {
     sheetName, sNo: null, deliveryDate: null, storeRaw: null, store: null,
-    rows: [], totalBoxes: 0, warnings: [], blocking: false,
+    rows: [], totalBoxes: 0, warnings: [], blocking: false, storeGuessSuspicious: false,
   }
 
   let col: { name: number; spec: number; boxes: number; price: number } | null = null
@@ -173,7 +175,9 @@ function parseSheet(sheetName: string, ws: XLSX.WorkSheet): ParsedStoreTab | 'no
         tab.deliveryDate = toIsoDate(rawVal)
       } else if ((kind === '收貨店鋪' || kind === '客戶名稱') && !tab.storeRaw && strVal) {
         tab.storeRaw = strVal
-        tab.store = resolveStoreName(strVal)
+        const resolved = resolveStoreNameDetailed(strVal)
+        tab.store = resolved.name
+        tab.storeGuessSuspicious = resolved.suspicious
       }
     }
 
@@ -309,6 +313,14 @@ export function parseStoreOrderWorkbook(buf: Buffer): ParsedWorkbook {
     }
     if (t.store && !CANONICAL_STORES.has(t.store)) {
       out.hardWarnings.push(`分頁「${t.sheetName}」店名「${t.storeRaw}」對不到標準門市，這張單不自動入帳`)
+    }
+    // 只靠城市名猜出來的店名 → 幾乎都是「新開的門市還沒加進名單」，
+    // 舊版會安靜地記到同城市的另一間店（2026-08-19 西門店 102 箱被記成小北門店），
+    // 所以現在一律擋下來請人工處理，不再默默猜。
+    if (t.rows.length > 0 && t.storeGuessSuspicious) {
+      out.hardWarnings.push(
+        `分頁「${t.sheetName}」店名「${t.storeRaw}」不在門市名單裡，只靠城市名被猜成「${t.store}」` +
+        `→ 可能是新開的門市，這張單不自動入帳；請先把門市加進 lib/stores.ts 與 EXCEL_STORE_MAP`)
     }
   }
 

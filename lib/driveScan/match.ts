@@ -121,7 +121,12 @@ export function candidateBatches(rowName: string, fileName: string, batches: Bat
     // 指定多批（混搭單）時，用商品名關鍵字分流；只指定一批就全部記它。
     hits = pinned.filter(b => hitKeyword(rowName, b))
     if (hits.length === 0) {
-      if (pinned.length === 1) hits = [...pinned]
+      // 這列商品對不到「檔名指定的批次」。以前只要檔名只鎖一批就無條件全記它，
+      // 但如果這列商品明明對得到「別的批次」的關鍵字，那就是混搭單、檔名沒寫全，
+      // 硬記下去等於把貨算到錯的批次（而且不會有任何錯誤訊息）→ 停下來請人工判斷。
+      const elsewhere = batches.some(b =>
+        !pinned.includes(b) && b.keywords.length > 0 && hitKeyword(rowName, b))
+      if (pinned.length === 1 && !elsewhere) hits = [...pinned]
       else return { eligible: [], waiting: [], matched: [], usedFilenameFallback: false, ambiguousPinned: true }
     }
   } else {
@@ -210,7 +215,7 @@ export function allocateFifo(
       if (ambiguousPinned) {
         // 檔名指定了多個批次（混搭單），但這列商品名對不到任何指定批次的關鍵字 → 分不出要記哪批，
         // 寧可整張單停下來請人工補關鍵字，也不要亂猜（0724 加工品誤扣的教訓）
-        errors.push(`檔名指定了多個批次（${pinned.map(b => b.ivName).join('、')}），但商品「${row.name}」（${tab.store} ${row.boxes}箱）對不到其中任何一批的關鍵字 → 無法判斷記哪批`)
+        errors.push(`檔名指定批次（${pinned.map(b => b.ivName).join('、')}），但商品「${row.name}」（${tab.store} ${row.boxes}箱）對不到指定批次的關鍵字 → 無法判斷記哪批，請補商品關鍵字或把檔名補上批次號`)
         continue
       }
       if (candidates.length === 0) {

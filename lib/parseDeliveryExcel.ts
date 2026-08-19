@@ -18,6 +18,13 @@
 export const EXCEL_STORE_MAP: Record<string, string> = {
   // ── 非 LOPIA 門市但會出現在貨單，保留原名（必須在 fallback 子字串比對前先精確命中）──
   '台南大遠百': '台南大遠百',
+  // ── 台南新光三越西門店（2026-08-21 開幕）──
+  // ⚠️「西門」跟「台南」都是 2 個字，同長度時「先出現的 key 贏」，所以這三行一定要留在
+  //    下面通用的 '台南' 之前。放錯位置的話「台南新光三越西門店」會被 '台南' 吃掉、
+  //    整間店的貨會算到台南小北門店頭上（2026-08-19 S2026081901/S2026081903 實際踩過）。
+  '台南新光三越西門店': '台南新光三越西門店',
+  '新光三越': '台南新光三越西門店',
+  '西門':     '台南新光三越西門店',
   // ── 較長/精確的別名放前面，避免子字串 fallback 誤判 ──
   '台中漢神':   '台中漢神中港店',   // S0805, S1001, S1003, S1004
   '漢神台中':   '台中漢神中港店',   // S0404, S0802
@@ -79,16 +86,48 @@ export const EXCEL_STORE_MAP: Record<string, string> = {
  *    兩邊對不起來 → 那間店的箱數整個變 0，總表也不會出現 → 就是「漏掉夢時代店」的原因。
  */
 export function resolveStoreName(raw: string): string {
+  return resolveStoreNameDetailed(raw).name
+}
+
+/**
+ * 「純城市名」的 key。這幾個 key 只代表地理位置、不代表哪一間店，
+ * 所以它們是最容易把「名單裡還沒有的新店」默默吃掉的兇手。
+ * 例：新開的「台南新光三越西門店」→ 只命中 '台南' → 被判成台南小北門店。
+ */
+const WEAK_CITY_KEYS = new Set(['台中', '台南', '高雄', '桃園'])
+
+export interface ResolvedStore {
+  name: string
+  /** exact = 對照表裡有一模一樣的名字；substring = 靠「包含」猜的；none = 完全對不到，原樣回傳 */
+  matchedBy: 'exact' | 'substring' | 'none'
+  /** 猜的時候是靠哪個 key 命中的 */
+  key: string
+  /**
+   * true = 這個結果很可能是「猜錯的」，呼叫端應該擋下來問人，不要直接入帳。
+   * 判定：靠「純城市名」猜到，而且原文既不等於那個城市名、也不等於猜出來的門市全名
+   *       →「台南新光三越西門店」會 true（危險），「台南」「高雄漢神巨蛋店」會 false（安全）。
+   */
+  suspicious: boolean
+}
+
+/**
+ * resolveStoreName 的完整版，額外回報「這個答案是查到的還是猜的」。
+ * 貨單自動入帳一定要用這支，因為猜錯店名不會有任何錯誤訊息，貨會安靜地記到別間店去。
+ */
+export function resolveStoreNameDetailed(raw: string): ResolvedStore {
   const trimmed = (raw ?? '').trim()
-  if (!trimmed) return trimmed
+  if (!trimmed) return { name: trimmed, matchedBy: 'none', key: '', suspicious: false }
   const exact = EXCEL_STORE_MAP[trimmed]
-  if (exact) return exact
+  if (exact) return { name: exact, matchedBy: 'exact', key: trimmed, suspicious: false }
   const lower = trimmed.toLowerCase()
   let bestKey = ''
   for (const key of Object.keys(EXCEL_STORE_MAP)) {
     if (lower.includes(key.toLowerCase()) && key.length > bestKey.length) bestKey = key
   }
-  return bestKey ? EXCEL_STORE_MAP[bestKey] : trimmed
+  if (!bestKey) return { name: trimmed, matchedBy: 'none', key: '', suspicious: false }
+  const name = EXCEL_STORE_MAP[bestKey]
+  const suspicious = WEAK_CITY_KEYS.has(bestKey) && trimmed !== bestKey && trimmed !== name
+  return { name, matchedBy: 'substring', key: bestKey, suspicious }
 }
 
 // Matches "1回目" or "1か目" at the start of a sheet name
