@@ -486,6 +486,22 @@ export async function updateShipmentDeliveryStatus(id: string, deliveryStatus: s
   })
 }
 
+// 系統自動操作的修改紀錄（跟 /api/log 寫同一個 DB，但這是系統做的、沒有登入者 IP）
+// NOTION_CHANGE_LOG_DB 沒設定就靜默跳過，不影響主流程
+export async function logSystemChange(action: string, target: string, detail: string): Promise<void> {
+  const DB = process.env.NOTION_CHANGE_LOG_DB?.trim()
+  if (!DB) return
+  await notion.pages.create({
+    parent: { database_id: DB },
+    properties: {
+      '動作':     { title:     [{ text: { content: action.slice(0, 200) } }] },
+      '對象':     { rich_text: [{ text: { content: target.slice(0, 200) } }] },
+      '詳細內容': { rich_text: [{ text: { content: detail.slice(0, 2000) } }] },
+      'IP':       { rich_text: [{ text: { content: '系統自動' } }] },
+    },
+  })
+}
+
 export async function updateShipmentRemarks(id: string, remarks: string) {
   await notion.pages.update({
     page_id: id,
