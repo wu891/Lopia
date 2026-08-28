@@ -160,11 +160,25 @@ export function shippedByBatch(records: HcRecord[], today: string): Map<string, 
   return m
 }
 
+/**
+ * 「近期活躍」濾網：箱數/狀態類警告只看還在動的批次。
+ * 自動扣帳系統 2026-07 才上線，更早的批次紀錄本來就不完整——
+ * 那些帳面差異是「歷史沒補」不是「現在有病」，天天警告只會讓人麻痺（狼來了）。
+ * 近期活躍 ＝ 近 45 天有未取消的出貨紀錄，或 批次日期（入倉→抵台→出發）在近 90 天內。
+ */
+export function isRecentBatch(b: BatchLite, records: HcRecord[], today: string): boolean {
+  const d90 = new Date(new Date(today).getTime() - 90 * 86400e3).toISOString().slice(0, 10)
+  const d45 = new Date(new Date(today).getTime() - 45 * 86400e3).toISOString().slice(0, 10)
+  if (b.fifoDate >= d90 && b.fifoDate < '9999') return true
+  return records.some(r => r.batchId === b.id && !isCancelled(r) && !!r.date && r.date >= d45 && r.date <= today)
+}
+
 export function checkBoxCeiling(batches: BatchLite[], records: HcRecord[], today: string): HealthIssue[] {
   const issues: HealthIssue[] = []
   const shipped = shippedByBatch(records, today)
   for (const b of batches) {
     if (b.totalBoxes <= 0) continue
+    if (!isRecentBatch(b, records, today)) continue   // 歷史批次的舊帳不天天唸（見 isRecentBatch）
     const s = shipped.get(b.id) ?? 0
     if (s > b.totalBoxes) {
       issues.push({
@@ -227,6 +241,7 @@ export function checkStatusTrap(batches: BatchLite[], records: HcRecord[], today
   const shipped = shippedByBatch(records, today)
   for (const b of batches) {
     if (b.deliveryStatus !== '全數出貨' || b.totalBoxes <= 0) continue
+    if (!isRecentBatch(b, records, today)) continue   // 只盯「最近還在動卻被提早關帳」的批次；歷史舊批不唸
     const s = shipped.get(b.id) ?? 0
     if (s < b.totalBoxes) {
       issues.push({
