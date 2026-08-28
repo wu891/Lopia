@@ -13,7 +13,6 @@ export interface WeekRow {
   store: string
   boxes: number
   shipmentNo: string        // 出貨單號（例：S2026082801）
-  amount: number | null     // 金額；Notion 沒填就是 null
   round: number | null      // 第幾輪出貨
   planStatus: string | null // 計畫中 / 已出貨 …
 }
@@ -26,7 +25,6 @@ export interface WeekItem {
   stores: string[]       // 送去哪些門市（去重，依原順序）
   closesBatch: boolean   // 出完這批就可以關帳了（提醒用）
   rows: WeekRow[]        // 逐店明細，箱數多的排前面（彈窗用）
-  amountTotal: number | null   // 金額合計；每一列都沒填就是 null
   shipmentNos: string[]  // 這天這批用到的出貨單號（去重；通常只有一張）
   rounds: number[]       // 這天這批的出貨輪次（去重；通常只有一個）
   statuses: string[]     // 這天這批的計畫狀態（去重）
@@ -97,7 +95,6 @@ export function buildWeekStrip(
         stores: [],
         closesBatch: false,
         rows: [],
-        amountTotal: null,
         shipmentNos: [],
         rounds: [],
         statuses: [],
@@ -110,12 +107,9 @@ export function buildWeekStrip(
         store: r.store ?? '未指定',
         boxes: r.boxes!,
         shipmentNo: r.shipmentNo,
-        amount: r.amount,
         round: r.round,
         planStatus: r.planStatus,
       })
-      // 金額：有任何一列有填才算合計；全部沒填就維持 null（畫面顯示「未填」）
-      if (r.amount != null) item.amountTotal = (item.amountTotal ?? 0) + r.amount
       if (r.shipmentNo && !item.shipmentNos.includes(r.shipmentNo)) item.shipmentNos.push(r.shipmentNo)
       if (r.round != null && !item.rounds.includes(r.round)) item.rounds.push(r.round)
       if (r.planStatus && !item.statuses.includes(r.planStatus)) item.statuses.push(r.planStatus)

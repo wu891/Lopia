@@ -106,20 +106,12 @@ export default function WeekDayModal({
                 </div>
               ))}
 
-              {/* 合計＋金額（金額 Notion 常常沒填，沒填就直說，不要留空白） */}
+              {/* 合計 */}
               <div className="flex items-center justify-between gap-3 border-t-2 border-[var(--mod-line)] pt-2.5 text-[13px]">
                 <span className="text-[var(--mod-sub)]">
                   {T.weekTotal}・{item.stores.length} {T.weekStoreUnit}
                 </span>
                 <span className="font-bold text-[var(--mod-ink)]">{item.boxes} {T.boxes}</span>
-              </div>
-              <div className="flex items-center justify-between gap-3 pt-1.5 text-[13px]">
-                <span className="text-[var(--mod-sub)]">{T.weekAmount}</span>
-                <span className={item.amountTotal == null ? 'text-[var(--mod-faint)]' : 'font-bold text-[var(--mod-ink)]'}>
-                  {item.amountTotal == null
-                    ? T.weekAmountEmpty
-                    : `NT$${item.amountTotal.toLocaleString()}`}
-                </span>
               </div>
             </div>
 
