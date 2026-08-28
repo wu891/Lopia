@@ -74,10 +74,14 @@ export default function WeekShipmentStrip({
                       <span className="truncate">{item.product} {item.boxes} {T.boxes}</span>
                       {day.isPast && <Check />}
                     </span>
-                    {/* 已經出掉的只講「幾店」，還沒出的列出門市名，方便照著排車 */}
+                    {/* 門市顯示規則：
+                        已經出掉的 → 只講「已出・N 店」
+                        還沒出的   → 3 家以內列店名（方便照著排車）；
+                                     超過 3 家就只給家數，不然全門市出貨那天
+                                     會有十幾個店名把格子撐爆 */}
                     <span className="text-[11px] leading-snug text-[var(--mod-sub2)]">
-                      {day.isPast
-                        ? `${T.weekShipped}・${item.stores.length} ${T.weekStoreUnit}`
+                      {day.isPast || item.stores.length > 3
+                        ? `${day.isPast ? T.weekShipped + '・' : ''}${item.stores.length} ${T.weekStoreUnit}`
                         : item.stores.join('・') || '—'}
                     </span>
                     {item.closesBatch && (
