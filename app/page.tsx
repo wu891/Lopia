@@ -14,6 +14,7 @@ import StoreList from '@/components/StoreList'
 import AddBatchForm from '@/components/AddBatchForm'
 import CalendarView from '@/components/CalendarView'
 import ArrivalPreview from '@/components/ArrivalPreview'
+import WeekShipmentStrip from '@/components/WeekShipmentStrip'
 
 // 檢視模式：清單（預設）/ 看板 / 月曆 / 門市 / 進貨預告
 type View = 'list' | 'kanban' | 'calendar' | 'stores' | 'preview'
@@ -280,6 +281,17 @@ export default function Home() {
             sub={`${T.statDoneMonthSub} ${monthArrived} ${T.unitBatch}`}
           />
         </div>
+
+        {/* 本週出貨七天列：週一～週日，今天紅框、已出打勾變灰 */}
+        {/* 只在清單／看板檢視顯示——月曆和門市列表本身就是按日期／門市在看了 */}
+        {(view === 'list' || view === 'kanban') && (
+          <WeekShipmentStrip
+            shipments={shipments}
+            records={allRecords}
+            today={today}
+            lang={lang}
+          />
+        )}
 
         {/* 工具列：檢視（左）｜篩選（右），視覺分開 */}
         <div className="flex flex-wrap items-center justify-between gap-3 border-b-2 border-[var(--mod-line)] pb-3">
