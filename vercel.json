@@ -11,6 +11,10 @@
     {
       "path": "/api/checklist/notify-upcoming",
       "schedule": "0 1 * * *"
+    },
+    {
+      "path": "/api/healthcheck",
+      "schedule": "0 23 * * *"
     }
   ]
 }
