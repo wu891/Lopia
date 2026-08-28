@@ -5,6 +5,19 @@
 // 所以這個功能不需要新的 API。
 import type { Shipment, ShipmentRecord } from './notion'
 
+/**
+ * 逐店明細的一列。卡片上看不到，是「點日期格跳出的彈窗」才用的。
+ * 一列＝Notion 出貨紀錄的一筆（一家門市一筆）。
+ */
+export interface WeekRow {
+  store: string
+  boxes: number
+  shipmentNo: string        // 出貨單號（例：S2026082801）
+  amount: number | null     // 金額；Notion 沒填就是 null
+  round: number | null      // 第幾輪出貨
+  planStatus: string | null // 計畫中 / 已出貨 …
+}
+
 /** 同一天、同一批貨的一筆彙總（多家門市會併成一筆）*/
 export interface WeekItem {
   batchId: string
@@ -12,6 +25,11 @@ export interface WeekItem {
   boxes: number          // 這天這批總共出幾箱
   stores: string[]       // 送去哪些門市（去重，依原順序）
   closesBatch: boolean   // 出完這批就可以關帳了（提醒用）
+  rows: WeekRow[]        // 逐店明細，箱數多的排前面（彈窗用）
+  amountTotal: number | null   // 金額合計；每一列都沒填就是 null
+  shipmentNos: string[]  // 這天這批用到的出貨單號（去重；通常只有一張）
+  rounds: number[]       // 這天這批的出貨輪次（去重；通常只有一個）
+  statuses: string[]     // 這天這批的計畫狀態（去重）
 }
 
 export interface WeekDay {
@@ -78,10 +96,36 @@ export function buildWeekStrip(
         boxes: 0,
         stores: [],
         closesBatch: false,
+        rows: [],
+        amountTotal: null,
+        shipmentNos: [],
+        rounds: [],
+        statuses: [],
       }
       item.boxes += r.boxes!
       if (r.store && !item.stores.includes(r.store)) item.stores.push(r.store)
+
+      // 逐店明細：原封不動留一份給彈窗用（門市沒填就標「未指定」，不要整列消失）
+      item.rows.push({
+        store: r.store ?? '未指定',
+        boxes: r.boxes!,
+        shipmentNo: r.shipmentNo,
+        amount: r.amount,
+        round: r.round,
+        planStatus: r.planStatus,
+      })
+      // 金額：有任何一列有填才算合計；全部沒填就維持 null（畫面顯示「未填」）
+      if (r.amount != null) item.amountTotal = (item.amountTotal ?? 0) + r.amount
+      if (r.shipmentNo && !item.shipmentNos.includes(r.shipmentNo)) item.shipmentNos.push(r.shipmentNo)
+      if (r.round != null && !item.rounds.includes(r.round)) item.rounds.push(r.round)
+      if (r.planStatus && !item.statuses.includes(r.planStatus)) item.statuses.push(r.planStatus)
+
       byBatch.set(id, item)
+    }
+
+    // 逐店明細箱數多的排前面（跟彈窗上的顯示順序一致）
+    for (const item of byBatch.values()) {
+      item.rows.sort((a, b) => b.boxes - a.boxes)
     }
 
     // 「出完即關帳」＝這天出完後剛好把整批出光，而且是「這天」把它出光的

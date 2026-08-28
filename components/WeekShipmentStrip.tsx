@@ -2,10 +2,13 @@
 // ── 主頁「本週出貨」七天列 ───────────────────────────────────
 // 週一～週日一字排開：今天紅框、已經出掉的打勾變灰、快出完的批次給綠字提醒。
 // 資料是前端從既有的 shipments + records 算出來的（見 lib/weekStrip.ts），沒有新 API。
+// 有出貨的那一格可以點，會跳出當日逐店明細彈窗（WeekDayModal）。
+import { useState } from 'react'
 import type { Shipment, ShipmentRecord } from '@/lib/notion'
 import { Lang, t } from '@/lib/i18n'
 import { buildWeekStrip, weekRangeLabel } from '@/lib/weekStrip'
 import { fmtDateW } from '@/lib/batchView'
+import WeekDayModal from './WeekDayModal'
 
 /** 打勾（已出貨）*/
 function Check() {
@@ -28,6 +31,9 @@ export default function WeekShipmentStrip({
   const T = t[lang]
   const week = buildWeekStrip(shipments, records, today)
   const { start, end } = weekRangeLabel(today)
+  // 目前打開的是哪一天的明細（null＝沒開）
+  const [openDate, setOpenDate] = useState<string | null>(null)
+  const openDay = week.find(d => d.date === openDate) ?? null
 
   return (
     <div className="flex flex-col gap-2">
@@ -38,10 +44,19 @@ export default function WeekShipmentStrip({
       </div>
 
       <div className="grid grid-cols-2 gap-2 sm:grid-cols-4 xl:grid-cols-7">
-        {week.map(day => (
+        {week.map(day => {
+          // 沒排出貨的日子沒東西可看，就不給點
+          const clickable = day.items.length > 0
+          return (
           <div
             key={day.date}
+            role={clickable ? 'button' : undefined}
+            tabIndex={clickable ? 0 : undefined}
+            onClick={clickable ? () => setOpenDate(day.date) : undefined}
+            onKeyDown={clickable ? e => { if (e.key === 'Enter') setOpenDate(day.date) } : undefined}
             className={`flex min-h-[132px] flex-col gap-2 ${
+              clickable ? 'cursor-pointer transition-colors hover:bg-[var(--mod-page)]' : ''
+            } ${
               day.isToday
                 ? 'border-2 border-[var(--mod-red)] bg-[var(--mod-red-bg)] p-[9px]'
                 : 'border border-[var(--mod-hair)] bg-white p-2.5'
@@ -92,8 +107,13 @@ export default function WeekShipmentStrip({
               </div>
             )}
           </div>
-        ))}
+          )
+        })}
       </div>
+
+      {openDay && (
+        <WeekDayModal day={openDay} lang={lang} onClose={() => setOpenDate(null)} />
+      )}
     </div>
   )
 }
