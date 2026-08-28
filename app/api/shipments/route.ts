@@ -44,8 +44,8 @@ export async function GET() {
       }
     }
 
-    // 這次載入判定要自動變「部分出貨」的批次（收集起來，等下寫回 Notion）
-    const autoFixes: { id: string; ivName: string; from: string | null }[] = []
+    // 這次載入判定要自動改配送狀態的批次（收集起來，等下寫回 Notion）
+    const autoFixes: { id: string; ivName: string; from: string | null; to: string }[] = []
 
     const enriched = shipments.map(s => {
       const planned = plannedMap[s.id] ?? 0
@@ -62,8 +62,17 @@ export async function GET() {
       // 接住掃描沒跑到的路徑（手動建的出貨紀錄、計畫日已到但檔案還沒掃到）。
       // 只往前推、不往回改：部分出貨／全數出貨／退回銷毀維持原樣；未來的出貨計畫（日期還沒到）不算。
       const autoPartial = done > 0 && ['', '未到', '待出貨'].includes(s.deliveryStatus ?? '')
-      if (autoPartial) autoFixes.push({ id: s.id, ivName: s.ivName, from: s.deliveryStatus })
-      const deliveryStatus = autoPartial ? '部分出貨' : s.deliveryStatus
+      // 自動關帳（2026-08-28 Colin 指示）：最後一批出完、而且數字剛好對得上 → 自動改「全數出貨」。
+      // 條件故意抓「完全相等」，三個都要成立：
+      //   1. 已出貨（出貨日已到、未取消）箱數 === 入倉箱數
+      //   2. 沒有還沒到日期的出貨計畫掛著（計畫總數 === 已出貨）
+      //   3. 現在還不是「全數出貨」
+      // 超領（如蘋果一度 1147 > 1104）或少一箱都不關帳——那是數字有問題，要留在畫面上讓人看見。
+      // 關帳後這批就不再參與 Drive 自動扣帳（isActiveBatch()），所以只在完全對上時才做。
+      const autoClose = total > 0 && done === total && planned === done && s.deliveryStatus !== '全數出貨'
+      if (autoClose) autoFixes.push({ id: s.id, ivName: s.ivName, from: s.deliveryStatus, to: '全數出貨' })
+      else if (autoPartial) autoFixes.push({ id: s.id, ivName: s.ivName, from: s.deliveryStatus, to: '部分出貨' })
+      const deliveryStatus = autoClose ? '全數出貨' : autoPartial ? '部分出貨' : s.deliveryStatus
       return {
         ...s,
         deliveryStatus,
@@ -73,14 +82,16 @@ export async function GET() {
       }
     })
 
-    // 寫回 Notion：把上面判定的批次，Notion「配送狀態」欄位也一併改成「部分出貨」（2026-08-26 Colin 指示）。
+    // 寫回 Notion：把上面判定的批次，Notion「配送狀態」欄位也一併改成判定後的狀態
+    // （部分出貨＝2026-08-26 Colin 指示；全數出貨自動關帳＝2026-08-28 Colin 指示）。
     // 正常情況 0 筆（掃描系統早一步推進了），只有漏網批次出現時才會寫，寫完下次載入就不會再寫。
     // 放在回應前同步等待（serverless 回應後的背景工作可能被凍結）；單筆失敗只記 console 不擋回應，下次載入自動重試。
     for (const f of autoFixes) {
       try {
-        await notionRetry(() => updateShipmentDeliveryStatus(f.id, '部分出貨'))
+        await notionRetry(() => updateShipmentDeliveryStatus(f.id, f.to))
         // 修改紀錄留一筆可追（失敗只代表少一筆紀錄，狀態本身已改好，不重試）
-        await logSystemChange('自動更新配送狀態', f.ivName, `${f.from || '（空白）'} → 部分出貨（偵測到出貨紀錄）`)
+        const why = f.to === '全數出貨' ? '已出貨箱數與入倉箱數相符，自動關帳' : '偵測到出貨紀錄'
+        await logSystemChange('自動更新配送狀態', f.ivName, `${f.from || '（空白）'} → ${f.to}（${why}）`)
       } catch (e) {
         console.error('自動更新配送狀態失敗:', f.ivName, e)
       }
