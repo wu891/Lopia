@@ -16,6 +16,28 @@ export const STAGES = [
   { key: 'warehouse', zh: '入庫配送', ja: '入庫配送' },
 ] as const
 
+// ── 到港進度的「白話說明」（清單欄位用）─────────────────────
+// 清單只講「現在到哪了」一句話，不再畫五顆點的流水線：
+// 貨從日本出口後必然會到港、通關、進倉，把它畫成流水線不會改變任何決定，只是佔欄寬。
+// 注意：這跟上面的 STAGES 不是同一組字。STAGES 是「關卡名」（入庫配送），
+// 這裡是「狀態描述」（已進倉・可出貨）——直接拿 STAGES 來顯示會讀起來很怪。
+const STAGE_STATUS = [
+  { zh: '日本已出貨',     ja: '日本出荷済' },       // 關0 出貨
+  { zh: '海上運送中',     ja: '海上輸送中' },       // 關1 海運
+  { zh: '已抵台',         ja: '入港済' },           // 關2 到港
+  { zh: '報關中',         ja: '通関中' },           // 關3 通關
+  { zh: '已進倉・可出貨', ja: '入庫済・出荷可能' }, // 關4 入庫配送
+] as const
+
+const STAGE_STATUS_DONE = { zh: '已全數出貨', ja: '全数出荷済' } as const
+
+/** 給清單顯示的一句話狀態；done=五關全走完 */
+export function stageStatusText(stage: number, done: boolean, lang: Lang): string {
+  if (done) return STAGE_STATUS_DONE[lang]
+  const i = Math.min(Math.max(stage, 0), STAGE_STATUS.length - 1)
+  return STAGE_STATUS[i][lang]
+}
+
 /**
  * 目前在第幾關（0-4）；done=true 表示 5 關全部完成（全數出貨）。
  * 沿用 deriveKanban 的 6 段 step（0出貨→5門市），壓成 5 關：
