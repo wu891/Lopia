@@ -53,13 +53,37 @@ const GSHEET_MIME = 'application/vnd.google-apps.spreadsheet'
 const FOLDER_MIME = 'application/vnd.google-apps.folder'
 
 /**
- * 決定要掃哪幾個子資料夾：名稱是「N月」且 N 等於本月或上月。
+ * 決定要掃哪幾個子資料夾：名稱是「N月」，N 是下面這幾個月份之一——
+ *   ① 當月、上月：一律都掃（出貨單通常這段期間才做）
+ *   ② 下個月：只有「這個月的最後一週」才加掃
+ *
+ * 為什麼要有 ②（2026-08-31 踩到的坑）：
+ *   9/1 要出的貨，8/29 就把出貨單做好、放進「9月」資料夾了，
+ *   但那天只掃 8月＋7月，這張單對系統來說等於不存在，
+ *   主頁「本週出貨」9/1 那格就一直是空的。
+ *
+ * 「最後一週」＝這個月剩下不到 7 天（含今天）。例：8月有 31 天 → 8/25～8/31 這 7 天。
+ * 月份一律用台灣時間算：主機時間是 UTC（比台灣慢 8 小時），
+ * 不轉的話台灣已經 9/1 了、主機還停在 8/31，會晚一天才換月。
+ *
  * 注意：資料夾名稱沒有年份（假設清單見 docs），同名時取「最近建立」的那個。
  */
-function wantedMonthNames(now: Date): string[] {
-  const cur = now.getMonth() + 1
-  const prev = cur === 1 ? 12 : cur - 1
-  return [`${cur}月`, `${prev}月`]
+export function wantedMonthNames(now: Date = new Date()): string[] {
+  // 台灣時間的年／月／日。en-CA 的格式固定是 YYYY-MM-DD，切開就能用。
+  const [y, m, d] = now
+    .toLocaleDateString('en-CA', { timeZone: 'Asia/Taipei' })
+    .split('-')
+    .map(Number)
+
+  const prev = m === 1 ? 12 : m - 1
+  const next = m === 12 ? 1 : m + 1
+  const names = [`${m}月`, `${prev}月`]
+
+  // 這個月總共幾天＝「下個月的第 0 天」，也就是這個月的最後一天
+  const daysInMonth = new Date(Date.UTC(y, m, 0)).getUTCDate()
+  if (daysInMonth - d < 7) names.push(`${next}月`)
+
+  return names
 }
 
 /**
