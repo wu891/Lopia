@@ -256,10 +256,13 @@ async function doScan(opts: { dry?: boolean; force?: boolean; onlyFileId?: strin
   const [batches, allRecords] = await Promise.all([fetchBatchesLite(), fetchRecordsLite()])
   const records: RecordLite[] = [...allRecords]
 
+  // 這一輪 Drive 清單上實際存在的檔案 ID（對帳跨檔取代用：不在清單上＝檔案已被刪掉）
+  const presentFileIds = new Set(files.map(x => x.id))
+
   for (const f of todo) {
     const entry = ledger.get(f.id)
     try {
-      const outcome = await processOneFile(f, entry, ledger, batches, records, dry)
+      const outcome = await processOneFile(f, entry, ledger, batches, records, presentFileIds, dry)
       outcomes.push(outcome)
     } catch (err) {
       console.error('[drive-scan] 處理失敗', f.name, err)
@@ -292,6 +295,7 @@ async function processOneFile(
   ledger: Map<string, LedgerEntry>,
   batches: BatchLite[],
   records: RecordLite[],
+  presentFileIds: Set<string>,
   dry: boolean,
 ): Promise<FileOutcome> {
   const buf = await downloadAsXlsx(f)
@@ -578,6 +582,10 @@ async function processOneFile(
   // 只有走到這裡（alloc.ok 已成立）才會呼叫；批次比對失敗時上面已提早 return，對帳也就一起不同步。
   const recon = await syncReconciliation({
     fileId: f.id, fileName: f.name, shipmentNo: sNo, date, tabs: wb.activeTabs, dry,
+    // 跨檔取代要用的三樣：本檔修改時間＋這輪 Drive 實際存在的檔案＋帳本查別檔修改時間
+    fileModifiedTime: f.modifiedTime,
+    presentFileIds,
+    ledgerModTimeOf: (id: string) => ledger.get(id)?.fileModifiedTime,
   })
 
   // ── 讀回核對 ─────────────────────────────────────────────────────────────────
@@ -653,10 +661,11 @@ async function processOneFile(
   ].join('\n')
 
   // ── 對帳同步的 LINE 訊息：獨立一則，發到「LOPIA對帳」群組，不混進上面那則扣帳訊息 ──
-  const reconChanged = recon.creates + recon.updates + recon.archives > 0
+  const reconChanged = recon.creates + recon.updates + recon.archives + recon.staleArchives > 0
   const reconMessage = [
     `📊 對帳同步｜${sNo}（配送 ${date}）`, `檔案：${f.name}`,
     `新增 ${recon.creates} 筆／更新 ${recon.updates} 筆／移除 ${recon.archives} 筆`,
+    ...(recon.crossFileNotes.length ? recon.crossFileNotes.map(n => `・${n}`) : []),
     ...(recon.skippedNoPrice.length ? [`⚠️ 缺單價未同步：${recon.skippedNoPrice.join('、')}`] : []),
     ...(recon.manualDupes > 0 ? [`🚨 同單號另有 ${recon.manualDupes} 筆「手動上傳」的對帳列（無來源檔案標記）→ 跟自動列並存會重複計算金額，請到對帳系統確認清理`] : []),
     `核對：${recon.verify.detail}${recon.verify.ok ? ' ✅' : ''}`,
@@ -673,13 +682,13 @@ async function processOneFile(
     if (!verify.ok || conflicts.length > 0 || bookedNothing || productSkips.length > 0) {
       if (entry?.notifiedHash !== notifyHash) await maybePushRecon(message)
     }
-    if (reconChanged || !recon.verify.ok || recon.skippedNoPrice.length > 0 || recon.manualDupes > 0) {
+    if (reconChanged || !recon.verify.ok || recon.skippedNoPrice.length > 0 || recon.manualDupes > 0 || recon.crossFileNotes.length > 0) {
       await maybePushRecon(reconMessage)
     }
     await upsertLedgerEntry(entry, {
       fileId: f.id, fileName: f.name, fingerprint: fingerprintOf(f),
       fileModifiedTime: f.modifiedTime, status, notifiedHash: notifyHash,
-      summary: `${sNo} ${date}｜建${creates.length} 改${updates.length} 移${archives.length} 覆${manualOverwritten}｜${verify.detail}｜對帳建${recon.creates}改${recon.updates}移${recon.archives}｜${recon.verify.detail}`,
+      summary: `${sNo} ${date}｜建${creates.length} 改${updates.length} 移${archives.length} 覆${manualOverwritten}｜${verify.detail}｜對帳建${recon.creates}改${recon.updates}移${recon.archives}清${recon.staleArchives}｜${recon.verify.detail}`,
     })
   }
 

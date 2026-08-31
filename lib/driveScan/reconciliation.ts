@@ -16,6 +16,12 @@
  *     放進 LINE 訊息提醒 Colin 手動去對帳系統網頁補。
  *   - 鏡像同步：這個檔案這次解析出的（門市＋商品＋規格）組合，就是這個檔案在對帳系統裡該有的
  *     全部資料——新的建立、變過的更新、檔案裡已經拿掉的自動封存，不留幽靈資料。
+ *   - 跨檔取代（2026-08-31 補，8月重複請款 NT$219,460 的教訓）：Colin 把貨單「重做／改名重傳」
+ *     時，舊檔從 Drive 刪掉、新檔是全新的檔案 ID。出貨紀錄那邊（sync.ts）本來就會讓新檔取代
+ *     舊檔，但對帳明細以前只管自己的檔案、不理別檔留下的舊列 → 同一張單兩份錢。現在補上對稱
+ *     規則：同單號、來自「已從 Drive 消失的舊檔」的對帳列 → 封存；舊檔還在 Drive 的（同單號
+ *     拆多檔是正常設計）→ 只有「門市＋商品＋規格完全相同」的列才比檔案新舊、新的贏，
+ *     不會誤殺同單號不同品項的正常檔。一次要清超過 60 列＝不對勁，中止並請人工用 /api/recon-cleanup。
  *   - 寫完讀回核對：比對「箱數合計」「金額合計」，兜不起來就回報 ok=false，呼叫端會把整張單
  *     標「異常」，下一輪重試，不會默默留著錯的請款金額。
  */
@@ -83,8 +89,10 @@ export interface ReconSyncResult {
   creates: number
   updates: number
   archives: number
+  staleArchives: number      // 跨檔取代：封存掉的「舊檔幽靈列」數（同單號、來源檔已被取代）
   skippedNoPrice: string[]   // 「門市「商品名」」描述，供 LINE 訊息用
   manualDupes: number        // 同單號、沒有「來源檔案」的手動上傳列數（跟自動列並存＝金額會重複計算，要提醒清理）
+  crossFileNotes: string[]   // 跨檔取代的提醒文字（封存了誰／讓步給誰／保險絲中止），供 LINE 訊息用
   verify: { ok: boolean; detail: string }
 }
 
@@ -126,6 +134,49 @@ async function fetchReconRowsByFile(db: string, fileId: string): Promise<Existin
   return out
 }
 
+// 別的檔案寫的、同一個出貨單號的對帳列（跨檔取代要用）。手動列（來源檔案空白）不撈，
+// 那些走既有的 manualDupes 提醒流程，這裡絕不動手。
+interface ForeignReconRow extends ExistingReconRow {
+  sourceFileId: string
+}
+
+async function fetchForeignReconRows(db: string, shipmentNo: string, ownFileId: string): Promise<ForeignReconRow[]> {
+  const out: ForeignReconRow[] = []
+  let cursor: string | undefined
+  do {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const res: any = await notionRetry(() => notion.databases.query({
+      database_id: db,
+      filter: {
+        and: [
+          { property: 'ShipmentNo', rich_text: { equals: shipmentNo } },
+          { property: '來源檔案', rich_text: { is_not_empty: true } },
+        ],
+      },
+      page_size: 100,
+      ...(cursor ? { start_cursor: cursor } : {}),
+    }))
+    for (const page of res.results) {
+      const p = page.properties
+      const src = richText(p['來源檔案'])
+      if (!src || src === ownFileId) continue   // 自己的列走原本的鏡像流程，這裡只看「別檔」的
+      out.push({
+        id: page.id,
+        store: richText(p['門市']),
+        product: richText(p['商品名稱']),
+        spec: richText(p['入數']),
+        boxes: p['箱數']?.number ?? 0,
+        unitPrice: p['單價']?.number ?? 0,
+        category: p['類別']?.select?.name ?? '水果',
+        date: p['出貨日期']?.date?.start ?? '',
+        sourceFileId: src,
+      })
+    }
+    cursor = res.has_more ? res.next_cursor : undefined
+  } while (cursor)
+  return out
+}
+
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 function buildProps(d: DesiredReconRow, shipmentNo: string, date: string, fileId: string): Record<string, any> {
   return {
@@ -149,12 +200,16 @@ export async function syncReconciliation(params: {
   date: string
   tabs: ParsedStoreTab[]
   dry: boolean
+  // ── 跨檔取代要用的三樣資訊（由 sync.ts 傳進來）────────────────────────────
+  fileModifiedTime: string                              // 本檔在 Drive 的最後修改時間（比新舊用）
+  presentFileIds: Set<string>                           // 這一輪 Drive 掃描清單上「實際存在」的檔案 ID
+  ledgerModTimeOf: (fileId: string) => string | undefined  // 查帳本裡某檔案的最後修改時間
 }): Promise<ReconSyncResult> {
   const db = process.env.NOTION_EXCEL_ROWS_DB?.trim()
   if (!db) {
-    return { ok: true, creates: 0, updates: 0, archives: 0, skippedNoPrice: [], manualDupes: 0, verify: { ok: true, detail: '未設定 NOTION_EXCEL_ROWS_DB，略過對帳同步' } }
+    return { ok: true, creates: 0, updates: 0, archives: 0, staleArchives: 0, skippedNoPrice: [], manualDupes: 0, crossFileNotes: [], verify: { ok: true, detail: '未設定 NOTION_EXCEL_ROWS_DB，略過對帳同步' } }
   }
-  const { fileId, shipmentNo, date, tabs, dry } = params
+  const { fileId, shipmentNo, date, tabs, dry, fileModifiedTime, presentFileIds, ledgerModTimeOf } = params
 
   // ── 1) 這個檔案「應該有」的對帳列：同（門市＋商品＋規格）用加總，不覆蓋 ──────────
   const desiredMap = new Map<string, DesiredReconRow>()
@@ -170,6 +225,49 @@ export async function syncReconciliation(params: {
       const existing = desiredMap.get(k)
       if (existing) existing.boxes += row.boxes
       else desiredMap.set(k, { store: tab.store, product: row.name, spec: row.spec || '', boxes: row.boxes, unitPrice: row.price, category: classifyProduct(row.name) })
+    }
+  }
+
+  // ── 1.5) 跨檔取代：清掉「同單號、別的檔案」留下的舊列 ─────────────────────────
+  // 情境：貨單重做／改名重傳 → 舊檔從 Drive 刪掉、新檔是新 ID，但舊檔寫的對帳列還躺在
+  // 資料庫裡 → 同一張單算兩次錢（2026-08 多請了 NT$219,460 的教訓）。
+  // 規則跟 sync.ts 出貨紀錄的「跨檔撞單」對稱：比檔案修改時間，較新的檔贏。
+  const crossFileNotes: string[] = []
+  let staleArchives = 0
+  {
+    const foreign = await fetchForeignReconRows(db, shipmentNo, fileId)
+    const stale: { id: string; desc: string }[] = []
+    for (const fr of foreign) {
+      const srcMod = ledgerModTimeOf(fr.sourceFileId)
+      // 對方檔案修改時間不明、或比本檔舊 → 本檔（較新）為準。跟 sync.ts 撞單規則同一套。
+      const iAmNewer = !srcMod || srcMod < fileModifiedTime
+      if (!presentFileIds.has(fr.sourceFileId)) {
+        // 舊檔已從 Drive 消失（重做貨單的典型情境）→ 它同單號的列全是幽靈資料，整批清
+        if (iAmNewer) stale.push({ id: fr.id, desc: `${fr.store}「${fr.product}」${fr.boxes}箱` })
+        else crossFileNotes.push(`⚠️「${fr.store}」單號 ${shipmentNo} 有一筆來自已消失、但比本檔還新的檔案 → 不自動清，請人工確認`)
+      } else {
+        // 舊檔還在 Drive：同單號拆多檔（不同品項各開一張單）是正常設計，
+        // 只有「門市＋商品＋規格完全相同」的列才算重複，其他一律不碰
+        const k = reconKey(fr)
+        if (!desiredMap.has(k)) continue
+        if (iAmNewer) stale.push({ id: fr.id, desc: `${fr.store}「${fr.product}」${fr.boxes}箱` })
+        else {
+          // 對方檔比我新 → 我讓步：這列不寫（若我以前寫過，下面鏡像步驟會把我的舊列封存）
+          desiredMap.delete(k)
+          crossFileNotes.push(`「${fr.store}」「${fr.product}」另一個較新的檔案已寫過 → 本檔此列不寫`)
+        }
+      }
+    }
+    // 保險絲：一張單正常就三十幾列，要清超過 60 列＝一定有哪裡怪怪的，不自動動手
+    if (stale.length > 60) {
+      crossFileNotes.push(`🚨 同單號待清的舊檔重複列多達 ${stale.length} 列（>60），保險絲中止未封存 → 請用 /api/recon-cleanup 人工處理`)
+    } else if (stale.length > 0) {
+      for (const s of stale) {
+        staleArchives++
+        if (!dry) await notionRetry(() => notion.pages.update({ page_id: s.id, archived: true }))
+      }
+      const preview = stale.slice(0, 5).map(s => s.desc).join('、')
+      crossFileNotes.push(`已封存舊檔重複列 ${stale.length} 筆${dry ? '（試跑，未實際封存）' : ''}：${preview}${stale.length > 5 ? '…' : ''}`)
     }
   }
 
@@ -228,7 +326,7 @@ export async function syncReconciliation(params: {
   }
 
   if (!touched) {
-    return { ok: true, creates: 0, updates: 0, archives: 0, skippedNoPrice, manualDupes, verify: { ok: true, detail: '無對帳資料（沒有可用單價的商品列）' } }
+    return { ok: true, creates: 0, updates: 0, archives: 0, staleArchives, skippedNoPrice, manualDupes, crossFileNotes, verify: { ok: true, detail: '無對帳資料（沒有可用單價的商品列）' } }
   }
 
   // ── 5) 讀回核對：逐筆用「頁面 ID」直接讀回剛寫的那幾筆 ──────────────────────
@@ -251,5 +349,5 @@ export async function syncReconciliation(params: {
       : { ok: false, detail: `❌ 有 ${bad.length} 筆讀回不一致：${bad.join('、')}` }
   }
 
-  return { ok: verify.ok, creates, updates, archives, skippedNoPrice, manualDupes, verify }
+  return { ok: verify.ok, creates, updates, archives, staleArchives, skippedNoPrice, manualDupes, crossFileNotes, verify }
 }
