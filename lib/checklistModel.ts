@@ -40,6 +40,7 @@ export interface SubItem {
   target?: PersonId               // 互查專用：檢查的是「誰」做的文件（給區塊標題顯示）
   note?: string                   // 補充備註（顯示在項目文字下方的小字，純顯示用）
   requires?: string[]             // 同層前置項：這些 key 全部勾完，這一項才能勾（例：兩人互查都做完才准送出）
+  since?: string                  // 生效時間(ISO)：後來才加的項目，不追溯既往（見 itemRequired）
 }
 
 export interface Layer {
@@ -87,7 +88,8 @@ export const LAYERS: Layer[] = [
     items: [
       { key: 'l2_warehouse', label: '出貨指示已確實送達倉庫（優儲、美福或三義）', role: 'hayashi', note: '如商品庫存於美福倉儲時，須向三義送達出貨指示' },
       { key: 'l2_logistics', label: '出貨指示已確實送達物流公司（三義）', role: 'hayashi' },
-      { key: 'l2_price',     label: '商品單價正確', role: 'hayashi' },
+      // 2026-09-02 新增。掛 since＝不追溯既往：改版前就已經在跑的舊單不用補勾（見 itemRequired）
+      { key: 'l2_price',     label: '商品單價正確', role: 'hayashi', since: '2026-09-02T07:30:00.000Z' },
       { key: 'l2_reported',  label: '已報告蔡さん並請他確認', role: 'hayashi' },
     ],
   },
@@ -165,9 +167,33 @@ function layerById(id: number): Layer {
   return l
 }
 
-/** 某一層是否全部小項目都勾了 */
+/**
+ * 這一項對「這張單」到底要不要勾。
+ *
+ * 為什麼需要這個：清單是「這一層每項都勾完才算完成」即時重算的，所以只要往某一層插一個
+ * 新項目，線上所有舊單那一層會立刻變回未完成、下一層重新鎖住、已完結的單整個退回。
+ * 為了不去改動任何一筆既有資料，改用「新項目不追溯既往」：
+ *   - 項目沒掛 since → 一律要勾（原本的行為）
+ *   - 已經勾起來了 → 當然算數
+ *   - 這一層在 since 之前就有人勾過（＝這張單改版前就在跑了）→ 這張單免勾
+ *   - 這一層在 since 之後才開始勾，或整層還沒動 → 照常要勾
+ * 想補勾的人還是可以自己勾，勾了就正常記錄。
+ */
+export function itemRequired(state: ChecklistState, layerId: number, item: SubItem): boolean {
+  if (!item.since) return true
+  if (state.checks[item.key]?.checked === true) return true
+  const since = item.since
+  return !layerById(layerId).items.some(it => {
+    const at = state.checks[it.key]?.at
+    return !!at && at < since      // ISO 字串同格式，字典序比大小＝比時間先後
+  })
+}
+
+/** 某一層是否全部小項目都勾了（後加又不追溯的項目，對舊單不算數） */
 export function isLayerComplete(state: ChecklistState, layerId: number): boolean {
-  return layerById(layerId).items.every(it => state.checks[it.key]?.checked === true)
+  return layerById(layerId).items.every(
+    it => state.checks[it.key]?.checked === true || !itemRequired(state, layerId, it),
+  )
 }
 
 /** 某一層是否有任何小項目已勾 */

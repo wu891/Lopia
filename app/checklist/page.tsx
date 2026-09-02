@@ -10,6 +10,7 @@ import { useState, useEffect, useCallback, type ReactNode } from 'react'
 import {
   PEOPLE, LAYERS, LAST_LAYER_ID, personName, WAREHOUSES,
   currentLayerId, isCompleted, isLayerUnlocked, isLayerComplete, canCheck, prereqDone, stageLabel,
+  itemRequired,
   canEditWeekly,
   type PersonId, type ChecklistState,
 } from '@/lib/checklistModel'
@@ -714,7 +715,7 @@ function ChecklistCard({ item, who, expanded, onToggle, onChanged, onDeleted, fl
                       baseLastEdited={item.lastEdited}
                       itemKey={it.key}
                       label={it.label}
-                      note={it.note}
+                      note={itemRequired(state, layer.id, it) ? it.note : '這一項是後來才加的，這張舊單不用補勾'}
                       mark={state.checks[it.key]}
                       allowed={canCheck(state, it.key, who)}
                       locked={!unlocked}
@@ -882,7 +883,7 @@ function Layer1Section({ item, state, who, active, unlocked, complete, marker, o
                     baseLastEdited={item.lastEdited}
                     itemKey={it.key}
                     label={it.label}
-                    note={it.note}
+                    note={itemRequired(state, layer.id, it) ? it.note : '這一項是後來才加的，這張舊單不用補勾'}
                     mark={state.checks[it.key]}
                     allowed={canCheck(state, it.key, who)}
                     locked={!unlocked}
