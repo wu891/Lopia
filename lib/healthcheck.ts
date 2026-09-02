@@ -6,23 +6,37 @@
  * 「兩套資料悄悄岔開」，而且都是事後人工才發現。
  * 這支每天自動跑一次，把同一類問題在爆炸「前」抓出來。
  *
- * 五個檢查（全部只讀。健檢絕不自動改資料——寧可吵，不代改，
+ * 六個檢查（全部只讀。健檢絕不自動改資料——寧可吵，不代改，
  * 避免又多一個自動系統跟扣帳系統互踩）：
  *   1) 關鍵字健檢 … (a)格式亂貼（整行 INVOICE、含 Tab/全形空格）
  *                    (b)關鍵字對不到近 120 天任何貨單商品名（0801S 那型未爆彈）
  *                    (c)同一商品名同時命中多個批次（重疊提示，切櫃屬正常）
- *   2) 箱數上限   … 各批次未取消出貨合計 vs 入倉箱數（超領警告＋「快出完了」提醒）
+ *   2) 箱數上限   … 各批次出貨合計 vs 入倉箱數。分兩段：已出貨的超領（現況）
+ *                    ＋ 連未來計畫一起算才超的（預警）。兩者都是 check 'overdraw'，
+ *                    會被寄信端挑出來單獨寄一封，見下面 R3。
  *   3) 兩系統一致 … 對帳明細(Excel列) vs 出貨紀錄 的當月箱數合計（6月翻倍那型）
  *   4) 狀態陷阱   … 標了「全數出貨」但箱數對不上（提早關帳會害殘量掛錯批）
  *   5) 卡住的檔   … 掃描帳本裡狀態＝異常的出貨單（正卡著沒記帳，等人處理）
+ *   6) 入倉日空白 … 貨都要出了卻還沒登記到貨（9/3 地瓜那型，2026-09-02 加）
  *
  * 呼叫端：/api/healthcheck（Vercel Cron 每天早上跑，有問題就寄 Gmail）。
+ *
+ * ── 2026-09-02 Colin 指示的兩項（R2 / R3）────────────────────────────────
+ * R2 ＝ 檢查 6。R3 ＝ 把超領的 check 名稱獨立成 'overdraw'，讓 /api/healthcheck
+ * 能把它抽出來「另外寄一封信」，一封信只講一件事，不會被其他十幾條淹掉。
+ *
+ * 做 R3 時實測發現的第二個問題（一併修）：
+ *   超領檢查原本只算「出貨日 ≤ 今天」的紀錄。CITY20260701S 入倉 1984 箱、
+ *   已出 1804 箱、9/3 又排了 700 箱＝2504 箱，明明超領 520 箱，
+ *   但那 700 箱是未來日期不列入 → 健檢在 9/2 完全不會響，要等 9/3 當天才響，
+ *   那時貨都在路上、來不及改批次歸屬。所以加了 plannedByBatch（含未來計畫），
+ *   讓超領能在出貨日「之前」就被抓到。
  */
 
 import { Client } from '@notionhq/client'
-import { fetchBatchesLite, type BatchLite } from './driveScan/match'
+import { fetchBatchesLite, fileNameBatchTags, type BatchLite } from './driveScan/match'
 import { getExcelRows, type ExcelRow } from './notion'
-import { getLedgerEntries } from './driveScan/ledger'
+import { getLedgerEntries, type LedgerEntry } from './driveScan/ledger'
 
 const notion = new Client({ auth: process.env.NOTION_API_KEY })
 
@@ -161,6 +175,24 @@ export function shippedByBatch(records: HcRecord[], today: string): Map<string, 
 }
 
 /**
+ * 連「未來還沒到出貨日的計畫」一起算的箱數（2026-09-02 加）。
+ *
+ * 為什麼要多這一個：原本的超領檢查只算 shippedByBatch（出貨日 ≤ 今天）。
+ * 9/3 地瓜實測：CITY20260701S 入倉 1984 箱，已出 1804 箱、9/3 又排了 700 箱＝2504 箱，
+ * 明明已經超領 520 箱，但那 700 箱是「未來日期」不列入計算 → 健檢在 9/2 完全不會響，
+ * 要等到 9/3 當天才響——那時貨都在路上了，來不及改批次歸屬。
+ * 所以另外算一份「含計畫」的總量，讓超領能在出貨日「之前」就被抓到。
+ */
+export function plannedByBatch(records: HcRecord[]): Map<string, number> {
+  const m = new Map<string, number>()
+  for (const r of records) {
+    if (isCancelled(r) || !r.batchId) continue
+    m.set(r.batchId, (m.get(r.batchId) ?? 0) + r.boxes)
+  }
+  return m
+}
+
+/**
  * 「近期活躍」濾網：箱數/狀態類警告只看還在動的批次。
  * 自動扣帳系統 2026-07 才上線，更早的批次紀錄本來就不完整——
  * 那些帳面差異是「歷史沒補」不是「現在有病」，天天警告只會讓人麻痺（狼來了）。
@@ -176,14 +208,24 @@ export function isRecentBatch(b: BatchLite, records: HcRecord[], today: string):
 export function checkBoxCeiling(batches: BatchLite[], records: HcRecord[], today: string): HealthIssue[] {
   const issues: HealthIssue[] = []
   const shipped = shippedByBatch(records, today)
+  const planned = plannedByBatch(records)
   for (const b of batches) {
     if (b.totalBoxes <= 0) continue
     if (!isRecentBatch(b, records, today)) continue   // 歷史批次的舊帳不天天唸（見 isRecentBatch）
     const s = shipped.get(b.id) ?? 0
+    const p = planned.get(b.id) ?? 0
+    // check 名稱單獨用 'overdraw'（不是 'boxes'）：寄信端靠這個名字把超領抽出來另外寄一封。
+    // 同一個檢查裡的「快出完了」維持 'boxes'，才不會被一起抽走。
     if (s > b.totalBoxes) {
       issues.push({
-        level: 'warn', check: 'boxes', subject: b.ivName,
+        level: 'warn', check: 'overdraw', subject: b.ivName,
         message: `已出 ${s} 箱 ＞ 入倉 ${b.totalBoxes} 箱（超領 ${s - b.totalBoxes} 箱）。常見原因：入倉箱數沒更新、有單記錯批、或同一張單重複記（7/17 蘋果11那型）。`,
+      })
+    } else if (p > b.totalBoxes) {
+      // 現在還沒超，但「連未來的出貨計畫一起算」就超了 → 趁貨還沒出先喊，還來得及改批次歸屬
+      issues.push({
+        level: 'warn', check: 'overdraw', subject: b.ivName,
+        message: `連未來的出貨計畫一起算 ${p} 箱 ＞ 入倉 ${b.totalBoxes} 箱（會超領 ${p - b.totalBoxes} 箱）。目前已出 ${s} 箱還沒超，但排定的 ${p - s} 箱照這樣出去就會超領。趁還沒出貨先確認：是不是有單記到錯的批次（9/3 地瓜那型）。`,
       })
     } else if (b.deliveryStatus !== '全數出貨' && s / b.totalBoxes >= 0.95) {
       issues.push({
@@ -253,6 +295,71 @@ export function checkStatusTrap(batches: BatchLite[], records: HcRecord[], today
   return issues
 }
 
+// ── 檢查 6：入倉日空白（貨要出了卻沒登記到貨）──────────────────────────────
+//
+// 為什麼要有這條（2026-09-02 加，R2）：
+//   自動扣帳用「入倉日」判斷一批貨能不能扣（match.ts 的 isActiveBatch／規則①）。
+//   入倉日空白 ＝ 這批完全不參與分配，貨會被 FIFO 塞到別的舊批，把舊批灌成超領。
+//   9/3 地瓜就是這樣爆的：CITY20260801S 沒填入倉日，700 箱全掛到 CITY20260701S，
+//   舊批因此超領 520 箱。當時健檢只會事後喊「超領」，不會事前說「你有一批沒登記到貨」。
+//
+// 兩種觸發（任一成立就報，因為兩者都代表「這批的貨已經在動了」）：
+//   (a) 這批已經有出貨紀錄／計畫，而且出貨日就在眼前（今天或未來 3 天內，或已經過了）
+//   (b) 近 30 天的出貨單「檔名」直接指名了這批（Colin 做單時會把批次號寫進檔名）
+// 為什麼不是「只要入倉日空白就報」：新櫃還在海上時本來就沒有入倉日，天天唸沒意義。
+
+const INTAKE_LOOKAHEAD_DAYS = 3   // 出貨日剩幾天內才開始唸（給補登記的緩衝）
+
+/** 把掃描帳本近 30 天的檔名掃一遍，找出「被檔名指名過」的批次 id。 */
+export function pinnedBatchIdsFromLedger(
+  entries: { fileName: string; fileModifiedTime: string }[],
+  batches: BatchLite[],
+  today: string,
+): Set<string> {
+  const cutoff = new Date(new Date(today).getTime() - 30 * 86400e3).toISOString().slice(0, 10)
+  const out = new Set<string>()
+  for (const e of entries) {
+    if (!e.fileModifiedTime || e.fileModifiedTime.slice(0, 10) < cutoff) continue
+    for (const b of fileNameBatchTags(e.fileName || '', batches)) out.add(b.id)
+  }
+  return out
+}
+
+export function checkMissingIntakeDate(
+  batches: BatchLite[],
+  records: HcRecord[],
+  pinnedBatchIds: Set<string>,
+  today: string,
+): HealthIssue[] {
+  const issues: HealthIssue[] = []
+  const horizon = new Date(new Date(today).getTime() + INTAKE_LOOKAHEAD_DAYS * 86400e3)
+    .toISOString().slice(0, 10)
+
+  for (const b of batches) {
+    if (b.intakeDate) continue                                        // 已填，正常
+    if (b.deliveryStatus === '全數出貨' || b.deliveryStatus === '退回銷毀') continue  // 已收完／作廢
+
+    // (a) 有出貨紀錄，且最早那筆的出貨日已經到眼前了
+    const mine = records.filter(r => r.batchId === b.id && !isCancelled(r) && !!r.date)
+    const dates = mine.map(r => r.date as string).sort()
+    const soon = dates.length > 0 && dates[0] <= horizon
+
+    // (b) 近 30 天有出貨單的檔名指名這批
+    const pinned = pinnedBatchIds.has(b.id)
+
+    if (!soon && !pinned) continue
+
+    const why = soon
+      ? `已排了 ${mine.length} 筆出貨（最早 ${dates[0]}）`
+      : `近 30 天有出貨單的檔名指名這批`
+    issues.push({
+      level: 'warn', check: 'intake', subject: b.ivName,
+      message: `入倉日空白，但${why}。自動扣帳只認「有填入倉日且已到倉」的批次——這批現在完全不參與分配，貨會被塞到別的舊批、把舊批灌成超領（9/3 地瓜那型）。請到批次卡補「入倉日」。`,
+    })
+  }
+  return issues
+}
+
 // ── 出貨紀錄小讀取器 ─────────────────────────────────────────────────────────
 
 export async function fetchHcRecords(): Promise<HcRecord[]> {
@@ -294,6 +401,9 @@ export async function runHealthcheck(): Promise<HealthReport> {
   let batches: BatchLite[] = []
   let records: HcRecord[] = []
   let rows: ExcelRow[] = []
+  // 掃描帳本提前到這裡讀（以前是最後才讀）：檢查 6 要靠它的「檔名」看哪些批次被指名過。
+  let ledger: LedgerEntry[] = []
+  let ledgerOk = false
   try { batches = await fetchBatchesLite(); stats['批次數'] = batches.length } catch (e) {
     issues.push({ level: 'error', check: 'self', subject: '進口批次', message: `健檢讀不到批次資料：${e instanceof Error ? e.message : String(e)}` })
   }
@@ -303,21 +413,28 @@ export async function runHealthcheck(): Promise<HealthReport> {
   try { rows = await getExcelRows(); stats['對帳明細列數'] = rows.length } catch (e) {
     issues.push({ level: 'error', check: 'self', subject: '對帳明細', message: `健檢讀不到對帳明細：${e instanceof Error ? e.message : String(e)}` })
   }
+  try {
+    const m = await getLedgerEntries()
+    ledger = Array.from(m.values()); ledgerOk = true; stats['帳本檔案數'] = m.size
+  } catch (e) {
+    issues.push({ level: 'warn', check: 'self', subject: '掃描帳本', message: `健檢讀不到掃描帳本：${e instanceof Error ? e.message : String(e)}` })
+  }
 
   if (batches.length > 0) {
     issues.push(...checkKeywords(batches, rows, today))
     issues.push(...checkBoxCeiling(batches, records, today))
     issues.push(...checkStatusTrap(batches, records, today))
+    // 檢查 6：入倉日空白。帳本讀不到時 ledger 是空陣列 → 只剩「有出貨紀錄」那個觸發，不會整條掛掉
+    issues.push(...checkMissingIntakeDate(
+      batches, records, pinnedBatchIdsFromLedger(ledger, batches, today), today))
   }
   if (rows.length > 0 || records.length > 0) {
     issues.push(...checkConsistency(rows, records, today))
   }
 
   // 檢查 5：掃描帳本卡「異常」的檔（出貨單正卡著沒記帳，等人補關鍵字/處理）
-  try {
-    const ledger = await getLedgerEntries()
-    const stuck = Array.from(ledger.values()).filter(e => e.status === '異常')
-    stats['帳本檔案數'] = ledger.size
+  if (ledgerOk) {
+    const stuck = ledger.filter(e => e.status === '異常')
     for (const f of stuck.slice(0, 10)) {
       issues.push({
         level: 'error', check: 'stuck-file', subject: f.fileName || f.fileId,
@@ -327,8 +444,6 @@ export async function runHealthcheck(): Promise<HealthReport> {
     if (stuck.length > 10) {
       issues.push({ level: 'error', check: 'stuck-file', subject: '掃描帳本', message: `還有 ${stuck.length - 10} 個異常檔沒列出，請到掃描帳本看全部。` })
     }
-  } catch (e) {
-    issues.push({ level: 'warn', check: 'self', subject: '掃描帳本', message: `健檢讀不到掃描帳本：${e instanceof Error ? e.message : String(e)}` })
   }
 
   issues.sort((a, b) => LEVEL_ORDER[a.level] - LEVEL_ORDER[b.level])
