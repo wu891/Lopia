@@ -87,6 +87,7 @@ export const LAYERS: Layer[] = [
     items: [
       { key: 'l2_warehouse', label: '出貨指示已確實送達倉庫（優儲、美福或三義）', role: 'hayashi', note: '如商品庫存於美福倉儲時，須向三義送達出貨指示' },
       { key: 'l2_logistics', label: '出貨指示已確實送達物流公司（三義）', role: 'hayashi' },
+      { key: 'l2_price',     label: '商品單價正確', role: 'hayashi' },
       { key: 'l2_reported',  label: '已報告蔡さん並請他確認', role: 'hayashi' },
     ],
   },
