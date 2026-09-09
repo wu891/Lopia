@@ -44,5 +44,5 @@ export const STORES: Store[] = [
   { id: 'tainan-shinkong-ximen', name_zh: '台南新光三越西門店', name_ja: '台南新光三越西門店', address_zh: '台南市中西區西門路一段658號', city_zh: '台南', opened: '2026-08-21', status: 'open', excelSheetName: '西門' },
   { id: 'taipei-dajuyuan', name_zh: '台北大巨蛋店', name_ja: '台北ドーム店', address_zh: '台北市信義區忠孝東路四段505號 B2', city_zh: '台北', opened: '2026-05-01', status: 'coming_soon', excelSheetName: '北蛋' },
   { id: 'tainan-sogo-xintian', name_zh: '台南 SOGO 新天店', name_ja: '台南SOGO新天店', address_zh: '台南市中西區西門路一段658號 B2', city_zh: '台南', opened: '2026-06-01', status: 'coming_soon' },
-  { id: 'kaohsiung-hanshin-dept', name_zh: '高雄漢神百貨店', name_ja: '高雄漢神百貨店', address_zh: '高雄市前金區成功一路266-1號 B3', city_zh: '高雄', opened: '2026-09-01', status: 'coming_soon' },
+  { id: 'kaohsiung-hanshin-dept', name_zh: '高雄漢神百貨店', name_ja: '高雄漢神百貨店', address_zh: '高雄市前金區成功一路266-1號 B3', city_zh: '高雄', opened: '2026-09-12', status: 'open' },
 ]
