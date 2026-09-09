@@ -31,7 +31,7 @@ const STORES: { name: string; aliases: string[] }[] = [
   { name: '台北美麗華', aliases: ['台北美麗華', '美麗華', '大直'] },
   { name: '台北大巨蛋', aliases: ['台北大巨蛋', '大巨蛋'] },
   { name: '台南SOGO新天', aliases: ['台南SOGO新天', 'SOGO新天'] },
-  { name: '高雄漢神百貨', aliases: ['高雄漢神百貨', '漢神百貨'] },
+  { name: '高雄漢神本館', aliases: ['高雄漢神本館', '漢神本館', '高雄漢神百貨', '漢神百貨', '本館'] },
 ]
 
 // 給網頁的「店鋪」下拉選單用：只取店名，不含別名

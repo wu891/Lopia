@@ -485,6 +485,7 @@ const SKILL_STORES: { code: string; label: string }[] = [
   { code: '漢神',     label: '台中漢神' },
   { code: '美麗',     label: '美麗華' },
   { code: '北門',     label: '北門' },
+  { code: '本館',     label: '漢神本館' },
   { code: 'らら台中', label: 'らら台中' },
 ]
 
