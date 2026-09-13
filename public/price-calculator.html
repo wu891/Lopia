@@ -1572,17 +1572,37 @@ window.toggleLanguage = function() {
 // ② 批號紀錄功能（Google Sheets 雲端同步版）
 // ══════════════════════════════════════════════════════
 const BATCH_STORAGE_KEY='tmj_batch_records';
-const GAS_URL='https://script.google.com/macros/s/AKfycbxdj-gUTpQik-_owMQF5KgaLp6o8hFxG35uFrrjcp5e99RQjWhM8zvJ4DwlvB7UAV3n/exec';
+// 2026-09-13 起 GAS 端要密碼：舊網址（AKfycbxdj…）曾公開在 GitHub，已封存；這是新部署的網址
+const GAS_URL='https://script.google.com/macros/s/AKfycbye1dYaoLzHXW9hwtxi8xS6f-87MVcPvbOVlpZYUnwGmPHtnsGtU_g_Rx1jcBJ-GNkg/exec';
+// 密碼只存在你自己瀏覽器的 localStorage，第一次用會問一次；密碼錯 GAS 會回 unauthorized → 清掉重問
+const CALC_PW_KEY='tmj_calc_pw';
 
 let _cachedRecords=[];
 
-async function _gasPost(body){
-  const res=await fetch(GAS_URL,{method:'POST',body:JSON.stringify(body)});
-  return res.json();
+function _calcPw(){
+  let pw=localStorage.getItem(CALC_PW_KEY)||'';
+  if(!pw){
+    const lang=window._langMode||'zh';
+    pw=prompt(lang==='ja'?'ロット記録のパスワードを入力してください':'請輸入批號紀錄密碼')||'';
+    if(pw)localStorage.setItem(CALC_PW_KEY,pw);
+  }
+  return pw;
 }
+async function _gasPost(body){
+  const pw=_calcPw();
+  if(!pw)throw new Error('no password');
+  const res=await fetch(GAS_URL,{method:'POST',body:JSON.stringify(Object.assign({pw:pw},body))});
+  const data=await res.json();
+  if(data&&data.ok===false&&data.error==='unauthorized'){
+    localStorage.removeItem(CALC_PW_KEY);
+    showToast('❌ 密碼錯誤，請重新整理再輸入一次');
+    throw new Error('unauthorized');
+  }
+  return data;
+}
+// 讀取也改走 POST（密碼放在 body 裡，不放網址，才不會留在紀錄檔）
 async function _gasFetch(){
-  const res=await fetch(GAS_URL+'?t='+Date.now());
-  return res.json();
+  return _gasPost({action:'list'});
 }
 async function _migrateLocalToGAS(){
   const local=JSON.parse(localStorage.getItem(BATCH_STORAGE_KEY)||'[]');
@@ -1602,6 +1622,8 @@ async function getBatchRecords(){
     const data=await _gasFetch();
     return data.ok?data.records:[];
   }catch(e){
+    // 密碼錯／沒輸入 → 不要拿本機備份充數（會讓人以為紀錄不見了），直接回空的
+    if(e&&(e.message==='unauthorized'||e.message==='no password'))return[];
     console.warn('[批號] GAS 讀取失敗，使用本機備份',e);
     try{return JSON.parse(localStorage.getItem(BATCH_STORAGE_KEY)||'[]');}catch(e2){return[];}
   }
