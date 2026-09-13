@@ -1,10 +1,15 @@
-import { NextResponse } from 'next/server'
+import { NextRequest, NextResponse } from 'next/server'
 import { getShipments, getShipmentRecords, getFurikomiRecords, getExcelRows, getBatchPrices } from '@/lib/notion'
 import { computeAllMargins } from '@/lib/margin'
+import { canSeeMoney } from '@/lib/apiToken'
 
 export const dynamic = 'force-dynamic' // 永遠抓最新資料
 
-export async function GET() {
+// 內含每批營收／成本／毛利 → 2026-09-13 起要編輯密碼或通行碼（之前任何人打開網址就看得到）
+export async function GET(req: NextRequest) {
+  if (!(await canSeeMoney(req))) {
+    return NextResponse.json({ error: '需要密碼或 Bearer token' }, { status: 401 })
+  }
   try {
     // 核心三來源缺一不可
     const [shipments, records, furikomi] = await Promise.all([

@@ -4,9 +4,18 @@ import {
   updateShipmentDeliveryStatus, logSystemChange, notionRetry,
 } from '@/lib/notion'
 import { requireAuth } from '@/lib/auth'
+import { canSeeMoney } from '@/lib/apiToken'
 import { todayTaipei } from '@/lib/kanban'
 
 export const dynamic = 'force-dynamic' // always fetch fresh from Notion
+
+// 主頁「有網址就能看」，但成本欄位不該跟著公開。沒登入／沒通行碼 → 這幾欄一律回 null（箱數、日期照舊）。
+const MONEY_FIELDS = ['importCost', 'freightCost', 'storageCost', 'costCurrency', 'shiireJpy', 'tariffCustoms', 'miscFee'] as const
+function stripMoney<T extends Record<string, unknown>>(s: T): T {
+  const out = { ...s }
+  for (const k of MONEY_FIELDS) if (k in out) (out as Record<string, unknown>)[k] = null
+  return out
+}
 
 export async function POST(req: NextRequest) {
   if (!(await requireAuth('edit'))) {
@@ -25,9 +34,9 @@ export async function POST(req: NextRequest) {
   }
 }
 
-export async function GET() {
+export async function GET(req: NextRequest) {
   try {
-    const [shipments, records] = await Promise.all([getShipments(), getShipmentRecords()])
+    const [shipments, records, showMoney] = await Promise.all([getShipments(), getShipmentRecords(), canSeeMoney(req)])
 
     // Aggregate per batch: planned (non-cancelled) and done (date <= today and non-cancelled)
     // 「今天」用台灣時區：之前用 UTC，台灣凌晨 0~8 點會被當成前一天，當天的出貨暫時不算數
@@ -98,7 +107,7 @@ export async function GET() {
     }
 
     return NextResponse.json({
-      shipments: enriched,
+      shipments: showMoney ? enriched : enriched.map(stripMoney),
       lastUpdated: new Date().toISOString(),
     })
   } catch (err) {

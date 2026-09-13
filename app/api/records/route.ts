@@ -1,12 +1,14 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createShipmentRecord, getShipmentRecords } from '@/lib/notion'
 import { requireAuth } from '@/lib/auth'
+import { canSeeMoney } from '@/lib/apiToken'
 import { generateShipmentNo } from '@/lib/generateShipmentOrder'
 
-export async function GET() {
+// 主頁「有網址就能看」，但出貨「金額」不該跟著公開。沒登入／沒通行碼 → amount 一律回 null（箱數、日期、店名照舊）。
+export async function GET(req: NextRequest) {
   try {
-    const records = await getShipmentRecords()
-    return NextResponse.json({ records })
+    const [records, showMoney] = await Promise.all([getShipmentRecords(), canSeeMoney(req)])
+    return NextResponse.json({ records: showMoney ? records : records.map(r => ({ ...r, amount: null })) })
   } catch (err) {
     console.error(err)
     return NextResponse.json({ error: 'Failed to fetch records' }, { status: 500 })

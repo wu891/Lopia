@@ -649,6 +649,17 @@ async function syncFromNotion() {
     if (btn) btn.disabled = true;
 
     try {
+        // 2026-09-13 起金額類 API（excel-rows、records 的金額欄）要編輯密碼：
+        // 沒有 cookie 就先問密碼，不然拉回來的資料金額全是空的，對帳會對不出東西
+        const hasCookie = await fetch(`${API_BASE}/api/auth`, { credentials: 'same-origin' })
+            .then(r => r.json()).then(d => !!d.ok).catch(() => false);
+        if (!hasCookie && !(await ensureEditAuth())) {
+            hideLoading();
+            if (btn) btn.disabled = false;
+            showToast('沒有編輯密碼就拿不到金額，已取消同步', 'error');
+            return;
+        }
+
         // Fetch all endpoints in parallel
         setLoadingText('正在拉取出貨記錄與批次資料...');
         const [shipRes, recRes, priceRes, excelRes] = await Promise.all([

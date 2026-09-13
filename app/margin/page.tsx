@@ -117,6 +117,13 @@ export default function MarginPage() {
     setError(null)
     try {
       const res = await fetch('/api/margin', { cache: 'no-store' })
+      // 2026-09-13 起 /api/margin 要密碼：沒登入就先跳密碼框，輸對了再抓一次
+      if (res.status === 401) {
+        setError('這頁有成本與毛利，需要輸入編輯密碼')
+        setPendingAction(() => fetchData)
+        setShowPassword(true)
+        return
+      }
       if (!res.ok) throw new Error('fetch failed')
       const data = await res.json()
       setBatches(data.batches as BatchMargin[])
