@@ -28,6 +28,51 @@ export function sortStoreNames(names: string[]): string[] {
   return [...names].sort((a, b) => (index.get(a) ?? 999) - (index.get(b) ?? 999))
 }
 
+// ── 北／中／南區（門市列表分組用）──────────────────────────
+// 城市 → 區域對照表。cities 的順序＝畫面上城市出現的順序。
+// 新增門市如果是「新城市」，要在這裡補上，否則會被歸到「其他」。
+export type Region = 'north' | 'central' | 'south'
+
+export const REGIONS: { id: Region; label_zh: string; label_ja: string; cities: string[] }[] = [
+  { id: 'north',   label_zh: '北區', label_ja: '北部', cities: ['台北', '新北', '桃園'] },
+  { id: 'central', label_zh: '中區', label_ja: '中部', cities: ['台中'] },
+  { id: 'south',   label_zh: '南區', label_ja: '南部', cities: ['高雄', '台南'] },
+]
+
+export interface RegionGroup {
+  id: Region | 'other'
+  label_zh: string
+  label_ja: string
+  cities: { city: string; stores: Store[] }[]
+}
+
+// 把門市分成「區域 → 城市」兩層。
+// 同一城市內的門市維持傳進來的順序（呼叫前通常已用 sortedStores 排好）；沒有門市的區域／城市不回傳。
+export function groupStoresByRegion(stores: Store[]): RegionGroup[] {
+  const groups: RegionGroup[] = REGIONS.map(r => ({
+    id: r.id,
+    label_zh: r.label_zh,
+    label_ja: r.label_ja,
+    cities: r.cities.map(city => ({ city, stores: stores.filter(s => s.city_zh === city) })),
+  }))
+
+  // 對照表裡沒有的城市 → 放「其他」，確保門市不會從畫面上消失
+  const known = new Set(REGIONS.flatMap(r => r.cities))
+  const unknown = stores.filter(s => !known.has(s.city_zh))
+  if (unknown.length > 0) {
+    groups.push({
+      id: 'other',
+      label_zh: '其他',
+      label_ja: 'その他',
+      cities: [...new Set(unknown.map(s => s.city_zh))].map(city => ({ city, stores: unknown.filter(s => s.city_zh === city) })),
+    })
+  }
+
+  return groups
+    .map(g => ({ ...g, cities: g.cities.filter(c => c.stores.length > 0) }))
+    .filter(g => g.cities.length > 0)
+}
+
 export const STORES: Store[] = [
   { id: 'taichung-lalaport', name_zh: 'LaLaport 台中店', name_ja: 'LaLaport台中店', address_zh: '台中市東區進德路700號 B1', city_zh: '台中', opened: '2023-01-17', status: 'open', excelSheetName: '台中' },
   { id: 'taoyuan-chunri', name_zh: '桃園春日店', name_ja: '桃園春日店', address_zh: '桃園市桃園區春日路618號 1F', city_zh: '桃園', opened: '2023-12-16', status: 'open', excelSheetName: '桃園' },

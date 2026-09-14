@@ -87,7 +87,7 @@ components/
   TimelineProgress.tsx      # 進度條（含輻射/農藥/煙燻文字）
   DeliveryPlan.tsx          # 出貨計畫（可折疊、密碼保護、XLS 比對更新）
   CalendarView.tsx          # 月曆檢視（以抵台日為主，點選顯示通關狀態）
-  StoreList.tsx             # 門市列表（點選側欄顯示未來出貨，含即將開幕店）
+  StoreList.tsx             # 門市列表（北／中／南區→城市分組；點選側欄顯示未來出貨，含即將開幕店）
   AddBatchForm.tsx          # 新增批次 Modal（密碼保護）
   PasswordModal.tsx         # 密碼驗證 Modal（含 isAuthed / logChange helper）
   DocumentStatus.tsx        # 文件狀態（IV/PL/AWB/檢疫證明勾選）
@@ -142,6 +142,9 @@ lib/
 - 密碼由 `EDIT_PASSWORD` env var 控制（預設 `lopia2026`）
 
 ### 門市側欄（StoreList）
+- 列表分兩層：**北區／中區／南區 → 城市**（`lib/stores.ts` 的 `REGIONS` 對照表＋`groupStoresByRegion()`）
+  - 北區＝台北、新北、桃園｜中區＝台中｜南區＝高雄、台南
+  - 新增門市若是新城市，要在 `REGIONS` 補上，否則會落到「其他」
 - 點選任何門市（含即將開幕）→ 右側抽屜顯示未來出貨計畫
 - 「未來」= 出貨日期 >= 今天 且 計畫狀態 != '已取消'
 - 即將開幕門市：黃色系設計，若已有出貨計畫顯示數量徽章
