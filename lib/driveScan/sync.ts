@@ -21,7 +21,8 @@
  *   7. 寫完自動「讀回來逐筆核對」，結果寫進帳本摘要
  *   8. 記帳本。LINE 通知：例行扣帳訊息已停發（2026-07-22，月額度爆掉）；
  *      ⚠️ 警告類與對帳同步發到「LOPIA對帳」群組（異常同內容只通知一次）
- *   9. 檔案從 Drive 消失 → 只通知（LOPIA對帳群組）、不自動砍紀錄
+ *   9. 檔案從 Drive 消失 → 只通知（LOPIA對帳群組）、不自動砍紀錄；
+ *      卡「異常」的檔被移走 → 帳本自動改「略過」（沒記過帳，不通知）
  *
  * 自動紀錄固定值：計畫狀態=計畫中、不填金額（毛利系統會把金額當手動營收）、
  * 備註不放「|」（/ops 會誤解析）。
@@ -30,7 +31,7 @@
 import { Client } from '@notionhq/client'
 import { createHash } from 'crypto'
 import { pushToReconGroup } from '../lineNotify'
-import { listShipmentFiles, downloadAsXlsx, type DriveFileInfo } from './drive'
+import { listShipmentFiles, downloadAsXlsx, isStillInShipmentFolder, type DriveFileInfo } from './drive'
 import { parseStoreOrderWorkbook, type ParsedWorkbook } from './parseStoreOrder'
 import { fetchBatchesLite, allocateFifo, isActiveBatch, type BatchLite, type AllocationLine } from './match'
 import { getLedgerEntries, upsertLedgerEntry, ensureRecordsSchema, type LedgerEntry } from './ledger'
@@ -247,6 +248,20 @@ async function doScan(opts: { dry?: boolean; force?: boolean; onlyFileId?: strin
           notifiedHash: notifyHash, summary: '檔案已從 Drive 消失',
         })
       }
+    }
+
+    // 卡「異常」的檔被移走 → 自動結案成「略過」（它從來沒記過帳，沒有紀錄要處理，不發通知）。
+    // 以前這段只看「已處理」，異常檔移走後帳本永遠停在異常，每日健檢天天寄同一封錯誤信。
+    // 不套 45 天限制：異常檔再舊都該結案；但要逐個問 Drive 確認真的不在資料夾裡了。
+    for (const [fileId, entry] of ledger) {
+      if (listedIds.has(fileId)) continue
+      if (entry.status !== '異常') continue
+      if (await isStillInShipmentFolder(fileId)) continue
+      await upsertLedgerEntry(entry, {
+        fileId, fileName: entry.fileName, fingerprint: entry.fingerprint,
+        fileModifiedTime: entry.fileModifiedTime, status: '略過',
+        notifiedHash: `gone:${fileId}`, summary: '異常檔已從 Drive 移走（未曾記帳，自動結案）',
+      })
     }
   }
 

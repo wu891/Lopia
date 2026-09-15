@@ -150,6 +150,40 @@ export async function listShipmentFiles(now: Date = new Date()): Promise<DriveFi
 }
 
 /**
+ * 這個檔案「還在不在」出貨單資料夾裡（根目錄或任一個月份子資料夾）。
+ *
+ * 用途（2026-09-15 踩到的坑）：卡「異常」的檔被 Colin 移走後，帳本那頁永遠停在「異常」，
+ * 每日健檢就天天寄同一封錯誤信。清單沒列到 ≠ 被移走（也可能只是躺在不掃的舊月份資料夾），
+ * 所以要逐個問 Drive 確認。
+ *
+ * 回傳：
+ *   false … 真的不在了（被丟垃圾桶／刪掉／移到資料夾外面，服務帳號看不到會 404）
+ *   true  … 還在資料夾裡，或 Drive 暫時出錯判斷不了（寧可當作還在，不亂結案）
+ */
+export async function isStillInShipmentFolder(fileId: string): Promise<boolean> {
+  const drive = getReadonlyDrive()
+  const root = shipmentFolderId()
+  try {
+    const res = await drive.files.get({ fileId, fields: 'trashed, parents', supportsAllDrives: true })
+    if (res.data.trashed) return false
+    const parents = res.data.parents ?? []
+    if (parents.includes(root)) return true
+    // 放在月份子資料夾 → 再往上看一層是不是出貨單資料夾
+    for (const p of parents) {
+      const pr = await drive.files.get({ fileId: p, fields: 'parents', supportsAllDrives: true })
+      if ((pr.data.parents ?? []).includes(root)) return true
+    }
+    return false
+  } catch (e) {
+    // googleapis 的錯誤物件：版本不同，404 可能放在 status、code（數字或字串）或 response.status
+    const err = e as { status?: number; code?: number | string; response?: { status?: number } }
+    const code = Number(err?.status ?? err?.response?.status ?? err?.code)
+    if (code === 404) return false   // 刪掉或移出分享範圍 → 服務帳號看不到
+    return true                      // 其他錯誤（網路、權限暫時問題）→ 保守當作還在
+  }
+}
+
+/**
  * 把檔案抓成 Excel 位元組。
  * - Google 原生試算表 → 用 export 轉成 xlsx（所有分頁都會在裡面）
  * - 真 xlsx → 直接下載
